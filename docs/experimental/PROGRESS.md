@@ -2,6 +2,8 @@
 
 Stable invariants: leave `main`, tag `v1.2.0`, stable release downloads and its updater untouched. Work and push only `experimental`. No DCS installation is available here; record simulator checks as outstanding.
 
+**Current verified checkpoint:** [Experimental 1.3.2, preview 3](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.2-experimental.3), source/tag `913225e27c627bc5b8d7c817746b594b49a64529`. Publication and independent public download verification are complete. Stable 1.2 is still the default release. The final section below records the evidence and remaining simulator checks; earlier sections are chronological checkpoints.
+
 ## Batch 1 — separate experimental identity
 
 Implemented separate installer AppId, name and installation directory; separate default preferences/logs, cache and missions directories; numeric experimental version 1.3.0 and planned prerelease tag `v1.3.0-experimental.1`. Default update checks refuse the stable feed. Environment overrides remain intentional developer/test controls.
@@ -101,3 +103,22 @@ An additional boundary review reproduced a scoring race: targets destroyed betwe
 The `ce67e8e` build completed publication as `v1.3.1-experimental.2` while this correction was being tested. Its published tag/assets are left intact. The corrected build has a new numeric version **1.3.2** and immutable tag **v1.3.2-experimental.3**; its Windows upgrade baseline is now the actual published 1.3.1 installer. A simple [co-op/F10 guide](FLYING-TOGETHER.md) is committed too. Continue through final CI, independent public download checks and stable preservation verification before the next handoff.
 
 Independently verified all public 1.3.1 downloads/checksums and six Windows reports, including its real upgrade from 1.3.0 and stable preservation. Final 1.3.2 packaging was then held at an ordinary source checkpoint for a kneeboard readability review. Closely packed convoy/delivery labels now use separated callouts; two layout regressions and an actual rendered kneeboard confirm readability. Windows product/file versions, project version, app version and release links now have a consistency check. Focused packaging/identity checks passed (8), as did intelligence/layout/packaging checks (26). The new release remains pending its final publication checkpoint.
+
+## Final checkpoint — corrected preview published and verified
+
+- Published [1.3.2 / experimental preview 3](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.2-experimental.3), from `913225e27c627bc5b8d7c817746b594b49a64529`. The page includes a readable changelog, the installer link, portable ZIP, checksums and six validation reports. It is explicitly a prerelease and is excluded from stable latest/update discovery.
+- [CI run 39151160526](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/actions/runs/39151160526) passed in 5m10s. Linux passed the complete **375-case** source/Lua suite and **168-mission** matrix. The runtime set includes **40 Lua 5.1 scenarios**, including the reproduced final-landing damage boundary.
+- Actual frozen and installed Windows programs each passed **73 generated/reloaded missions**, including 30 operation cases, six search cases, twelve alternate-recovery cases, 73 decoded kneeboards, standalone briefings and recipe replay. Each also rendered all six map/theme combinations, ran a real asynchronous search preview, and reloaded intelligence/recovery/withdrawal settings after restart. Their reports identify version 1.3.2 and the correct release tag.
+- Actual Windows installation checks SHA-256-verified the published 1.3.1 experimental baseline, upgraded it without `/DIR`, retained its custom installation path and preferences, and reinstalled the new preview. Stable 1.2 executable/preferences and an existing mission stayed byte-for-byte unchanged across upgrade/reinstall/uninstall. After experimental uninstall, the real stable executable passed its **43-mission** self-test again.
+- Independently downloaded the public installer (**21,991,965 bytes**), ZIP (**30,467,744 bytes**), SHA-256 list and all six reports. Both hashes matched; all **1,356 ZIP members** passed integrity checks. The ZIP contains the new final-recovery sampling code, operation Lua and experimental handout. All reports passed, including actual 1.3.1-to-1.3.2 upgrade and stable preservation.
+- Fresh public requests confirmed `/releases/latest` and its update manifest still report **1.2.0**. `main` remains `62e5dd42408b138f126655dbff9dbf78f73b03c6`; stable tag remains `04820cf9448d804c0d3ad8fff12dc15bb741783a`. Both older experimental tags and their published checksums are unchanged.
+
+The source, player guide, checkpoints and publications are saved on `experimental`; this final log commit changes documentation only. No environment configuration edit, user approval, manual GitHub publication or implementation change is pending at this checkpoint.
+
+### Next work and limits
+
+Real DCS flight testing remains outstanding. The cloud cannot verify terrain/slope clearance, actual road following or reserve combat behavior, sensor/AI behavior, multiplayer event timing, static damage thresholds or in-simulator kneeboard display. The radio search check-in is an explicit game rule, not sensor simulation. Use the [short co-op/F10 guide](FLYING-TOGETHER.md) for a simple first flight, and retain the generated mission/settings when reporting a problem.
+
+Next tuning should use actual co-op flights: check convoy movement/delivery and response pacing, search-area updates with late-joining clients, split home/alternate recoveries and withdrawal. Review safe placements on each map and include a helicopter sortie. Keep the single shared aircraft type and optional opposition controls. Campaign persistence, mixed-aircraft packages and external frameworks remain future proposals, not implemented features.
+
+For any next binary, use a new numeric version and release tag, validate source/Lua and actual Windows upgrade/coexistence, then publish deliberately with `[publish-preview]`. Ordinary source checkpoints validate without publishing; never replace existing assets/tags or merge experimental work into `main` as part of this authorization.
