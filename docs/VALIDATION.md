@@ -1,10 +1,25 @@
 # Validation and remaining checks
 
-Validated in the cloud on 2026-10-18, using Python 3.12.14, Tk 9.0, the pinned pydcs commit, pyproj 3.7.1, Pillow 11.3.0, Xvfb, and Lua 5.1.5. **DCS itself was not run.**
+Validated in the cloud and on a Windows build runner on 2026-10-18. The cloud uses Python 3.12.14, Tk 9.0, the pinned pydcs commit, pyproj 3.7.1, Pillow 11.3.0, Xvfb, and Lua 5.1.5. The released Windows app includes its own Python and Tk 8.6.15. **DCS itself was not run.**
+
+## Windows release 1.1.0
+
+[Windows and Linux CI run 39113723883](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/actions/runs/39113723883) passed for commit `80ce2a7`. The [published release](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.1.0) contains `IronAnvil-Setup-x64.exe`, `IronAnvil-Windows-x64.zip`, checksums, and validation reports.
+
+- Source regression suite: **105 passed** in the cloud, with no skips; the CI Linux job also passed the complete suite and 168-mission matrix. Windows source tests passed separately, with Lua tests assigned to the Linux job.
+- Actual frozen Windows application: **30 generated/reloaded missions** across three maps, five types, and enemy forces enabled/disabled. Confirmed the native projection database, chart image codecs/cache, friendly airport supplies, multiplayer slots, and packaged Lua resources.
+- Actual frozen GUI: opened the Tk window and rendered all three maps.
+- Installer: compiled successfully, performed a silent install into a path containing spaces, ran **30 more missions through the installed executable**, and uninstalled successfully. Both portable and installed probes ran outside the checkout with Python removed from PATH/PYTHONPATH/PYTHONHOME.
+- Independently downloaded the public installer, ZIP, and reports. Both SHA-256 hashes matched the release checksums; the ZIP passed integrity checks and contains the x64 Windows executable, complete `_internal` runtime, and player handout. All three published executable reports confirm `ok=true`, `frozen=true`, and `platform=win32`.
+- Source GUI checks exercised the real Generate button/background worker and useful DCS next-step text, checked permission-error recovery, and verified laptop-sized layout. Windows Saved Games discovery supports relocated profiles.
+
+The installer is unsigned. The Windows executable was tested on a hosted Windows runner; a Windows DCS multiplayer sortie remains a separate in-simulator check.
+
+## Initial reconstruction checks
 
 | Check | Result |
 | --- | --- |
-| `bash tools/setup_cloud.sh` | Passed twice, including dependency consistency, doctor, and the complete test suite. Final run: **96 passed, no skips**. |
+| `bash tools/setup_cloud.sh` | Passed twice for the initial reconstruction, including dependency consistency, doctor, and the complete test suite. That revision: **96 passed, no skips**. Current source results are recorded above. |
 | Input/capability tests | 62 passed, including water/invalid coordinate rejection and unsupported aircraft roles. |
 | Map data tests | 9 passed: coordinate transforms, zoom anchors, chart projections/persistence, cache behavior. |
 | GUI tests under Xvfb | 4 passed, including every mission type and independent CAP/air-defense combinations. |
