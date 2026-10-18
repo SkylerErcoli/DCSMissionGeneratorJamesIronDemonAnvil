@@ -98,6 +98,9 @@ class MissionOptions:
     aircraft: str = "FA_18C_hornet"
     mission: str = "facility"
     facility_type: str = "random"
+    operation: str = "classic"
+    pace: str = "standard"
+    enemy_response: bool = True
     clients: int = 2
     difficulty: str = "normal"
     enemy_cap: bool = True
@@ -127,6 +130,8 @@ class MissionOptions:
         choices = {
             "mission": MISSION_LABELS, "difficulty": ("easy", "normal", "hard", "extreme"),
             "facility_type": ("random", "fuel", "command", "ammunition", "factory", "radar"),
+            "operation": ("classic", "broken_relay", "supply_denial"),
+            "pace": ("compact", "standard", "extended"),
             "start": ("cold", "hot", "runway", "air"),
             "time_of_day": ("day", "dawn", "dusk", "night", "random"),
             "weather": WEATHERS, "loadout": ("auto", "default"),
@@ -138,6 +143,10 @@ class MissionOptions:
         if not isinstance(self.seed, int) or isinstance(self.seed, bool):
             raise ValueError("Seed must be an integer")
         aircraft = resolve_aircraft(self.aircraft)
+        if self.operation != "classic" and self.mission != "facility":
+            raise ValueError("Cooperative operations use the facility mission; choose Strike — facility")
+        if not isinstance(self.enemy_response, bool):
+            raise ValueError("Enemy response must be enabled or disabled")
         if self.departure_airport is not None:
             if not isinstance(self.departure_airport, str) or not self.departure_airport.strip():
                 raise ValueError("Choose a departure airfield, or use automatic selection")

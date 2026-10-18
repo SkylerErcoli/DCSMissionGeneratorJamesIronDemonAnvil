@@ -22,6 +22,8 @@ from .airfields import select_airport
 from .weather import apply_weather, WEATHER_LABELS
 from .air_support import create_support_flight, create_enemy_cap
 from .compounds import build_facility_complex
+from .operations import build_operation, choose_target, operation_briefing
+from . import APP_DATA_NAME, __version__
 
 
 PLAYER_GROUP = "IRON ANVIL CLIENTS"
@@ -154,6 +156,8 @@ def _briefing(options, theatre, home, target, label, tanker_name):
         "cap": ("Reach the marked CAP station and defeat the enemy fighters." if options.enemy_cap else
                 "Reach the marked CAP station and patrol within 25 km for five minutes."),
     }[options.mission]
+    if options.operation != "classic":
+        objective = "Follow the required and bonus goals in the operation briefing. Guards and scenery are not mandatory targets."
     lines = [f"IRON ANVIL — {theatre.label}", objective,
              f"Target / CAP station: {latlng.lat:.5f}, {latlng.lng:.5f}",
              f"Home: {home.name} — BLUE coalition, unlimited fuel and ammunition.",
@@ -190,6 +194,10 @@ def build_mission(options: MissionOptions):
     target = mapping.Point.from_latlng(mapping.LatLng(latitude, longitude), terrain)
     home = select_airport(terrain, theatre, target, aircraft, options.clients,
                           options.start, options.departure_airport)
+    if options.target_lat is None and (options.operation != "classic" or options.pace != "standard"):
+        target = choose_target(home, target, theatre, aircraft, options.pace, rng)
+        coordinates = target.latlng()
+        latitude, longitude = coordinates.lat, coordinates.lng
     _set_airport_ownership(terrain, theatre, home)
     level = DIFFICULTY[options.difficulty]
     main_task = {"cap": task.CAP, "sead": task.SEAD}.get(options.mission, task.GroundAttack)
@@ -221,11 +229,18 @@ def build_mission(options: MissionOptions):
     label = options.mission
     compound_style = None
     facility_metadata = None
+    operation_config = None
     convoy = None
     convoy_destination = None
     if options.mission == "facility":
-        target_statics, label, facility_metadata = build_facility_complex(
-            mission, red, target, rng, level, facility_type=options.facility_type)
+        if options.operation != "classic":
+            operation_config, facility_metadata = build_operation(
+                mission, red, target, home, theatre, options, rng, level)
+            label = operation_config["title"]
+            target_statics = [name for goal in operation_config["objectives"] for name in goal["statics"]]
+        else:
+            target_statics, label, facility_metadata = build_facility_complex(
+                mission, red, target, rng, level, facility_type=options.facility_type)
         compound_style = facility_metadata["style"]
         for index, site in enumerate(facility_metadata["sites"], 1):
             mission.triggers.add_triggerzone(mapping.Point(site["x"], site["z"], terrain),
@@ -278,13 +293,22 @@ def build_mission(options: MissionOptions):
     hour = {"day": 12, "dawn": 6, "dusk": 18, "night": 0}.get(options.time_of_day, rng.randrange(24))
     mission.start_time = datetime(1985 if options.map == "germany" else 2020, 6, 15, hour, 0, 0)
     resolved_weather = apply_weather(mission, options.weather, rng)
-    mission.set_sortie_text(f"Iron Anvil — {options.mission.title()} — {theatre.label}")
+    mission.set_sortie_text(f"Iron Anvil Experimental — {operation_config['title'] if operation_config else options.mission.title()} — {theatre.label}")
+    distance_km = home.position.distance_to_point(target) / 1000
+    cruise_kph = 180 if aircraft.helicopter else 650
     briefing = _briefing(options, theatre, home, target, label, tanker_name)
+    if operation_config:
+        briefing = operation_briefing(operation_config) + "\n\nFLIGHT AND SUPPORT\n\n" + briefing
     briefing += f"\n\nWeather: {WEATHER_LABELS[resolved_weather]}. Surface wind {mission.weather.wind_at_ground.speed} m/s."
+    briefing += (f"\n\nHome to main target: {distance_km:.1f} km / {distance_km / 1.852:.1f} NM. "
+                 f"Cruise-only round trip: approximately {120 * distance_km / cruise_kph:.0f} minutes. "
+                 "Excludes startup, climb, combat, weather and recovery.")
     if facility_metadata:
         briefing += (f"\n\nFacility complex: {facility_metadata['site_count']} occupied sites, "
-                     f"{facility_metadata['objective_count']} objective objects. "
-                     "Destroy the primary facility and supporting sites. F10 Target position marks each site.")
+                     f"{facility_metadata['objective_count']} objective objects. " +
+                     ("Follow the required/bonus thresholds above. " if operation_config else
+                      "Destroy the primary facility and supporting sites. ") +
+                     "F10 Target position marks each site.")
         for index, site in enumerate(facility_metadata["sites"], 1):
             briefing += f"\nSite {index} ({site['type']}): {site['latitude']:.5f}, {site['longitude']:.5f}"
     mission.set_description_text(briefing)
@@ -297,13 +321,17 @@ def build_mission(options: MissionOptions):
         "home": {"x": home.position.x, "z": home.position.y}, "base_name": home.name,
         "convoy_group": convoy.name if convoy else None,
         "convoy_destination": {"x": convoy_destination.x, "z": convoy_destination.y} if convoy_destination else None,
+        "operation": operation_config,
         "facility_sites": [{"name": f"Site {i}: {site['type']}", "x": site["x"], "z": site["z"]}
                            for i, site in enumerate(facility_metadata["sites"], 1)] if facility_metadata else [],
     }
     metadata = {"options": asdict(options), "home_airport": home.name, "home_airport_id": home.id,
                 "target_lat": latitude, "target_lon": longitude, "runtime": config,
                 "tanker": tanker_name, "compound_style": compound_style,
-                "resolved_weather": resolved_weather, "generator_version": 2,
+                "resolved_weather": resolved_weather, "generator_version": 3, "app_version": __version__,
+                "route_summary": {"one_way_km": round(distance_km, 1),
+                                  "cruise_round_trip_minutes": round(120 * distance_km / cruise_kph),
+                                  "note": "Cruise-only estimate; excludes startup, climb, combat, weather and recovery."},
                 "facility_type": facility_metadata["primary_type"] if facility_metadata else None,
                 "facility_sites": facility_metadata["sites"] if facility_metadata else [],
                 "facility_decoration_count": facility_metadata["decoration_count"] if facility_metadata else 0}
@@ -320,7 +348,8 @@ def generate(options: MissionOptions, output_path=None) -> Path:
         mission, metadata = build_mission(options)
         if output_path is None:
             directory = Path(options.output_dir).expanduser() if options.output_dir else default_output_dir()
-            output_path = directory / f"IronAnvil_{options.map}_{options.mission}_{options.seed}.miz"
+            title = options.operation if options.operation != "classic" else options.mission
+            output_path = directory / f"{APP_DATA_NAME}_{options.map}_{title}_{options.seed}.miz"
         path = Path(output_path).expanduser().resolve()
         if path.suffix.lower() != ".miz":
             path = path.with_suffix(".miz")
@@ -330,6 +359,7 @@ def generate(options: MissionOptions, output_path=None) -> Path:
             staged = Path(temporary) / "mission.miz"
             script = Path(temporary) / "ironanvil_runtime.lua"
             script.write_text(lua.dumps(metadata["runtime"], "IRON_ANVIL") + "\n" +
+                              Path(__file__).with_name("operations.lua").read_text(encoding="utf-8") + "\n" +
                               Path(__file__).with_name("runtime.lua").read_text(encoding="utf-8"), encoding="utf-8")
             resource = mission.map_resource.add_resource_file(script)
             trigger = triggers.TriggerStart(comment="Iron Anvil mission runtime")

@@ -24,6 +24,16 @@ CASES = (
     "birth_registers_late_joined_client",
     "cap_activation_retries_documented_api",
     "cap_waits_for_actual_spawn",
+    "operation_functional_threshold_and_shared_recovery",
+    "operation_bonus_delays_once_and_dispatches",
+    "operation_bonus_cancels_before_dispatch",
+    "operation_late_bonus_does_not_remove_response",
+    "operation_unseen_targets_are_not_destroyed",
+    "operation_response_retries_are_bounded",
+    "operation_staged_force_can_be_interdicted",
+    "operation_failure_keeps_partial_debrief",
+    "operation_bonus_after_main_before_recovery",
+
 )
 
 

@@ -9,6 +9,7 @@ import traceback
 from .model import LINE_UNITS, MISSION_LABELS, MissionOptions, aircraft_catalogue
 from .theatres import THEATRES
 from .weather import WEATHER_LABELS
+from .operations import OPERATION_LABELS, PACE_LABELS
 
 
 def parser():
@@ -24,6 +25,9 @@ def parser():
     gen.add_argument("--aircraft", default="FA_18C_hornet")
     gen.add_argument("--mission", choices=MISSION_LABELS, default="facility")
     gen.add_argument("--facility-type", choices=("random", "fuel", "command", "ammunition", "factory", "radar"), default="random")
+    gen.add_argument("--operation", choices=OPERATION_LABELS, default="classic")
+    gen.add_argument("--pace", choices=PACE_LABELS, default="standard")
+    gen.add_argument("--enemy-response", action=argparse.BooleanOptionalAction, default=True)
     gen.add_argument("--clients", type=int, default=2)
     gen.add_argument("--difficulty", choices=("easy", "normal", "hard", "extreme"), default="normal")
     gen.add_argument("--enemy-cap", action=argparse.BooleanOptionalAction, default=True,

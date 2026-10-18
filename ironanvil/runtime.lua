@@ -7,6 +7,7 @@
 do
     local config = IRON_ANVIL or {}
     local blue = coalition and coalition.side and coalition.side.BLUE or 2
+    local operation
     local state = {
         airborne = false,
         objective = false,
@@ -209,6 +210,10 @@ do
         end
     end
     local function status()
+        if operation then
+            operation.status()
+            if not state.objective and not state.complete then return end
+        end
         if state.complete then
             if state.result == 2 then
                 announce("Mission failed. All participating client aircraft were lost.")
@@ -366,11 +371,13 @@ do
             state.complete, state.result = true, 2
             flag("IRON_ANVIL_RESULT", 2)
             announce("Mission failed. All participating client aircraft were lost.", 30)
+            if operation then operation.debrief(state.roster, 2) end
         elseif state.objective and surviving > 0 and recovered == surviving then
             state.complete, state.result = true, 1
             flag("IRON_ANVIL_MISSION_COMPLETE")
             flag("IRON_ANVIL_RESULT", 1)
             announce("Mission complete. Every surviving client recovered at " .. tostring(config.base_name or "home base") .. ".", 30)
+            if operation then operation.debrief(state.roster, 1) end
         end
     end
     local function recover(unit, place)
@@ -381,6 +388,12 @@ do
             registerJoinedPlayers()
             checkResult()
         end
+    end
+    if config.operation and IRON_ANVIL_CREATE_OPERATION then
+        operation = IRON_ANVIL_CREATE_OPERATION(config.operation, {
+            group=group, units=units, alive=alive, announce=announce,
+            flag=flag, warn=warnOnce, complete=objectiveComplete,
+        })
     end
     local handler = {}
     function handler:onEvent(event)
@@ -436,8 +449,11 @@ do
                 startCAP()
                 startConvoy()
             end
+            if state.airborne and operation then operation.tick(now) end
             if state.airborne and not state.objective then
-                if config.mission_type == "cap" then
+                if config.operation then
+                    if not operation then warnOnce("operation_runtime", "Operation runtime missing; cannot evaluate objectives.") end
+                elseif config.mission_type == "cap" then
                     if config.enemy_cap then
                         if capDefeated() then
                             objectiveComplete()
@@ -466,6 +482,7 @@ do
     if missionCommands and missionCommands.addSubMenuForCoalition and missionCommands.addCommandForCoalition then
         local menu = missionCommands.addSubMenuForCoalition(blue, "Iron Anvil")
         missionCommands.addCommandForCoalition(blue, "Mission status", menu, status)
+        if operation then missionCommands.addCommandForCoalition(blue, "Operation status", menu, operation.status) end
         missionCommands.addCommandForCoalition(blue, "Target position / mark", menu, reportPosition)
         missionCommands.addCommandForCoalition(blue, "Target bearing / range", menu, function() vectorTo(targetPoint(), "target") end)
         missionCommands.addCommandForCoalition(blue, "Vector home", menu, function() vectorTo(config.home, tostring(config.base_name or "home base")) end)

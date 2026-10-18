@@ -65,7 +65,10 @@ local function newWorld(configuration)
         addEventHandler = function(handler) data.handler = handler end,
     }
     timer = {getTime = function() return data.now end, scheduleFunction = function(fn) data.tick = fn end}
-    function data.start() assert(loadfile(source))() end
+    function data.start()
+        assert(loadfile(source:gsub('runtime.lua$', 'operations.lua')))()
+        assert(loadfile(source))()
+    end
     function data.advance(count)
         for _ = 1, (count or 1) do
             data.now = data.now + 5
@@ -400,6 +403,120 @@ function cases.cap_waits_for_actual_spawn()
     enemy.life = 0
     data.advance()
     assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE == 1, "observed and subsequently destroyed CAP completes")
+end
+
+
+local function operationWorld(effect, responseEnabled)
+    local config=base('facility')
+    config.enemy_cap=false
+    config.operation={title='Test Operation', seed=42, objectives={
+        {id='primary', title='Fuel depot', required=true, statics={'tank1','tank2','tank3'}, threshold=2, points=300},
+        {id='bonus', title='Communications', required=false, statics={'relay'}, threshold=1, points=100, effect=effect or 'delay'},
+    }}
+    if responseEnabled~=false then config.operation.response={group='response', destination={x=5000,z=5000},
+        delay=30, bonus_delay=60, max_attempts=3, retry_interval=5} end
+    local data=newWorld(config)
+    local players=data.group('players',2,'Pilot')
+    local response=data.group('response',2)
+    for _,name in ipairs({'tank1','tank2','tank3','relay','scenery'}) do data.statics[name]=data.unit(name) end
+    data.start()
+    data.takeoff(players.all[1]);data.takeoff(players.all[2])
+    return data,players,response
+end
+
+function cases.operation_functional_threshold_and_shared_recovery()
+    local data,players=operationWorld('delay',false)
+    data.statics.tank1.life=0;data.advance()
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE)
+    data.statics.tank2.life=0;data.advance()
+    assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE==1)
+    assert(data.statics.tank3.life==100 and data.statics.scenery.life==100 and data.statics.relay.life==100)
+    data.land(players.all[1],'Home',2)
+    assert(not data.flags.IRON_ANVIL_MISSION_COMPLETE,'every surviving teammate must return')
+    data.land(players.all[2],'Home',2)
+    assert(data.flags.IRON_ANVIL_RESULT==1 and data.flags.IRON_ANVIL_SCORE==350)
+    local count=#data.messages
+    data.land(players.all[2],'Home',2)
+    assert(#data.messages==count,'debrief is sent once')
+end
+
+function cases.operation_bonus_delays_once_and_dispatches()
+    local data,_,response=operationWorld('delay')
+    assert(response.on==false,'response held at startup')
+    data.statics.tank1.life=50;data.advance() -- alarm at t=5, deadline 35
+    assert(data.flags.IRON_ANVIL_ALARM==1 and data.flags.IRON_ANVIL_RESPONSE_STATUS==1)
+    data.statics.relay.life=0;data.advance() -- deadline 95
+    assert(data.flags.IRON_ANVIL_BONUS_BONUS==1)
+    data.advance(16) -- t=90
+    assert(response.on==false,'bonus delays dispatch once by 60 seconds')
+    data.advance() -- t=95
+    assert(response.on==true and data.flags.IRON_ANVIL_RESPONSE_STATUS==2)
+    assert(#response.tasks==1 and response.tasks[1].params.route.points[2].action=='On Road')
+    data.advance(20)
+    assert(#response.tasks==1,'no endless waves or repeated dispatch')
+end
+
+function cases.operation_bonus_cancels_before_dispatch()
+    local data,_,response=operationWorld('cancel')
+    data.statics.relay.life=0;data.advance(100)
+    assert(data.flags.IRON_ANVIL_RESPONSE_STATUS==3 and response.on==false and #response.tasks==0)
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE,'bonus never substitutes for main objective')
+end
+
+function cases.operation_late_bonus_does_not_remove_response()
+    local data,_,response=operationWorld('cancel')
+    data.statics.tank1.life=75;data.advance(8)
+    assert(response.on==true)
+    data.statics.relay.life=0;data.advance(10)
+    assert(data.flags.IRON_ANVIL_BONUS_BONUS==1 and data.flags.IRON_ANVIL_RESPONSE_STATUS==2)
+    assert(response.on==true and #response.all==2,'already dispatched force remains')
+end
+
+function cases.operation_unseen_targets_are_not_destroyed()
+    local config=base('facility');config.enemy_cap=false
+    config.operation={title='Missing target test',seed=1,objectives={
+        {id='primary',title='Required',required=true,statics={'missing'},threshold=1}}}
+    local data=newWorld(config);local pilot=data.group('players',1,'Pilot').all[1]
+    data.start();data.takeoff(pilot);data.advance(10)
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE,'unobserved targets cannot count as destroyed')
+    data.statics.missing=data.unit('missing');data.advance()
+    data.statics.missing=nil;data.advance()
+    assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE==1,'previously observed removed object counts')
+end
+
+function cases.operation_response_retries_are_bounded()
+    local data,players,response=operationWorld('delay')
+    response.setTask=function() error('routing temporarily unavailable') end
+    data.statics.tank1.life=0;data.statics.tank2.life=0;data.advance(12)
+    assert(data.flags.IRON_ANVIL_RESPONSE_STATUS==5 and response.on==false)
+    assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE==1,'failed response never blocks main goal')
+    data.land(players.all[1],'Home',2);data.land(players.all[2],'Home',2)
+    assert(data.flags.IRON_ANVIL_RESULT==1)
+end
+
+function cases.operation_staged_force_can_be_interdicted()
+    local data,_,response=operationWorld('delay')
+    data.advance();response.all[1].life=0;response.all[2].life=0;data.advance()
+    assert(data.flags.IRON_ANVIL_RESPONSE_STATUS==4)
+    data.statics.tank1.life=20;data.advance(100)
+    assert(#response.tasks==0,'destroyed staged force never respawns')
+end
+
+function cases.operation_failure_keeps_partial_debrief()
+    local data,players=operationWorld('delay',false)
+    data.statics.relay.life=0;data.advance()
+    data.lose(players.all[1]);data.lose(players.all[2])
+    assert(data.flags.IRON_ANVIL_RESULT==2 and data.flags.IRON_ANVIL_SCORE==100)
+    data.menus['Operation status']()
+    assert(data.messages[#data.messages]:find('Replay seed: 42'))
+end
+
+function cases.operation_bonus_after_main_before_recovery()
+    local data,players=operationWorld('delay',false)
+    data.statics.tank1.life=0;data.statics.tank2.life=0;data.advance()
+    data.statics.relay.life=0;data.advance()
+    data.land(players.all[1],'Home',2);data.land(players.all[2],'Home',2)
+    assert(data.flags.IRON_ANVIL_RESULT==1 and data.flags.IRON_ANVIL_SCORE==450)
 end
 
 local selected = arg[2]

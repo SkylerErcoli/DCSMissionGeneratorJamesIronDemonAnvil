@@ -296,6 +296,17 @@ _BUILDERS = {"fuel": _fuel, "command": _command, "ammunition": _ammunition,
              "factory": _factory, "radar": _radar}
 
 
+def build_facility_site(mission, country, point, rng, level, *, kind, index):
+    """Build one occupied site with an explicit role and globally unique index."""
+    if kind not in _BUILDERS:
+        raise ValueError(f"Unknown site role: {kind}")
+    heading = (rng.choice((0, 90, 180, 270)) + rng.uniform(-12, 12)) % 360
+    site = _Site(mission, country, point, index, kind, heading, rng, level)
+    _BUILDERS[kind](site)
+    site.occupy()
+    return site.metadata()
+
+
 def build_facility_complex(mission, country, point, rng: random.Random, level: int,
                            *, facility_type: str = "random"):
     """Return ``(objective_static_names, primary_label, metadata)``.
@@ -319,12 +330,10 @@ def build_facility_complex(mission, country, point, rng: random.Random, level: i
     sites = []
     objectives = []
     for index, (position, site_kind) in enumerate(zip(positions, kinds), 1):
-        heading = (rng.choice((0, 90, 180, 270)) + rng.uniform(-12, 12)) % 360
-        site = _Site(mission, country, position, index, site_kind, heading, rng, level)
-        _BUILDERS[site_kind](site)
-        site.occupy()
-        objectives.extend(site.objectives)
-        sites.append(site.metadata())
+        site = build_facility_site(mission, country, position, rng, level,
+                                   kind=site_kind, index=index)
+        objectives.extend(site["objective_statics"])
+        sites.append(site)
     metadata = {
         "primary_type": kind, "style": _STYLES[kind],
         "requested_site_count": requested, "site_count": len(sites),
