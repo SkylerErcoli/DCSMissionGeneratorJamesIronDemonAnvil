@@ -413,7 +413,7 @@ local function operationWorld(effect, responseEnabled)
         {id='primary', title='Fuel depot', required=true, statics={'tank1','tank2','tank3'}, threshold=2, points=300},
         {id='bonus', title='Communications', required=false, statics={'relay'}, threshold=1, points=100, effect=effect or 'delay'},
     }}
-    if responseEnabled~=false then config.operation.response={group='response', destination={x=5000,z=5000},
+    if responseEnabled~=false then config.operation.response={group='response', destination={x=5000,z=5000}, staging={x=9000,z=10000},
         delay=30, bonus_delay=60, max_attempts=3, retry_interval=5} end
     local data=newWorld(config)
     local players=data.group('players',2,'Pilot')
@@ -517,6 +517,16 @@ function cases.operation_bonus_after_main_before_recovery()
     data.statics.relay.life=0;data.advance()
     data.land(players.all[1],'Home',2);data.land(players.all[2],'Home',2)
     assert(data.flags.IRON_ANVIL_RESULT==1 and data.flags.IRON_ANVIL_SCORE==450)
+end
+
+function cases.operation_staging_mark_is_available_to_the_team()
+    local data=operationWorld('delay')
+    data.menus['Response staging / mark']()
+    assert(data.mark.x==9000 and data.mark.z==10000)
+    assert(data.messages[#data.messages]:find('Response staging area:'))
+    local quiet=operationWorld('delay',false)
+    quiet.menus['Response staging / mark']()
+    assert(quiet.messages[#quiet.messages]:find('disabled'))
 end
 
 local selected = arg[2]

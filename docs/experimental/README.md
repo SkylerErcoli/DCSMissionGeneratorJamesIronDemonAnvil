@@ -1,10 +1,12 @@
 # Iron Anvil experimental gameplay
 
-**Status: research and design only. No experimental gameplay or installer has been released.**
+**Status: the first experimental preview is implemented in source; Windows packaging and publication are being validated.**
+
+Implemented: Broken Relay and Supply Denial, required/optional functional goals, one finite staged response with delay/cancel consequences, shared debrief, distance presets, mission kneeboards, local briefings, named presets and replay import/export. Read the [work log](PROGRESS.md) for exact checks and remaining limits.
 
 This development line starts from the existing application on the `experimental` branch. The [stable 1.2.0 download](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0), `main`, and the stable update feed remain unchanged.
 
-The goal is a good evening of co-op flying for a small group: easy setup, meaningful decisions, surprising events, and a clear ending. The recommendations below are proposals, informed by the [source research](RESEARCH.md); they are not claims about features already in Iron Anvil.
+The goal is a good evening of co-op flying for a small group: easy setup, meaningful decisions, surprising events, and a clear ending. The roadmap below mixes the initial design and later proposals, informed by the [source research](RESEARCH.md). The completed features are listed above; mixed-aircraft packages, rescue, external frameworks and campaign persistence are still future work.
 
 ## Recommended direction: a co-op operation night
 
@@ -59,7 +61,7 @@ Keep this first experiment self-contained in the generated `.miz`. It should not
 ## Rules for the experimental line
 
 - Keep commits on `experimental`; do not merge to `main`, retag 1.2.0, replace its assets, or change its release notes/update manifest as part of these experiments.
-- Before distributing an experimental executable, give it a separate application identity, installation directory, preferences directory, mission-output directory and release/update channel. The current copied application does not yet provide that separation.
+- Before distributing an experimental executable, give it a separate application identity, installation directory, preferences directory, mission-output directory and release/update channel. The experimental app now provides separate installation/data/output identities; experimental downloads are manual and never use the stable update feed.
 - Publish experimental packages explicitly as prereleases; never point the stable updater at experimental builds.
 - Make experimental behaviors opt-in and retain existing CAP/air-defense switches, protected tanker/AWACS support, friendly home-base supplies and multiplayer recovery behavior.
 - Stage finite enemy reserves at sensible locations with travel time, warnings where appropriate, active-unit limits and deterministic random choices. Do not silently increase the difficulty whenever players succeed.

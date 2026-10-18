@@ -33,6 +33,7 @@ CASES = (
     "operation_staged_force_can_be_interdicted",
     "operation_failure_keeps_partial_debrief",
     "operation_bonus_after_main_before_recovery",
+    "operation_staging_mark_is_available_to_the_team",
 
 )
 

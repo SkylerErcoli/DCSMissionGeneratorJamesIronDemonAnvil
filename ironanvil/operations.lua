@@ -210,6 +210,23 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
         service.announce(table.concat(lines, '\n'), 25)
     end
 
+    function op.markStaging()
+        if not response or not response.staging then
+            service.announce('Ground response is disabled for this operation.')
+            return
+        end
+        local position={x=response.staging.x, y=0, z=response.staging.z}
+        if land and land.getHeight then
+            local ok, height=pcall(land.getHeight, {x=position.x, y=position.z})
+            if ok and type(height)=='number' then position.y=height end
+        end
+        if trigger and trigger.action and trigger.action.markToCoalition then
+            if trigger.action.removeMark then pcall(trigger.action.removeMark,918799) end
+            pcall(trigger.action.markToCoalition,918799,'Enemy response staging area',position,2,true)
+        end
+        service.announce('Response staging area: ' .. service.coordinates(position) .. '. Response status: ' .. op.response,25)
+    end
+
     function op.debrief(roster, result)
         if op.debriefed then return end
         op.debriefed=true

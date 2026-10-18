@@ -1,6 +1,6 @@
 # First playable experiment: Operation Broken Relay
 
-**Design proposal, not implemented.** See the [research](RESEARCH.md) and [roadmap](README.md).
+**Implemented in the first experimental preview; real DCS flight acceptance remains outstanding.** See the [research](RESEARCH.md) and [roadmap](README.md).
 
 ## Player experience
 
@@ -56,4 +56,4 @@ The implementation can build on `compounds.py` for separated occupied sites, `ge
 
 After this loop works, add a finite ammunition convoy whose interception cancels one later ground reinforcement; a reconnaissance mode with approximate intelligence; and a mixed-flight option for CAP/SEAD/strike. Helicopter rescue and troop capture follow as separate experiments, with their own compatible aircraft and mission-result rules.
 
-Before distributing a binary, implement the separate experimental installation/settings/update identity described in the roadmap. The branch currently contains the stable application plus design documents; it is not an isolated experimental Windows installation yet.
+Before distributing a binary, implement the separate experimental installation/settings/update identity described in the roadmap. The experimental app now has a separate installer identity, data/cache/output directories and a dedicated prerelease link. Packaging/coexistence validation is recorded in the work log.

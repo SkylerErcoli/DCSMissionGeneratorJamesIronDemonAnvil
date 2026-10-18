@@ -392,7 +392,7 @@ do
     if config.operation and IRON_ANVIL_CREATE_OPERATION then
         operation = IRON_ANVIL_CREATE_OPERATION(config.operation, {
             group=group, units=units, alive=alive, announce=announce,
-            flag=flag, warn=warnOnce, complete=objectiveComplete,
+            flag=flag, warn=warnOnce, complete=objectiveComplete, coordinates=coordinates,
         })
     end
     local handler = {}
@@ -483,6 +483,7 @@ do
         local menu = missionCommands.addSubMenuForCoalition(blue, "Iron Anvil")
         missionCommands.addCommandForCoalition(blue, "Mission status", menu, status)
         if operation then missionCommands.addCommandForCoalition(blue, "Operation status", menu, operation.status) end
+        if operation then missionCommands.addCommandForCoalition(blue, "Response staging / mark", menu, operation.markStaging) end
         missionCommands.addCommandForCoalition(blue, "Target position / mark", menu, reportPosition)
         missionCommands.addCommandForCoalition(blue, "Target bearing / range", menu, function() vectorTo(targetPoint(), "target") end)
         missionCommands.addCommandForCoalition(blue, "Vector home", menu, function() vectorTo(config.home, tostring(config.base_name or "home base")) end)

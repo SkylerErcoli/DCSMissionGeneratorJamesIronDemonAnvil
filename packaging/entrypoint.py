@@ -156,16 +156,31 @@ def self_test() -> dict:
         for weather in WEATHER_LABELS:
             cases.append(MissionOptions(map="caucasus", mission="facility", clients=2,
                                         weather=weather, seed=42))
+        for key in THEATRES:
+            for operation in ("broken_relay", "supply_denial"):
+                for response in (False, True):
+                    cases.append(MissionOptions(map=key, operation=operation, enemy_response=response,
+                        seed=42, tanker=True, awacs=True, enemy_cap=False, air_defenses=False))
         missions = []
         weather_checks = {}
         facility_checks = []
         support_checks = 0
+        operation_checks = 0
         for index, options in enumerate(cases):
             path = generate(options, directory / f"mission-{index}.miz")
             with zipfile.ZipFile(path) as archive:
                 if archive.testzip() is not None:
                     raise RuntimeError(f"Corrupt generated mission: {path.name}")
                 metadata = json.loads(archive.read("ironanvil.json"))
+                with Image.open(BytesIO(archive.read("KNEEBOARD/IMAGES/01-IronAnvil.png"))) as kneeboard:
+                    if kneeboard.size != (1000, 1440):
+                        raise RuntimeError("Mission kneeboard has the wrong size")
+                    kneeboard.verify()
+                if b"data:image/png;base64," not in archive.read("ironanvil-briefing.html"):
+                    raise RuntimeError("Standalone briefing lacks its embedded diagram")
+                from ironanvil.recipes import read_recipe
+                if read_recipe(path) != options:
+                    raise RuntimeError("Mission settings cannot be replayed")
                 if not is_land(metadata["target_lat"], metadata["target_lon"]):
                     raise RuntimeError(f"Default target is offshore: {path.name}")
                 warehouses = lua.loads(archive.read("warehouses").decode("utf-8"))["warehouses"]
@@ -190,7 +205,7 @@ def self_test() -> dict:
                                    for unit in group["units"].values()}
                     red_vehicles = {group["name"]: group for country in saved["coalition"]["red"]["country"].values()
                                     for group in country.get("vehicle", {}).get("group", {}).values()}
-                    if len(sites) < 3 or metadata["facility_decoration_count"] < 24:
+                    if len(sites) < (3 if options.operation == "classic" else 2) or metadata["facility_decoration_count"] < 24:
                         raise RuntimeError(f"Facility does not contain three detailed sites: {path.name}")
                     if sum(unit["type"] == "Workshop A" for unit in red_statics.values()) > 1:
                         raise RuntimeError(f"Facility repeats its large factory building: {path.name}")
@@ -205,6 +220,16 @@ def self_test() -> dict:
                             raise RuntimeError(f"Facility occupants are missing from the saved mission: {path.name}")
                     facility_checks.append({"map": options.map, "site_count": len(sites),
                                             "decoration_count": metadata["facility_decoration_count"]})
+                    if options.operation != "classic":
+                        operation = metadata["runtime"]["operation"]
+                        if len(operation["objectives"]) != 2 or bool(operation.get("response")) != options.enemy_response:
+                            raise RuntimeError("Operation roles or response switch failed")
+                        primary, bonus = operation["objectives"]
+                        if not primary["required"] or bonus["required"] or primary["threshold"] > len(primary["statics"]):
+                            raise RuntimeError("Operation cannot complete with its generated objects")
+                        if ("OPERATION RESPONSE" in red_vehicles) != options.enemy_response:
+                            raise RuntimeError("Saved response force does not match the selected option")
+                        operation_checks += 1
                 blue_planes = {group["name"]: group for country in saved["coalition"]["blue"]["country"].values()
                                for group in country.get("plane", {}).get("group", {}).values()}
                 for name, enabled, role in (("TEXACO", options.tanker, "Tanker"), ("OVERLORD", options.awacs, "AWACS")):
@@ -257,7 +282,9 @@ def self_test() -> dict:
                              "departure": metadata["home_airport"]})
         checks.append(f"Generated and reloaded {len(missions)} missions: all maps/types/opposition, selected airfields and every weather")
         checks.append("Actual serialized rain, thunderstorm, fog and winds verified and reloaded")
-        checks.append("Facility strikes contain three occupied decorated sites and at most one large factory")
+        checks.append("Classic facilities retain three occupied sites; cooperative operations contain required and optional sites")
+        checks.append("All missions contain decoded kneeboards, standalone briefings and replayable settings")
+        checks.append("Twelve cooperative operations cover both profiles, all maps and the response switch")
         checks.append("Support aircraft have immediate roles/protection and complete three-point racetrack routes")
 
     # These destinations are deliberately outside PyInstaller's read-only bundle.
@@ -266,7 +293,8 @@ def self_test() -> dict:
         for output in (default_output_dir(), cache_directory(), log_directory()):
             if output.resolve().is_relative_to(bundle):
                 raise RuntimeError(f"Application data would be written into its installation: {output}")
-    return {"checks": checks, "missions": missions, "mission_count": len(missions),
+    return {"channel": "experimental", "checks": checks, "missions": missions, "mission_count": len(missions),
+            "operation_checks": operation_checks, "kneeboard_checks": len(missions),
             "airport_counts": airport_counts, "weather_checks": weather_checks,
             "facility_checks": facility_checks, "support_checks": support_checks,
             "aircraft_count": len(catalogue), "pyproj_version": pyproj.__version__}
@@ -278,6 +306,7 @@ def smoke_gui() -> dict:
     from ironanvil.gui import Application, THEME_PALETTES
     from ironanvil.theatres import THEATRES
     from ironanvil.weather import WEATHER_LABELS
+    from ironanvil.operations import OPERATION_LABELS, PACE_LABELS
 
     original_data_dir = os.environ.get("IRONANVIL_DATA_DIR")
     with tempfile.TemporaryDirectory(prefix="IronAnvil-gui-test-") as temporary:
@@ -312,6 +341,13 @@ def smoke_gui() -> dict:
                     raise RuntimeError(f"Weather selector is missing {key}")
             app.departure_var.set("Stendal")
             app.weather_var.set(WEATHER_LABELS["rain"])
+            for operation in ("broken_relay", "supply_denial"):
+                app.operation_var.set(OPERATION_LABELS[operation])
+                app._operation_changed()
+                if app.collect_options().operation != operation:
+                    raise RuntimeError("Desktop cooperative operation selector failed")
+            app.pace_var.set(PACE_LABELS["compact"])
+            app.response_var.set(False)
             app._save_settings()
             app.after(750, app.quit)
             app.mainloop()
@@ -323,7 +359,9 @@ def smoke_gui() -> dict:
             app.report_callback_exception = callback_error
             app.update()
             if (app.theme_var.get() != "light" or app.departure_var.get() != "Stendal"
-                    or app.weather_var.get() != WEATHER_LABELS["rain"]):
+                    or app.weather_var.get() != WEATHER_LABELS["rain"]
+                    or app.collect_options().operation != "supply_denial"
+                    or app.collect_options().pace != "compact" or app.collect_options().enemy_response):
                 raise RuntimeError("Preferences did not survive a desktop restart")
             if errors:
                 raise RuntimeError("Tk callback failed after restart: " + errors[0])

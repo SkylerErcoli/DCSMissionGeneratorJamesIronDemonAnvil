@@ -32,3 +32,11 @@ Desktop now defaults to Broken Relay, exposes both operations and target-distanc
 Validation: complete source suite **318 passed, no skips**, under Xvfb/Lua 5.1. Actual operation archives reload on all maps; recipe import is bounded and never executes mission scripts. The desktop was visually checked at 1300x700. The generated kneeboard/briefing is included in the mission, so players need no extra software. Real DCS flight and kneeboard display remain unverified.
 
 Next: experimental Windows packaging/coexistence and a prerelease. Do not run the old stable build script on this branch.
+
+## Batch 4 — experimental Windows prerelease pipeline
+
+Added a dedicated Windows build/coexistence script and `experimental-release.yml`. The pipeline checks the source and Lua, generates the classic 168-mission matrix, builds and probes the experimental portable/installed programs, installs the verified published 1.2.0 sibling, checks stable executable/settings and mission preservation, reinstalls the experimental copy without a directory override, removes it, and actually runs the stable executable afterward. Publication is explicitly a prerelease with `--latest=false`, its own asset names and tag. The stable build script now refuses experimental source.
+
+Preflight: complete source suite **319 passed**, followed by the expanded **25-case Lua suite** (one additional staging-mark case). Source executable probe passed **55 generated/reloaded missions**, including **12 operation cases**, **55 decoded kneeboards**, local briefing and replay checks. Desktop probe covers both themes/all maps and persistent operation/distance/response settings. Workflow YAML and documentation links were checked. These are source checks; Windows packaging/coexistence results are pending the new workflow run.
+
+Resume instructions: inspect the newest Experimental co-op preview workflow after pushing this batch. If it fails, inspect its public summary, fix and commit on `experimental`; never modify `main` or replace a published tag. After success, download the experimental installer/ZIP/checksums and all six JSON reports, verify hashes and ZIP integrity, check the stable latest manifest still reports 1.2.0, and record exact URLs/results here. Real DCS playtesting remains outstanding.

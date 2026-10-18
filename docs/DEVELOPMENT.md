@@ -55,21 +55,21 @@ Build on **64-bit Windows** with **64-bit CPython 3.12**, including Tcl/Tk, and 
 From PowerShell in the repository folder, run the supported build entry point:
 
 ```powershell
-.\tools\build_windows.ps1
+.\tools\build_experimental_windows.ps1
 ```
 
-The script installs the pinned build dependencies, bundles the app with PyInstaller, includes the player handout, and compiles the per-user Inno Setup installer. It runs the frozen app's mission and GUI checks outside the checkout with build Python removed from `PATH`. It then downloads and verifies the published 1.1.0 installer, installs it into a custom folder containing spaces, and upgrades that installation with the new installer. The upgrade must retain the folder, saved preferences, and generated mission bytes. Installed-app checks and uninstall follow. Reports go to `test-results`.
+On the experimental branch, this script builds the separate experimental installer, exercises 55 frozen and 55 installed missions, and tests coexistence alongside the verified published stable 1.2.0 app. Experimental reinstall and uninstall must retain stable executable/settings and existing mission bytes. The stable executable is actually run afterward. Reports go to `test-results`. Use a clean Windows runner; the script refuses an existing real installation. The old stable build script refuses experimental source.
 
 Successful builds produce:
 
 | File | Purpose |
 | --- | --- |
-| `dist/IronAnvil-Setup-x64.exe` | Recommended download for players: per-user setup, Start menu entry, optional desktop shortcut, and uninstaller. |
-| `dist/IronAnvil-Windows-x64.zip` | Portable alternative containing the complete app folder. Its `_internal` directory must stay beside the executable. |
-| `dist/update.json` | Version and exact installer SHA-256 used by the desktop update checker. |
-| `dist/SHA256SUMS.txt` | SHA-256 checksums for both downloads and the updater manifest. |
+| `dist/IronAnvil-Experimental-Setup-x64.exe` | Recommended download for players: per-user setup, Start menu entry, optional desktop shortcut, and uninstaller. |
+| `dist/IronAnvil-Experimental-Windows-x64.zip` | Portable alternative containing the complete app folder. Its `_internal` directory must stay beside the executable. |
+| Experimental update channel | Manual prerelease downloads; this build never consumes the stable update feed. |
+| `dist/SHA256SUMS.txt` | SHA-256 checksums for the experimental installer and ZIP. |
 
-The [Windows release workflow](../.github/workflows/windows-release.yml) runs the Windows build and Linux/Lua regression checks before publishing versioned release assets. Building a package does not establish that its checks passed or that a release has been published; inspect the workflow's results and release assets. DCS itself is not exercised by these build checks.
+The [experimental release workflow](../.github/workflows/experimental-release.yml) runs the Windows build and Linux/Lua regression checks before publishing versioned release assets. Building a package does not establish that its checks passed or that a release has been published; inspect the workflow's results and release assets. DCS itself is not exercised by these build checks.
 
 ## Mission implementation notes
 

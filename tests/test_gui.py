@@ -355,3 +355,14 @@ def test_named_preset_reloads_operation_and_protects_other_preferences(app,monke
     assert app.collect_options().seed==123 and app.collect_options().operation=='supply_denial'
     assert load_preferences()['unknown_future_setting']=='keep'
     assert 'Friday squadron' in app.preset_combo['values']
+
+
+def test_open_briefing_uses_generated_local_document(app,tmp_path,monkeypatch):
+    import zipfile
+    from ironanvil import gui
+    path=tmp_path/'My mission.miz'
+    with zipfile.ZipFile(path,'w') as archive:archive.writestr('ironanvil-briefing.html','<html>My local briefing</html>')
+    app._last_output=path
+    opened=[];monkeypatch.setattr(gui.webbrowser,'open',opened.append)
+    app._open_briefing()
+    assert len(opened)==1 and opened[0].startswith('file:') and opened[0].endswith('My%20mission.html')

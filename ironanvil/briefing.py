@@ -4,7 +4,6 @@ from __future__ import annotations
 import base64
 from html import escape
 from io import BytesIO
-import math
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -29,9 +28,11 @@ def summary_lines(metadata):
     if options['tanker'] and metadata['tanker']:lines.append('Tanker: 251.5 MHz AM | TACAN 11Y TEX')
     if options['awacs']:lines.append('AWACS: 252 MHz AM')
     if operation:
-        for goal in operation['objectives']:
+        for index, goal in enumerate(operation['objectives']):
+            site=metadata['facility_sites'][index]
             lines.append(('REQUIRED: ' if goal['required'] else 'BONUS: ')+goal['title']+
-                         f" - disable {goal['threshold']} of {len(goal['statics'])} objective structures.")
+                         f" - disable {goal['threshold']} of {len(goal['statics'])} objective structures. "
+                         f"{site['latitude']:.5f}, {site['longitude']:.5f}")
         if operation.get('response'):
             lines.append('One staged ground response; first objective damage raises the alarm.')
             lines.append('Bonus before dispatch '+('delays response by six minutes.' if operation['id']=='broken_relay' else 'cancels the ground response.'))

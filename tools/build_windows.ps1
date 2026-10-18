@@ -13,6 +13,8 @@ Push-Location $Repository
 try {
     & $Python -c "import struct, sys; assert sys.version_info[:2] == (3, 12), 'Use Python 3.12'; assert struct.calcsize('P') == 8, 'Use 64-bit Python'"
     if ($LASTEXITCODE -ne 0) { throw "A 64-bit CPython 3.12 build environment is required." }
+    & $Python -c "from ironanvil import EXPERIMENTAL; assert not EXPERIMENTAL, 'Use tools/build_experimental_windows.ps1 on the experimental branch'"
+    if ($LASTEXITCODE -ne 0) { throw "Refusing to use the stable upgrade script for an experimental build." }
     if (-not $SkipInstall) {
         & $Python -m pip install --disable-pip-version-check -r requirements-build.txt
         if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed." }
