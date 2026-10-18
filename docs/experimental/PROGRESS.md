@@ -2,7 +2,7 @@
 
 Stable invariants: leave `main`, tag `v1.2.0`, stable release downloads and its updater untouched. Work and push only `experimental`. No DCS installation is available here; record simulator checks as outstanding.
 
-**Current verified checkpoint:** [Experimental 1.4.0, preview 6](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.0-experimental.6), source/tag `341a13b0394ce97537ed9c0c141433385eef84a3`. Single-file Windows delivery, procedural geography, offline relief, native portable checks and independent public downloads are verified. Stable 1.2 remains the default release. The final section records current evidence; earlier sections are chronological checkpoints.
+**Current verified checkpoint:** [Experimental 1.4.1, preview 7](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.1-experimental.7), source/tag `4c4b723be80f5c6499043bf4d0d6fe46ef3a8348`. Fixes the DCS-reported missing route time locks on tanker, AWACS and late-activated CAP. Native portable checks and independent public downloads are verified; 441 source tests and 25 native generated missions / 71 aircraft timing checks pass. Stable 1.2 remains the default release. The final section records current evidence; earlier sections are chronological checkpoints.
 
 ## Batch 1 — separate experimental identity
 
@@ -221,3 +221,13 @@ The helper now locks the first waypoint at ETA zero and leaves later legs speed-
 Local preflight: **441 tests passed**, with Xvfb/Lua 5.1. The source executable probe passes **25 generated missions / 71 plane and helicopter routes**, including first-point locks for late activation. A separate repaired copy of the uploaded mission changes exactly three `ETA_locked` booleans; every other parsed mission field and all nine other archive members are unchanged. ZIP integrity, Lua 5.1 compilation and pydcs reload pass. No attached Lua is executed.
 
 Publishing a new immutable **v1.4.1-experimental.7** portable EXE. Native Windows and independent public-download results will be recorded below after completion. Existing `.miz` files require regeneration or a separate repair; replacing the EXE cannot modify them. Real DCS launch/flight remains unverified here. Stable 1.2 and all seven prior releases remain protected.
+
+### 1.4.1 published and independently verified
+
+- [Release / changelog / portable EXE](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.1-experimental.7), immutable source/tag `4c4b723be80f5c6499043bf4d0d6fe46ef3a8348`.
+- [CI run 39168831494](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/actions/runs/39168831494) completed successfully: source/Lua, native Windows portable build and publication. Full source suite: **441 passed**. The actual compiled EXE generated/reloaded **25 missions** and verified **71 plane/helicopter routes**, including locked first waypoints for late-activated CAP; all 36 support-flight checks pass.
+- Independently downloaded all six public assets. The **44,336,385-byte** single-file EXE matches its SHA-256 manifest, is AMD64/Python 3.12, has version 1.4.1 and contains **1,385 archive entries**, including all 12 offline geography PNGs and the Lua controller. All four native reports pass; the Windows app renders six map/theme combinations and retains saved hot-start/seed preferences across EXE replacement. Read-only app directory, no Python on PATH, paths with spaces and old-mission preservation checks pass.
+- Stable latest and actual update manifest remain **1.2.0**. All **seven** earlier release checksum manifests and all earlier tag refs / stable `main` match their baselines. No old assets, tags or stable code were changed.
+- The user's repaired mission is a separate local artifact, not published to the public repository. Only the three first-waypoint `ETA_locked` booleans changed; its original runtime, layouts, aircraft settings, recipe, navigation and briefing files are preserved. The local verification records hashes, semantic comparison, ZIP integrity, Lua 5.1 compilation and pydcs reload. Existing EXE replacements do not repair older missions automatically.
+
+Ready for the user's DCS retry. Neither the compiled-program checks nor the mission repair are represented as a real simulator flight test. No additional setup, installer or publication step is pending.

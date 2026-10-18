@@ -1,6 +1,6 @@
 # Original request audit
 
-Reviewed against the supplied [friend/Claude transcript](../claudechatjames.txt), [original single-mission README](../original-README.md), later direct requests, source, and automated tests. Status is for published experimental 1.4.0; native Windows portable checks and independent public downloads passed. **Implemented does not mean flown successfully in DCS.**
+Reviewed against the supplied [friend/Claude transcript](../claudechatjames.txt), [original single-mission README](../original-README.md), later direct requests, source, and automated tests. Status is for published experimental 1.4.1; native Windows portable checks and independent public downloads passed. The reported DCS route-time save errors are corrected; simulator launch confirmation is still outstanding. **Implemented does not mean flown successfully in DCS.**
 
 The transcript distinguishes the friend's requests from Claude's descriptions of what it claimed to build. It ends mid-response, and the actual earlier application source/archive was absent. We reconstructed the single-mission scope authorized by the user. This checklist does not adopt historical AI suggestions as new requirements.
 
@@ -17,7 +17,7 @@ The transcript distinguishes the friend's requests from Claude's descriptions of
 | Map selection/zoom and readable target placement | Implemented with imagery limit | Zoom/pan, bundled offline shaded relief/roads, optional online public basemap, preview and optional imported georeferenced chart. Actual DCS map imagery is not bundled. |
 | All airfields on Caucasus, Syria and Cold War Germany | Implemented | All 472 catalogue entries. Aircraft/runway/parking compatibility still applies; explicit invalid choices are explained. |
 | CAP and AA switches for every mission | Implemented | Archive/runtime checks; actual CAP activation and encounters require DCS flight feedback. |
-| Tanker/AWACS orbits and enemy protection | Implemented | Immediate roles, complete racetracks, AI invisibility/immortality; serialized tests. New geography keeps support on the friendly side and inside planner bounds. |
+| Tanker/AWACS orbits and enemy protection | Implemented; reported route-time error fixed | Immediate roles, complete racetracks, AI invisibility/immortality; serialized tests. Version 1.4.1 restores the required first-waypoint ETA locks for support and CAP. The native EXE checks 71 saved aircraft routes; actual DCS launch/flight remains to be confirmed. Geography keeps support on the friendly side and inside planner bounds. |
 | Supplied friendly departure and alternate | Implemented | BLUE ownership, ammunition/fuel, alternate recovery and warehouse checks. |
 | Sandbags and staggered fortified lines | Implemented | Sandbag objects, staggered/jittered units; line tests and AA filtering. |
 | Dark mode, weather choices and simple defaults | Implemented | Theme/UI/restart tests, nine weather choices, cold starts, optional detailed controls. |
