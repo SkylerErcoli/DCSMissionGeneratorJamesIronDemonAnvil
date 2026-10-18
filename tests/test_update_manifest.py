@@ -23,6 +23,8 @@ def test_exact_installer_checksum_and_immutable_version(manifest_writer, tmp_pat
     destination = tmp_path / "assets/update.json"
     actual = manifest_writer.write_manifest(tmp_path, installer, destination)
     assert json.loads(destination.read_text()) == actual
+    # The release publisher compares the Windows result with Linux byte for byte.
+    assert destination.read_bytes() == (json.dumps(actual, indent=2) + "\n").encode("utf-8")
     assert actual == {
         "version": "1.2.0", "tag": "v1.2.0", "installer": installer.name,
         "sha256": hashlib.sha256(installer.read_bytes()).hexdigest(),

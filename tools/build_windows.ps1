@@ -196,7 +196,8 @@ try {
         $Hash = (Get-FileHash $Download -Algorithm SHA256).Hash.ToLowerInvariant()
         "$Hash  $(Split-Path -Leaf $Download)"
     }
-    $ChecksumLines | Set-Content "dist/SHA256SUMS.txt" -Encoding ascii
+    # GNU sha256sum consumes this on Linux before publication; use LF everywhere.
+    [System.IO.File]::WriteAllText((Join-Path $Repository "dist/SHA256SUMS.txt"), (($ChecksumLines -join "`n") + "`n"), [System.Text.Encoding]::ASCII)
     Write-Host "Ready to share: $Installer"
     Write-Host "Portable alternative: $Archive"
 }

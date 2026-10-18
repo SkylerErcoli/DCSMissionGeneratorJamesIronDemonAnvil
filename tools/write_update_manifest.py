@@ -25,7 +25,8 @@ def write_manifest(repository: Path, installer: Path, destination: Path) -> dict
     metadata = {"version": version, "tag": f"v{version}", "installer": INSTALLER,
                 "sha256": checksum, "release_url": f"{REPOSITORY}/releases/tag/v{version}"}
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    # The Windows builder and Linux publisher must produce identical bytes.
+    destination.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8", newline="\n")
     return metadata
 
 
