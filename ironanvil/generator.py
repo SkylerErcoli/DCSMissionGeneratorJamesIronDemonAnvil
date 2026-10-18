@@ -320,7 +320,7 @@ def build_mission(options: MissionOptions):
     if operation_config:
         briefing = operation_briefing(operation_config) + "\n\nFLIGHT AND SUPPORT\n\n" + briefing
     briefing += f"\n\nWeather: {WEATHER_LABELS[resolved_weather]}. Surface wind {mission.weather.wind_at_ground.speed} m/s."
-    briefing += (f"\n\nHome to main target: {distance_km:.1f} km / {distance_km / 1.852:.1f} NM. "
+    briefing += (f"\n\nHome to {'search area' if intelligence else 'main target'}: {distance_km:.1f} km / {distance_km / 1.852:.1f} NM. "
                  f"Cruise-only round trip: approximately {120 * distance_km / cruise_kph:.0f} minutes. "
                  "Excludes startup, climb, combat, weather and recovery.")
     if alternate:

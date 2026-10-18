@@ -56,6 +56,32 @@ def summary_lines(metadata):
     return lines
 
 
+def diagram_label_boxes(markers,sizes,bounds,protected=()):
+    """Place short schematic callouts without covering nearby labels or dots."""
+    left_edge,top_edge,right_edge,bottom_edge=bounds
+    occupied=list(protected)+[(x-9,y-9,x+9,y+9) for x,y in markers]
+    boxes=[]
+    def overlap(box,other):
+        return box[0]<other[2]+4 and box[2]>other[0]-4 and box[1]<other[3]+4 and box[3]>other[1]-4
+    for (x,y),(width,height) in zip(markers,sizes):
+        candidates=[]
+        for row in range(12):
+            gap=12+row*(height+9)
+            for left in (x+13,x-width-13):
+                for top in (y-gap-height,y+gap):
+                    left=max(left_edge,min(right_edge-width,left))
+                    top=max(top_edge,min(bottom_edge-height,top))
+                    box=(left,top,left+width,top+height)
+                    score=sum(overlap(box,other) for other in occupied)
+                    candidates.append((score,box))
+                    if not score:break
+                if candidates[-1][0]==0:break
+            if candidates[-1][0]==0:break
+        _,box=min(candidates,key=lambda candidate:candidate[0])
+        boxes.append(box);occupied.append(box)
+    return boxes
+
+
 def kneeboard_png(metadata):
     image=Image.new('RGB',(1000,1440),'#f3f1e8');draw=ImageDraw.Draw(image)
     font=ImageFont.load_default(size=23);small=ImageFont.load_default(size=20);heading=ImageFont.load_default(size=34)
@@ -94,10 +120,17 @@ def kneeboard_png(metadata):
         x,z=project(target);radius=metadata['intelligence']['radius']*scale
         draw.ellipse((x-radius,z-radius,x+radius,z+radius),outline='#aa790b',width=3)
     draw.text((52,top+14),'ROUTE SCHEMATIC - terrain and obstacles not shown',fill='#41575d',font=small)
-    for index,(label,point,color) in enumerate(points):
-        x,z=project(point);draw.ellipse((x-7,z-7,x+7,z+7),fill=color)
-        label_x=min(max(x+12,45),945-small.getlength(label))
-        draw.text((label_x,z+10 if index%2 else z-28),label,font=small,fill=color)
+    markers=[project(point) for _,point,_ in points]
+    sizes=[draw.textbbox((0,0),label,font=small) for label,_,_ in points]
+    boxes=diagram_label_boxes(markers,[(box[2]-box[0],box[3]-box[1]) for box in sizes],
+        (45,top+51,955,bottom-8),protected=[(850,top+43,940,top+116)])
+    for (x,z),(_,_,color) in zip(markers,points):
+        draw.ellipse((x-7,z-7,x+7,z+7),fill=color)
+    for (label,point,color),(x,z),box,size in zip(points,markers,boxes,sizes):
+        end_x=max(box[0],min(box[2],x));end_z=max(box[1],min(box[3],z))
+        draw.line((x,z,end_x,end_z),fill=color,width=1)
+        draw.rectangle(box,fill='#e0e6e5')
+        draw.text((box[0]-size[0],box[1]-size[1]),label,font=small,fill=color)
     draw.text((860,top+43),'Grid N',font=small,fill='#41575d')
     draw.line((895,top+108,895,top+75),fill='#41575d',width=3)
     draw.polygon([(895,top+68),(888,top+80),(902,top+80)],fill='#41575d')
