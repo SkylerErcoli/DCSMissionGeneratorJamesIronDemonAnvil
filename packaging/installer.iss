@@ -1,5 +1,5 @@
 ; Build with Inno Setup 6.3 or newer:
-; ISCC.exe /DAppVersion=1.1.0 packaging\installer.iss
+; ISCC.exe /DAppVersion=1.3.1 packaging\installer.iss
 ; SourcePath is the directory of this script, independent of the caller's CWD.
 #ifndef AppVersion
   #error AppVersion must be supplied using /DAppVersion=major.minor.patch

@@ -1,36 +1,46 @@
-IRON ANVIL EXPERIMENTAL 1.3 - FIRST CO-OP PREVIEW
+IRON ANVIL EXPERIMENTAL 1.3.1 - CONVOYS, RECOVERY AND INTELLIGENCE
 
-This is the experimental app. Stable Iron Anvil 1.2 stays installed separately.
+Stable Iron Anvil 1.2 stays installed separately.
 No Python, terminal, extra DCS scripts or extra aircraft/map modules are needed.
 
-1. If you downloaded the ZIP, choose Extract All and keep the whole folder together.
-   Double-click IronAnvil.exe. The installer instead creates an Iron Anvil
-   Experimental Start menu entry and an optional desktop shortcut.
+1. Run the experimental installer, then open Iron Anvil Experimental from Start.
+   Already have the first preview? Run this installer over it to update in place.
+   For the ZIP instead, choose Extract All and keep the entire folder together.
 2. Choose the DCS map and aircraft your group already owns, and 1-4 pilots.
-3. Mission tab: choose Broken Relay, Supply Denial, or Classic single mission.
-   Broken Relay: destroy 2 of 3 fuel tanks; disabling one command structure first
-   delays the staged ground response by six minutes.
-   Supply Denial: disable one ammunition structure; disabling one bonus fuel tank
-   before dispatch cancels the ground response.
-4. Leave the target automatic for the selected distance, or pin it on the map.
-   CAP and air-defense switches still work independently. Ground response is optional.
-5. Generate the mission. Mission briefing opens objectives, radios, distance and
-   a route schematic. The same information is in the mission's DCS kneeboard.
-6. Host the .miz in DCS. All players share the objectives and use the same selected
-   aircraft type. Complete the required goal and bring all surviving teammates home.
-   F10 > Iron Anvil includes operation status and response staging marks.
+3. Mission tab: choose Broken Relay, Supply Denial, Rolling Thunder, or Classic.
+   Broken Relay: destroy 2 of 3 fuel tanks. A bonus command structure delays the
+   ground response by six minutes if destroyed before dispatch.
+   Supply Denial: disable an ammunition structure. A bonus fuel tank cancels
+   the ground response if destroyed before dispatch.
+   Rolling Thunder: stop 2 of 3 moving supply trucks. Stop them before delivery
+   for extra points; delivery accelerates a still-preparing response. Bonus fuel
+   support can cancel the response before dispatch. Escorts are not required kills.
+4. Leave targets automatic for the selected distance or pin one on the map.
+   CAP, air defenses and the finite ground response have independent switches.
+   Optional search intelligence gives an approximate area: keep a teammate
+   airborne inside it for 45 continuous seconds, then use F10 Recon check-in.
+   This is a radio-intelligence rule, not automatic sensor recognition.
+5. Preview mission on map shows the briefed plan and selects a variation number.
+   Generate uses that same plan. Changing settings clears it. Mission briefing
+   opens objectives, radios and a schematic. A matching DCS kneeboard is included.
+6. Host the .miz in DCS. Only the host needs the generator; friends need the
+   selected DCS modules. All pilots can fly the same aircraft type.
+7. Complete the main objective and recover every surviving participating pilot.
+   Flight tab can approve a friendly alternate as well as home. F10 gives vectors.
+   If things go badly, agree over comms and use F10 > Iron Anvil > Team withdrawal:
+   Propose, then Confirm within 30 seconds; any teammate can cancel the proposal.
+   Enemies remain active. Recover everyone safely for the partial debrief.
 
-Squadron presets and exported settings make favorite setups easy to reuse.
-Repeat last mission loads its settings and seed. Use a new variation number for
+Save named squadron presets or export settings to share a favorite setup.
+Repeat last mission loads its settings and seed. Change the variation number for
 another layout. Importing a friend's settings keeps your own output folder.
 
 Experimental settings and missions are separate from stable Iron Anvil.
 Experimental downloads opens the dedicated prerelease, not the stable updater.
-Run a newer experimental installer over this copy to update it in place.
 
 Automated checks do not replace a flight in DCS. Check new missions in the Mission
 Editor before your first group sortie. Terrain/road AI, object damage behavior and
 in-simulator kneeboard display still need real DCS playtesting.
 
 Stable 1.2: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0
-Experimental: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.0-experimental.1
+Experimental: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.1-experimental.2

@@ -127,13 +127,13 @@ def operation_briefing(operation):
         kind = 'supply trucks' if objective.get('units') else 'objective structures'
         lines.append(f"{role}: {objective['title']} — disable {objective['threshold']} of {total} {kind}. Guards and scenery do not count.")
     if operation.get('convoy'):
-        lines.extend(['The supply convoy departs when a client is airborne. F10 target position follows the live convoy.',
+        lines.extend(['The supply convoy departs when a client is airborne. Once intelligence is confirmed, F10 target position follows the live convoy.',
                       'Stop two supply trucks before delivery for 150 extra shared points. Escorts are not mandatory targets.',
                       'Delivery does not fail the mission, but a surviving convoy can accelerate a still-preparing response to one minute.'])
     response = operation.get('response')
     if response:
         lines.extend([
-            f"The first damage to either site raises the alarm. One finite ground response can dispatch after {response['delay']} seconds, then must travel to the main site.",
+            f"The first damage to a required or bonus objective raises the alarm. One finite ground response can dispatch after {response['delay']} seconds, then must travel to " + ('the convoy delivery area.' if operation.get('convoy') else 'the main site.'),
             ('Disable communications before dispatch to add six minutes to the response delay.'
              if operation['id'] == 'broken_relay' else
              'Disable the bonus fuel site before dispatch to cancel the response. A force already dispatched will not disappear.'),
@@ -141,7 +141,7 @@ def operation_briefing(operation):
         ])
     else:
         lines.append('Ground response is disabled. The optional site still earns a bonus.')
-    lines.extend(['After the required objective is disabled, return to home base. You may complete the bonus before recovering.',
+    lines.extend(['After the required objective is disabled, recover at an approved base. You may complete the bonus before recovering.',
                   'F10 > Iron Anvil > Operation status shows individual goals and the response state.',
                   'Main objective: 300 points; bonus: 100; each surviving client recovered: 25. Score is shared, not a kill contest.',
                   f"Replay seed: {operation['seed']}."])

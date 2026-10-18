@@ -18,7 +18,7 @@ py -3 -m ironanvil
 
 The pinned GitHub pydcs revision includes Cold War Germany; the PyPI release with the same version number does not. If an older pydcs installation takes precedence, run **`fix_pydcs.bat`**, then **`doctor.bat`**. Use the same Python for installation and launch. `run_gui.bat` retains console errors; the `.pyw` launcher displays errors and writes `gui_error.log`.
 
-Generated missions default to `Saved Games\DCS\Missions\IronAnvil`, or an existing `DCS.openbeta` folder. The GUI output directory is configurable.
+Generated missions default to `Saved Games\DCS\Missions\IronAnvilExperimental` on this branch, or an existing `DCS.openbeta` folder. The GUI output directory is configurable.
 
 ## Optional command-line interface
 
@@ -30,7 +30,7 @@ py -3 -m ironanvil generate --map germany --mission facility --target 52.55 11.4
 py -3 -m ironanvil generate --map syria --mission facility --facility-type fuel --weather rain --departure-airport Incirlik
 ```
 
-`generate --help` lists all options; `list --json` prints a machine-readable catalogue. Linux output defaults to `~/IronAnvil/Missions`; `--output-dir` overrides it.
+`generate --help` lists all options; `list --json` prints a machine-readable catalogue. Linux output defaults to `~/IronAnvilExperimental/Missions`; `--output-dir` overrides it.
 
 ## Development and cloud environment
 
@@ -58,7 +58,7 @@ From PowerShell in the repository folder, run the supported build entry point:
 .\tools\build_experimental_windows.ps1
 ```
 
-On the experimental branch, this script builds the separate experimental installer, exercises 55 frozen and 55 installed missions, and tests coexistence alongside the verified published stable 1.2.0 app. Experimental reinstall and uninstall must retain stable executable/settings and existing mission bytes. The stable executable is actually run afterward. Reports go to `test-results`. Use a clean Windows runner; the script refuses an existing real installation. The old stable build script refuses experimental source.
+On the experimental branch, this script builds the separate experimental installer, exercises 73 frozen and 73 installed missions (30 operation, six search and twelve alternate-recovery cases), and tests coexistence alongside the verified published stable 1.2.0 app. It also installs the verified published first experimental preview and upgrades it to the new build without a directory override. Experimental reinstall and uninstall must retain stable executable/settings and existing mission bytes. The stable executable is actually run afterward. Reports go to `test-results`. Use a clean Windows runner; the script refuses an existing real installation. The old stable build script refuses experimental source.
 
 Successful builds produce:
 
@@ -69,7 +69,7 @@ Successful builds produce:
 | Experimental update channel | Manual prerelease downloads; this build never consumes the stable update feed. |
 | `dist/SHA256SUMS.txt` | SHA-256 checksums for the experimental installer and ZIP. |
 
-The [experimental release workflow](../.github/workflows/experimental-release.yml) runs the Windows build and Linux/Lua regression checks before publishing versioned release assets. Building a package does not establish that its checks passed or that a release has been published; inspect the workflow's results and release assets. DCS itself is not exercised by these build checks.
+The [experimental release workflow](../.github/workflows/experimental-release.yml) runs Linux/Lua regression checks on source pushes. Windows packaging and publication require a deliberate commit containing `[publish-preview]` or a workflow dispatch. Successful publication creates immutable prerelease assets with `--latest=false`; a new binary requires a new release tag. These checks run before publishing versioned release assets. Building a package does not establish that its checks passed or that a release has been published; inspect the workflow's results and release assets. DCS itself is not exercised by these build checks.
 
 ## Mission implementation notes
 

@@ -48,3 +48,18 @@ def test_ground_search_mode_is_optional_and_cap_rejects_it():
     assert MissionOptions(intelligence='precise').validate()
     with pytest.raises(ValueError,match='ground missions'):MissionOptions(mission='cap',intelligence='search').validate()
     with pytest.raises(ValueError):MissionOptions(intelligence='unknown').validate()
+
+
+@pytest.mark.parametrize('terrain',['caucasus','syria','germany'])
+@pytest.mark.parametrize('mission_type',['facility','line','convoy','sead'])
+def test_classic_ground_missions_also_keep_search_targets_out_of_public_briefings(tmp_path,terrain,mission_type):
+    path=generate(MissionOptions(map=terrain,mission=mission_type,intelligence='search',seed=178),tmp_path/'classic-search.miz')
+    with zipfile.ZipFile(path) as archive:
+        metadata=json.loads(archive.read('ironanvil.json'))
+        public=archive.read('ironanvil-briefing.html').decode()+archive.read('l10n/DEFAULT/dictionary').decode()
+    assert f"{metadata['target_lat']:.5f}, {metadata['target_lon']:.5f}" not in public
+    assert {point['role'] for point in metadata['planner']['points']}=={'home','search'}
+    mission=Mission();mission.load_file(str(path))
+    points=mission.coalition['blue'].find_group('IRON ANVIL CLIENTS').points
+    assert any(point.name=='SEARCH AREA' for point in points)
+    assert not any(point.name in ('TARGET','BONUS - OPTIONAL') for point in points)

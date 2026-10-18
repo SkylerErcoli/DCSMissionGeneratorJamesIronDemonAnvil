@@ -1,8 +1,8 @@
 # Iron Anvil experimental gameplay
 
-**Status: [the first experimental preview is published](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.0-experimental.1). Windows packaging/coexistence and automated mission checks passed. Real DCS flight testing remains outstanding.**
+**Status: [the convoy, recovery and intelligence preview](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.1-experimental.2). Windows packaging/coexistence and automated mission checks passed. Real DCS flight testing remains outstanding.**
 
-Implemented: Broken Relay and Supply Denial, required/optional functional goals, one finite staged response with delay/cancel consequences, shared debrief, distance presets, mission kneeboards, local briefings, named presets and replay import/export. Read the [work log](PROGRESS.md) for exact checks and remaining limits.
+Implemented: Broken Relay, Supply Denial and Rolling Thunder; required/optional functional goals; a moving supply convoy with delivery consequences; one finite staged response with delay/cancel consequences; shared debrief and partial-credit withdrawal; friendly alternate recovery; optional search-area intelligence; map previews; distance presets; mission kneeboards/local briefings; named presets and replay import/export. Read the [work log](PROGRESS.md) for exact checks and remaining limits.
 
 This development line starts from the existing application on the `experimental` branch. The [stable 1.2.0 download](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0), `main`, and the stable update feed remain unchanged.
 
@@ -14,11 +14,13 @@ Generate a self-contained operation with several related objectives and optional
 
 For example:
 
-> **Operation Broken Relay** — Your group must disable an enemy logistics complex. An optional communications site coordinates its response force. Destroying the relay delays the response; intercepting an ammunition convoy prevents a later ground reinforcement. You can complete the main strike and leave, or accept a harder bonus objective. Return to base for a shared debrief showing which objectives you achieved and what your choices changed.
+> **Operation Broken Relay** — Your group must disable an enemy logistics complex. An optional communications site coordinates its response force. Destroying the relay delays the response. In a separate Rolling Thunder sortie, intercept moving supplies before delivery or attack bonus fuel support to cancel the staged response. You can complete the main strike and leave, or accept a harder bonus objective. Return to base for a shared debrief showing which objectives you achieved and what your choices changed.
 
-The first implementation should work for the existing aircraft selection and two-to-four-player group. Mixed aircraft, helicopters, campaign saves, and external frameworks can follow once that first mission is enjoyable and reliable.
+The implemented operations work with the existing aircraft selection, including supported helicopters, and one to four clients. Mixed aircraft packages, campaign saves and external frameworks remain future possibilities.
 
-## What to add, in priority order
+## Research roadmap and next possibilities
+
+The first five rows now have initial implementations: functional goals/partial withdrawal, linked consequences, finite reserves, target-distance/intelligence controls, and the area check-in rule. These still need DCS playtesting and tuning. Sensor-specific reconnaissance, mini-campaigns and the later rows remain proposals.
 
 | Priority | Proposal | What makes it fun | Relative effort / uncertainty |
 | --- | --- | --- | --- |
@@ -45,7 +47,7 @@ Effort is relative to this codebase, not a delivery estimate. Every gameplay cha
 - Terrain-aware clearance and placement checks where DCS can provide terrain information, plus curated templates tested at known sites. Offline coastline checks do not establish safe ground placement.
 - Era and faction packs for coherent Cold War and WWII scenarios, including appropriate ground equipment and defenses. Germany's mission date alone does not make a WWII force set.
 
-## Suggested first playable experiment
+## Original first-experiment design (implemented)
 
 Build **Operation Broken Relay** on the existing facility mission type, with:
 

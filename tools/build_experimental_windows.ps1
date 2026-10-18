@@ -20,12 +20,25 @@ function Probe-App([string]$Executable, [string]$Prefix, [string]$Directory) {
             Run-CheckedProcess $Executable ('--' + $Mode + ' --self-test-output "' + $Report + '"') $Directory
             $Result = Get-Content $Report -Raw | ConvertFrom-Json
             if (-not $Result.ok -or -not $Result.frozen -or $Result.platform -ne "win32") { throw "$Prefix $Mode failed." }
-            if ($Mode -eq "self-test" -and ($Result.mission_count -ne 55 -or $Result.operation_checks -ne 12 -or $Result.channel -ne "experimental")) {
+            if ($Mode -eq "self-test" -and ($Result.mission_count -ne 73 -or $Result.operation_checks -ne 30 -or
+                $Result.intelligence_checks -ne 6 -or $Result.alternate_checks -ne 12 -or $Result.channel -ne "experimental")) {
                 throw "Incomplete experimental mission probe."
             }
-            if ($Mode -eq "smoke-gui" -and ($Result.maps.Count -ne 6 -or -not $Result.preferences_reloaded)) { throw "Incomplete desktop probe." }
+            if ($Mode -eq "smoke-gui" -and ($Result.maps.Count -ne 6 -or -not $Result.preferences_reloaded -or
+                -not $Result.mission_preview_passed)) { throw "Incomplete desktop probe." }
         }
     } finally { $env:PATH = $OldPath; $env:PYTHONPATH = $OldPythonPath; $env:PYTHONHOME = $OldPythonHome }
+}
+function Get-VerifiedInstaller([string]$ReleaseTag, [string]$Asset, [string]$Destination, [string]$Directory) {
+    $BaseURL = "https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/download/$ReleaseTag"
+    $ChecksumFile = Join-Path $Directory "$ReleaseTag-checksums.txt"
+    Invoke-WebRequest "$BaseURL/SHA256SUMS.txt" -OutFile $ChecksumFile
+    Invoke-WebRequest "$BaseURL/$Asset" -OutFile $Destination
+    $Pattern = '^[a-fA-F0-9]{64}\s+' + [regex]::Escape($Asset) + '$'
+    $ChecksumLines = @(Get-Content $ChecksumFile | Where-Object { $_ -match $Pattern })
+    if ($ChecksumLines.Count -ne 1) { throw "$ReleaseTag checksum missing or ambiguous." }
+    $ExpectedHash = ($ChecksumLines[0] -split '\s+')[0]
+    if ((Get-FileHash $Destination -Algorithm SHA256).Hash -ne $ExpectedHash) { throw "$ReleaseTag installer checksum mismatch." }
 }
 $StableKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{2C791DDC-1A55-4FAE-BAB3-30819BF2869D}_is1"
 $ExperimentalKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{F698B14E-6D10-4A68-BB62-A75C5DCC04F2}_is1"
@@ -66,14 +79,9 @@ try {
 
     # Download the exact published stable version, verifying its published hash.
     $StableInstaller = Join-Path $TestRoot "Stable-1.2.0-Setup.exe"
-    $StableChecksums = Join-Path $TestRoot "Stable-checksums.txt"
-    $StableURL = "https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/download/v1.2.0"
-    Invoke-WebRequest "$StableURL/SHA256SUMS.txt" -OutFile $StableChecksums
-    Invoke-WebRequest "$StableURL/IronAnvil-Setup-x64.exe" -OutFile $StableInstaller
-    $ChecksumLines = @(Get-Content $StableChecksums | Where-Object { $_ -match '^[a-fA-F0-9]{64}\s+IronAnvil-Setup-x64\.exe$' })
-    if ($ChecksumLines.Count -ne 1) { throw "Stable checksum missing or ambiguous." }
-    $ExpectedHash = ($ChecksumLines[0] -split '\s+')[0]
-    if ((Get-FileHash $StableInstaller -Algorithm SHA256).Hash -ne $ExpectedHash) { throw "Stable installer checksum mismatch." }
+    Get-VerifiedInstaller "v1.2.0" "IronAnvil-Setup-x64.exe" $StableInstaller $TestRoot
+    $PreviousInstaller = Join-Path $TestRoot "Experimental-1.3.0-Setup.exe"
+    Get-VerifiedInstaller "v1.3.0-experimental.1" "IronAnvil-Experimental-Setup-x64.exe" $PreviousInstaller $TestRoot
     foreach ($Path in @($StablePreferences, $ExperimentalPreferences)) {
         $Backups[$Path] = if (Test-Path $Path) { [IO.File]::ReadAllBytes($Path) } else { $null }
         New-Item -ItemType Directory -Force (Split-Path -Parent $Path) | Out-Null
@@ -83,8 +91,13 @@ try {
     $StableExe = Join-Path $StableDirectory "IronAnvil.exe"
     $StableVersion = (Get-Item $StableExe).VersionInfo.FileVersion
     if ([version]$StableVersion -ne [version]"1.2.0.0") { throw "Wrong stable baseline." }
+    Run-CheckedProcess $PreviousInstaller ('/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="' + $ExperimentalDirectory + '"') $TestRoot
+    $InstalledExperimental = $true
+    $ExperimentalExe = Join-Path $ExperimentalDirectory "IronAnvil.exe"
+    $PreviousVersion = (Get-Item $ExperimentalExe).VersionInfo.FileVersion
+    if ([version]$PreviousVersion -ne [version]"1.3.0.0") { throw "Wrong previous experimental baseline." }
     [IO.File]::WriteAllText($StablePreferences, '{"theme":"dark","user_note":"stable settings must stay exactly as written"}')
-    [IO.File]::WriteAllText($ExperimentalPreferences, '{"theme":"light","user_note":"experimental settings"}')
+    [IO.File]::WriteAllText($ExperimentalPreferences, '{"theme":"light","user_note":"settings from previous experimental install"}')
     $StableExeHash = (Get-FileHash $StableExe -Algorithm SHA256).Hash
     $StablePreferencesHash = (Get-FileHash $StablePreferences -Algorithm SHA256).Hash
     $ExperimentalPreferencesHash = (Get-FileHash $ExperimentalPreferences -Algorithm SHA256).Hash
@@ -92,9 +105,9 @@ try {
     & $Python -m ironanvil generate --seed 88 --output $ExistingMission
     if ($LASTEXITCODE -ne 0) { throw "Could not prepare preservation sample." }
     $MissionHash = (Get-FileHash $ExistingMission -Algorithm SHA256).Hash
-    Run-CheckedProcess $Installer ('/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="' + $ExperimentalDirectory + '"') $TestRoot
-    $InstalledExperimental = $true
-    $ExperimentalExe = Join-Path $ExperimentalDirectory "IronAnvil.exe"
+    # Upgrade the actual published previous preview without /DIR. Inno must
+    # discover its separate experimental identity and retain this custom path.
+    Run-CheckedProcess $Installer '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' $TestRoot
     $ExperimentalVersion = (Get-Item $ExperimentalExe).VersionInfo.FileVersion
     if ([version]$ExperimentalVersion -ne [version]"$Version.0") { throw "Wrong experimental executable version." }
     if (-not (Test-Path $StableKey) -or -not (Test-Path $ExperimentalKey)) { throw "Installers share or lost an identity." }
@@ -122,6 +135,8 @@ try {
     if (-not $StableResult.ok -or -not $StableResult.frozen -or $StableResult.mission_count -ne 43) { throw "Stable app no longer works." }
     @{
         ok=$true; stable_version="1.2.0"; experimental_version=$Version; stable_installer_sha256_verified=$true
+        previous_experimental_version="1.3.0"; previous_experimental_installer_sha256_verified=$true
+        actual_experimental_upgrade_passed=$true; experimental_upgrade_without_dir=$true
         separate_installer_identities=$true; stable_executable_unchanged=$true; stable_preferences_unchanged=$true
         experimental_preferences_preserved=$true; existing_mission_unchanged=$true; experimental_reinstall_without_dir=$true
         experimental_uninstalled=$true; stable_after_experimental_passed=$true
