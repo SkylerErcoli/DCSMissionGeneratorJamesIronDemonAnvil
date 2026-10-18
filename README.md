@@ -19,6 +19,8 @@ Download **[IronAnvil-Windows-x64.zip](https://github.com/SkylerErcoli/DCSMissio
 
 Both downloads are on the **[Downloads / Releases](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/latest)** page. GitHub's **Source code** ZIP is for developers; it is not the Windows app.
 
+**Sharing with friends?** Send them the **[latest release and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/latest)**. It explains what changed and includes the Windows download underneath.
+
 ## Updating an existing copy
 
 **Keep your current installation.** Run the new installer over it; it updates the same folder and keeps your missions and saved settings. You do not need to uninstall first. If you are moving from version 1.1, download this update once. Version 1.2 and later have a **Check for updates** button: it downloads and verifies the new version, then opens the upgrade wizard.

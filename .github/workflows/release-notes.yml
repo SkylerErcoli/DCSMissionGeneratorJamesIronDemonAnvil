@@ -1,0 +1,35 @@
+name: Update published release changelog
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-notes.yml'
+      - 'docs/releases/**'
+
+permissions:
+  contents: read
+
+jobs:
+  release-notes:
+    name: Publish the player changelog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Update release description only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          tag="v${version}"
+          notes="docs/releases/${tag}.md"
+          test -s "$notes"
+          # Edit only the description. Keep the release tag and downloads intact.
+          gh release edit "$tag" --notes-file "$notes"
+          printf 'Updated changelog: https://github.com/%s/releases/tag/%s\n' "$GITHUB_REPOSITORY" "$tag" >> "$GITHUB_STEP_SUMMARY"
