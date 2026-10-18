@@ -145,8 +145,9 @@ class MissionOptions:
         aircraft = resolve_aircraft(self.aircraft)
         if self.operation != "classic" and self.mission != "facility":
             raise ValueError("Cooperative operations use the facility mission; choose Strike — facility")
-        if not isinstance(self.enemy_response, bool):
-            raise ValueError("Enemy response must be enabled or disabled")
+        for name in ("enemy_response", "enemy_cap", "air_defenses", "tanker", "awacs", "base_detail"):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"{name.replace('_', ' ').title()} must be enabled or disabled")
         if self.departure_airport is not None:
             if not isinstance(self.departure_airport, str) or not self.departure_airport.strip():
                 raise ValueError("Choose a departure airfield, or use automatic selection")

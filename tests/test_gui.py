@@ -312,3 +312,46 @@ def test_failed_update_keeps_current_app_usable(app, monkeypatch):
     assert not app._updating
     assert str(app.generate_button["state"]) == "normal"
     assert "keep using your current version" in errors[0][1]
+
+
+def test_experimental_operation_controls_preserve_same_aircraft_coop(app):
+    from ironanvil.operations import OPERATION_LABELS,PACE_LABELS
+    from ironanvil.gui import MISSION_LABELS
+    aircraft=app.aircraft_var.get()
+    for operation in ('broken_relay','supply_denial'):
+        app.operation_var.set(OPERATION_LABELS[operation]);app._operation_changed()
+        app.pace_var.set(PACE_LABELS['compact']);app.response_var.set(False)
+        options=app.collect_options()
+        assert options.operation==operation and options.mission=='facility'
+        assert options.pace=='compact' and not options.enemy_response
+        assert app.aircraft_var.get()==aircraft
+        assert str(app.facility_combo['state'])=='disabled'
+    app.mission_var.set(MISSION_LABELS['convoy']);app._mission_changed()
+    assert app.collect_options().operation=='classic'
+
+
+def test_loading_recipe_retains_this_computers_output_and_pinned_target(app,tmp_path):
+    from ironanvil.model import MissionOptions
+    from ironanvil.recipes import write_recipe
+    output=app.output_var.get()
+    recipe=write_recipe(MissionOptions(map='syria',operation='supply_denial',seed=75,
+        weather='rain',clients=4,enemy_response=False,output_dir='Z:/My Friends Missions'),tmp_path/'friend.json')
+    app._load_recipe(recipe)
+    options=app.collect_options()
+    assert options.map=='syria' and options.operation=='supply_denial' and options.seed==75
+    assert options.output_dir==output and options.weather=='rain' and options.clients==4
+    assert not options.enemy_response
+
+
+def test_named_preset_reloads_operation_and_protects_other_preferences(app,monkeypatch):
+    from ironanvil import gui
+    from ironanvil.operations import OPERATION_LABELS
+    from ironanvil.preferences import load_preferences,save_preferences
+    save_preferences({'unknown_future_setting':'keep'})
+    monkeypatch.setattr(gui.simpledialog,'askstring',lambda *a,**k:'Friday squadron')
+    app.operation_var.set(OPERATION_LABELS['supply_denial']);app._operation_changed()
+    app.seed_var.set('123');app._save_preset()
+    app.seed_var.set('999');app._load_preset()
+    assert app.collect_options().seed==123 and app.collect_options().operation=='supply_denial'
+    assert load_preferences()['unknown_future_setting']=='keep'
+    assert 'Friday squadron' in app.preset_combo['values']

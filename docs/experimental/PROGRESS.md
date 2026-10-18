@@ -24,3 +24,11 @@ Implemented `broken_relay` and `supply_denial` profiles in `operations.py`, a na
 Validation: 24 Lua runtime cases pass, including nine new operation scenarios; 21 operation archive/model tests pass, including both profiles across every map and independent threats, four representative aircraft, pacing/pinned coordinates, reproducibility and disabled response. The earlier classic generator/compound/model/runtime set passed 105 tests. No experimental DCS flight has been performed.
 
 Next: expose these controls in the desktop UI, then add kneeboard/replay/presets and run the complete suite. The experimental Windows build is still not ready to run; the stable build script references the old installer identity and must not be used for this branch.
+
+## Batch 3 — usable desktop operations, briefing and replay
+
+Desktop now defaults to Broken Relay, exposes both operations and target-distance presets, and keeps the original mission types available. Added squadron presets, portable settings import/export, replay settings from existing `.miz` files, a browser briefing, and a generated DCS kneeboard containing a route schematic, objectives, radios and cruise-only distance/time information. Imported recipes never replace this computer's output directory. The experimental header/download button is distinct and never invokes the stable updater.
+
+Validation: complete source suite **318 passed, no skips**, under Xvfb/Lua 5.1. Actual operation archives reload on all maps; recipe import is bounded and never executes mission scripts. The desktop was visually checked at 1300x700. The generated kneeboard/briefing is included in the mission, so players need no extra software. Real DCS flight and kneeboard display remain unverified.
+
+Next: experimental Windows packaging/coexistence and a prerelease. Do not run the old stable build script on this branch.

@@ -368,6 +368,10 @@ def generate(options: MissionOptions, output_path=None) -> Path:
             mission.save(str(staged))
             with zipfile.ZipFile(staged, "a", compression=zipfile.ZIP_DEFLATED) as archive:
                 archive.writestr("ironanvil.json", json.dumps(metadata, indent=2, sort_keys=True))
+                from .briefing import kneeboard_png, briefing_html
+                kneeboard = kneeboard_png(metadata)
+                archive.writestr("KNEEBOARD/IMAGES/01-IronAnvil.png", kneeboard)
+                archive.writestr("ironanvil-briefing.html", briefing_html(metadata, kneeboard))
             # A failed generation leaves any previous mission intact.
             os.replace(staged, path)
         return path

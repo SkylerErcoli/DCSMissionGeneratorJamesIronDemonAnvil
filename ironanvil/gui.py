@@ -9,9 +9,12 @@ import queue
 import secrets
 import subprocess
 import sys
+import webbrowser
+import zipfile
+from dataclasses import asdict, replace
 import threading
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from tkinter import font as tkfont
 
 from .airfields import airport_catalogue
@@ -20,6 +23,8 @@ from .model import MissionOptions, aircraft_catalogue, default_output_dir
 from .preferences import load_preferences, save_preferences
 from .theatres import THEATRES, get_theatre
 from .weather import WEATHER_LABELS
+from .operations import OPERATION_LABELS, OPERATION_HELP, PACE_LABELS
+from . import APP_NAME, RELEASE_TAG, __version__
 
 
 AUTOMATIC_AIRFIELD = "Automatic (nearest friendly)"
@@ -72,7 +77,7 @@ class Application(tk.Tk):
 
     def __init__(self) -> None:
         super().__init__()
-        self.title("Iron Anvil · DCS Mission Generator")
+        self.title(f"{APP_NAME} {__version__} · DCS Mission Generator")
         width = min(1240, self.winfo_screenwidth() - 50)
         height = min(820, self.winfo_screenheight() - 80)
         self.geometry(f"{width}x{height}")
@@ -101,6 +106,8 @@ class Application(tk.Tk):
         self._mission_by_label = {label: key for key, label in MISSION_LABELS.items()}
         self._weather_by_label = {label: key for key, label in WEATHER_LABELS.items()}
         self._facility_by_label = {label: key for key, label in FACILITY_LABELS.items()}
+        self._operation_by_label = {label: key for key, label in OPERATION_LABELS.items()}
+        self._pace_by_label = {label: key for key, label in PACE_LABELS.items()}
         self._variables()
         self._restore_settings()
         self._style()
@@ -126,6 +133,11 @@ class Application(tk.Tk):
         self.update_status_var = tk.StringVar(value="")
         self.aircraft_var = tk.StringVar(value=default_aircraft)
         self.mission_var = tk.StringVar(value=MISSION_LABELS["facility"])
+        self.operation_var = tk.StringVar(value=OPERATION_LABELS["broken_relay"])
+        self.operation_help_var = tk.StringVar()
+        self.pace_var = tk.StringVar(value=PACE_LABELS["standard"])
+        self.response_var = tk.BooleanVar(value=True)
+        self.preset_var = tk.StringVar()
         self.facility_var = tk.StringVar(value=FACILITY_LABELS["random"])
         self.clients_var = tk.StringVar(value="2")
         self.difficulty_var = tk.StringVar(value="normal")
@@ -260,7 +272,7 @@ class Application(tk.Tk):
         return {name: getattr(self, f"{name}_var") for name in (
             "theatre", "aircraft", "departure", "mission", "facility", "clients", "difficulty", "enemy_cap",
             "air_defenses", "start", "time", "weather", "loadout", "tanker", "awacs",
-            "base_detail", "opponent", "seed", "output")}
+            "base_detail", "opponent", "seed", "output", "operation", "pace", "response")}
 
     def _restore_settings(self) -> None:
         settings = self._preferences.get("mission", {})
@@ -274,6 +286,7 @@ class Application(tk.Tk):
             "start": ("cold", "hot", "runway", "air"), "time": ("day", "dawn", "dusk", "night", "random"),
             "weather": self._weather_by_label, "loadout": ("auto", "default"),
             "opponent": ("regular", "insurgents"),
+            "operation": self._operation_by_label, "pace": self._pace_by_label,
         }
         for name, variable in self._settings_variables().items():
             value = settings.get(name)
@@ -305,14 +318,15 @@ class Application(tk.Tk):
         header.grid(row=0, column=0, sticky="ew")
         title = ttk.Frame(header, style="Header.TFrame")
         title.pack(side="left", fill="x", expand=True)
-        ttk.Label(title, text="IRON ANVIL", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(title, text="Choose your flight. Create a mission. Fly together in DCS World.",
+        ttk.Label(title, text="IRON ANVIL · EXPERIMENTAL", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(title, text="Shared objectives. Same squadron. New choices.",
                   style="Subtitle.TLabel").pack(anchor="w", pady=(2, 0))
         tools = ttk.Frame(header, style="Header.TFrame")
         tools.pack(side="right", padx=(12, 0))
         ttk.Checkbutton(tools, text="Dark mode", variable=self.theme_var, onvalue="dark", offvalue="light",
                         style="Header.TCheckbutton", command=self._theme_changed).grid(row=0, column=0, padx=(0, 12))
-        self.update_button = ttk.Button(tools, text="Check for updates", command=self._check_updates)
+        self.update_button = ttk.Button(tools, text="Experimental downloads", command=lambda: webbrowser.open(
+            f"https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/{RELEASE_TAG}"))
         self.update_button.grid(row=0, column=1)
         ttk.Label(tools, textvariable=self.update_status_var, style="Subtitle.TLabel").grid(
             row=1, column=0, columnspan=2, sticky="e", pady=(4, 0))
@@ -384,6 +398,8 @@ class Application(tk.Tk):
         self.generate_button = ttk.Button(footer, text="Generate mission", style="Primary.TButton",
                                          command=self._generate)
         self.generate_button.grid(row=0, column=2, rowspan=2)
+        ttk.Button(footer, text="Mission briefing", command=self._open_briefing).grid(row=2, column=1, padx=(10, 8))
+        ttk.Button(footer, text="Repeat last mission", command=self._repeat_last).grid(row=2, column=2)
 
     def _settings_tab(self, notebook, label):
         """Keep every setting reachable on small screens and at larger DPI."""
@@ -476,8 +492,34 @@ class Application(tk.Tk):
         ttk.Separator(parent).grid(row=12, column=0, sticky="ew", pady=9)
         ttk.Label(parent, text="Your airbase is friendly, with fuel and weapons available for rearming and refueling.",
                   style="Help.TLabel", wraplength=315).grid(row=13, column=0, sticky="w")
+        presets = ttk.LabelFrame(parent, text="Squadron presets", padding=8)
+        presets.grid(row=14, column=0, sticky="ew", pady=(12, 0))
+        presets.columnconfigure(0, weight=1)
+        self.preset_combo = ttk.Combobox(presets, textvariable=self.preset_var, state="readonly",
+            values=sorted(self._preferences.get("presets", {})) if isinstance(self._preferences.get("presets"), dict) else [])
+        self.preset_combo.grid(row=0, column=0, columnspan=2, sticky="ew")
+        ttk.Button(presets, text="Save preset", command=self._save_preset).grid(row=1, column=0, sticky="ew", pady=5)
+        ttk.Button(presets, text="Load preset", command=self._load_preset).grid(row=1, column=1, sticky="ew", pady=5)
+        ttk.Button(presets, text="Import mission / settings", command=self._import_recipe).grid(row=2, column=0, sticky="ew")
+        ttk.Button(presets, text="Export settings", command=self._export_recipe).grid(row=2, column=1, sticky="ew")
 
     def _mission_tab(self, parent) -> None:
+        parent.columnconfigure(0, weight=1)
+        operation = ttk.LabelFrame(parent, text="Cooperative operation", padding=8)
+        operation.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        operation.columnconfigure(0, weight=1)
+        self.operation_combo = self._combo(operation, 0, "Mission style", self.operation_var, list(OPERATION_LABELS.values()))
+        self.operation_combo.bind("<<ComboboxSelected>>", self._operation_changed)
+        ttk.Label(operation, textvariable=self.operation_help_var, style="Help.TLabel", wraplength=295).grid(
+            row=2, column=0, sticky="w", pady=(8, 2))
+        self.response_check = ttk.Checkbutton(operation, text="One staged enemy ground response", variable=self.response_var)
+        self.response_check.grid(row=3, column=0, sticky="w", pady=5)
+        self._combo(operation, 4, "Automatic target distance", self.pace_var, list(PACE_LABELS.values()))
+        ttk.Label(operation, text="A target you pin on the map always takes priority.", style="Help.TLabel", wraplength=295).grid(
+            row=6, column=0, sticky="w", pady=5)
+        settings = ttk.Frame(parent)
+        settings.grid(row=1, column=0, sticky="ew")
+        parent = settings
         parent.columnconfigure(0, weight=1)
         self.mission_combo = self._combo(parent, 0, "Mission", self.mission_var, list(MISSION_LABELS.values()))
         self.mission_combo.bind("<<ComboboxSelected>>", self._mission_changed)
@@ -592,11 +634,26 @@ class Application(tk.Tk):
 
     def _mission_changed(self, _event=None) -> None:
         mission = self._mission_by_label[self.mission_var.get()]
+        if mission != "facility":
+            self.operation_var.set(OPERATION_LABELS["classic"])
+        operation = self._operation_by_label[self.operation_var.get()]
+        self.operation_help_var.set(OPERATION_HELP[operation])
+        self.response_check.configure(state="normal" if operation != "classic" else "disabled")
         self.mission_help_var.set(MISSION_HELP[mission])
-        self.facility_combo.configure(state="readonly" if mission == "facility" else "disabled")
+        self.facility_combo.configure(state="readonly" if mission == "facility" and operation == "classic" else "disabled")
         for check in self._line_buttons:
             check.configure(state="normal" if mission == "line" else "disabled")
         self._opposition_changed()
+
+    def _operation_changed(self, _event=None):
+        if self._operation_by_label[self.operation_var.get()] != "classic":
+            aircraft = self._aircraft_by_label[self.aircraft_var.get()]
+            if "facility" not in aircraft["missions"]:
+                self.operation_var.set(OPERATION_LABELS["classic"])
+                messagebox.showinfo("Choose a ground-attack aircraft", "This operation needs an aircraft that can attack ground targets.", parent=self)
+            else:
+                self.mission_var.set(MISSION_LABELS["facility"])
+        self._mission_changed()
 
     def _opposition_changed(self) -> None:
         mission = self._mission_by_label[self.mission_var.get()]
@@ -684,6 +741,9 @@ class Application(tk.Tk):
             aircraft=self._aircraft_by_label[self.aircraft_var.get()]["id"],
             mission=mission,
             facility_type=self._facility_by_label.get(self.facility_var.get(), self.facility_var.get()),
+            operation=self._operation_by_label[self.operation_var.get()] if mission == "facility" else "classic",
+            pace=self._pace_by_label[self.pace_var.get()],
+            enemy_response=self.response_var.get(),
             clients=int(self.clients_var.get()),
             difficulty=self.difficulty_var.get(),
             enemy_cap=self.enemy_cap_var.get(),
@@ -880,6 +940,126 @@ class Application(tk.Tk):
         if folder:
             self.output_var.set(folder)
             self._save_settings()
+
+    def _apply_options(self, options):
+        """Import plain validated settings while retaining this computer's output folder."""
+        options.validate()
+        output = self.output_var.get()
+        self.operation_var.set(OPERATION_LABELS["classic"])
+        self.theatre_var.set(THEATRES[options.map].label)
+        self._theatre_changed()
+        self.aircraft_var.set(next(label for label, item in self._aircraft_by_label.items()
+                                   if item["id"] == options.aircraft or item["name"] == options.aircraft))
+        self._aircraft_changed()
+        self.mission_var.set(MISSION_LABELS[options.mission])
+        self.operation_var.set(OPERATION_LABELS[options.operation])
+        self.facility_var.set(FACILITY_LABELS[options.facility_type])
+        self.pace_var.set(PACE_LABELS[options.pace])
+        self.response_var.set(options.enemy_response)
+        for name, value in {"clients": str(options.clients), "difficulty": options.difficulty,
+                "enemy_cap": options.enemy_cap, "air_defenses": options.air_defenses, "start": options.start,
+                "time": options.time_of_day, "weather": WEATHER_LABELS[options.weather], "loadout": options.loadout,
+                "tanker": options.tanker, "awacs": options.awacs, "base_detail": options.base_detail,
+                "opponent": options.opponent, "seed": str(options.seed)}.items():
+            getattr(self, f"{name}_var").set(value)
+        for name, variable in self.line_vars.items():
+            variable.set(name in options.line_units)
+        if options.departure_airport:
+            from .airfields import resolve_airport
+            self.departure_var.set(resolve_airport(get_theatre(options.map).terrain(), options.departure_airport).name)
+        else:
+            self.departure_var.set(AUTOMATIC_AIRFIELD)
+        self._departure_changed()
+        if options.target_lat is not None:
+            self._map_selected(options.target_lat, options.target_lon)
+        else:
+            self._clear_target()
+        self.output_var.set(output)
+        self._mission_changed()
+        self._save_settings()
+
+    def _save_preset(self):
+        try:
+            options = self.collect_options()
+            name = simpledialog.askstring("Save squadron preset", "Name this setup:", parent=self)
+            if not name or not name.strip():
+                return
+            name = name.strip()
+            if len(name) > 60:
+                raise ValueError("Use a preset name with 60 characters or fewer")
+            preferences = load_preferences()
+            presets = preferences.get("presets", {})
+            if not isinstance(presets, dict):
+                presets = {}
+            presets[name] = {"options": asdict(replace(options, output_dir=None))}
+            save_preferences({"presets": presets})
+            self.preset_combo.configure(values=sorted(presets))
+            self.preset_var.set(name)
+            self.status_var.set(f"Squadron preset saved: {name}")
+        except (ValueError, OSError) as error:
+            messagebox.showerror("Save preset", str(error), parent=self)
+
+    def _load_preset(self):
+        from .recipes import options_from_data
+        try:
+            presets = load_preferences().get("presets", {})
+            if not isinstance(presets, dict) or self.preset_var.get() not in presets:
+                raise ValueError("Choose a saved squadron preset first")
+            self._apply_options(options_from_data(presets[self.preset_var.get()]))
+            self.status_var.set(f"Preset loaded: {self.preset_var.get()}. Change the variation number for a fresh layout.")
+        except (ValueError, OSError) as error:
+            messagebox.showerror("Load preset", str(error), parent=self)
+
+    def _import_recipe(self):
+        path = filedialog.askopenfilename(parent=self, title="Load settings from a mission or recipe",
+                filetypes=[("Iron Anvil missions and settings", "*.miz *.json"), ("All files", "*.*")])
+        if path:
+            self._load_recipe(path)
+
+    def _load_recipe(self, path):
+        from .recipes import read_recipe
+        try:
+            self._apply_options(read_recipe(path))
+            self.status_var.set(f"Mission settings loaded from {Path(path).name}. Your output folder is unchanged.")
+        except (ValueError, OSError) as error:
+            messagebox.showerror("Load mission settings", str(error), parent=self)
+
+    def _export_recipe(self):
+        from .recipes import write_recipe
+        try:
+            options = self.collect_options()
+            path = filedialog.asksaveasfilename(parent=self, title="Share mission settings", defaultextension=".json",
+                        filetypes=[("Iron Anvil settings", "*.json")], initialfile="My squadron mission.json")
+            if path:
+                write_recipe(options, path)
+                self.status_var.set("Mission settings exported. Your output folder was excluded for easy sharing.")
+        except (ValueError, OSError) as error:
+            messagebox.showerror("Export mission settings", str(error), parent=self)
+
+    def _repeat_last(self):
+        if self._last_output:
+            self._load_recipe(self._last_output)
+        else:
+            messagebox.showinfo("Repeat a mission", "Generate a mission first, or use Import mission / settings in the Flight tab.", parent=self)
+
+    def _open_briefing(self):
+        if not self._last_output:
+            messagebox.showinfo("Mission briefing", "Generate a mission first. Its briefing and kneeboard will be included automatically.", parent=self)
+            return
+        try:
+            from .diagnostics import log_path
+            with zipfile.ZipFile(self._last_output) as archive:
+                info = archive.getinfo("ironanvil-briefing.html")
+                if info.file_size > 8 * 1024 * 1024:
+                    raise ValueError("The mission briefing is unexpectedly large")
+                document = archive.read(info)
+            directory = log_path().parent.parent / "briefings"
+            directory.mkdir(parents=True, exist_ok=True)
+            path = directory / (self._last_output.stem + ".html")
+            path.write_bytes(document)
+            webbrowser.open(path.resolve().as_uri())
+        except (OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
+            messagebox.showerror("Mission briefing", str(error), parent=self)
 
     def _open_output(self) -> None:
         folder = self._last_output.parent if self._last_output else Path(self.output_var.get()).expanduser()
