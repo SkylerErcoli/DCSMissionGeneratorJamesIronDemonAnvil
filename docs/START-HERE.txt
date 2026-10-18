@@ -16,10 +16,19 @@ needed. The installer works without administrator access.
 MAKE A MISSION
 --------------
 Choose a map, aircraft, mission, and number of pilots (1 to 4).
+Choose a departure airfield or leave it automatic. All airfields and
+helipads are listed; fixed-wing aircraft need a suitable runway.
+For facility strikes choose a fuel depot, command center, ammunition depot,
+factory, radar station or random facility. Nearby supporting sites have
+their own buildings, vehicles and supplies.
 
 Enemy CAP flights = enemy fighter patrols.
 Enemy air defenses = enemy missiles and anti-aircraft guns.
 Either checkbox can be turned on or off for every mission type.
+Friendly tankers and AWACS use protected racetrack orbits.
+
+The Conditions tab includes clouds, rain, storms, fog, strong winds and
+random flyable weather. Dark mode can be changed at the top of the window.
 
 Click the map to choose the target location, or leave it unset for the app
 to choose. Use the mouse wheel to zoom. Drag to move around the map.
@@ -49,6 +58,11 @@ https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil
 
 New Windows versions:
 https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/latest
+
+Keep your existing installation when updating. Run the new installer over
+it: your installation folder, missions and settings are kept. Do not
+uninstall first. From version 1.2 onward, use Check for updates in the app.
+Version 1.1 needs this installer download once to gain the update button.
 
 Choose IronAnvil-Setup-x64.exe for the easiest setup and updates.
 IronAnvil-Windows-x64.zip is the optional portable app; extract each new

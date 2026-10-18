@@ -8,6 +8,7 @@ import traceback
 
 from .model import LINE_UNITS, MISSION_LABELS, MissionOptions, aircraft_catalogue
 from .theatres import THEATRES
+from .weather import WEATHER_LABELS
 
 
 def parser():
@@ -22,6 +23,7 @@ def parser():
     gen.add_argument("--map", choices=THEATRES, default="caucasus")
     gen.add_argument("--aircraft", default="FA_18C_hornet")
     gen.add_argument("--mission", choices=MISSION_LABELS, default="facility")
+    gen.add_argument("--facility-type", choices=("random", "fuel", "command", "ammunition", "factory", "radar"), default="random")
     gen.add_argument("--clients", type=int, default=2)
     gen.add_argument("--difficulty", choices=("easy", "normal", "hard", "extreme"), default="normal")
     gen.add_argument("--enemy-cap", action=argparse.BooleanOptionalAction, default=True,
@@ -33,7 +35,8 @@ def parser():
     gen.add_argument("--seed", type=int, default=1)
     gen.add_argument("--start", choices=("cold", "hot", "runway", "air"), default="cold")
     gen.add_argument("--time-of-day", choices=("day", "dawn", "dusk", "night", "random"), default="day")
-    gen.add_argument("--weather", choices=("clear", "cloudy"), default="clear")
+    gen.add_argument("--weather", choices=WEATHER_LABELS, default="clear")
+    gen.add_argument("--departure-airport", help="Departure airfield name or numeric ID; all map airfields are available")
     gen.add_argument("--loadout", choices=("auto", "default"), default="auto")
     gen.add_argument("--tanker", action="store_true")
     gen.add_argument("--awacs", action="store_true")

@@ -30,6 +30,11 @@ class MapView(ttk.Frame):
         self.theatre = None
         self.target = None
         self._airports = []
+        self._home_airport = None
+        self._map_colors = {"ocean": "#a8c8d8", "land": "#e4dec5", "outline": "#a49e83",
+                            "text": "#35423f", "label": "#f5f2e7", "grid": "#738994",
+                            "boundary": "#4f5362", "neutral": "#65717b", "friendly": "#1263b5",
+                            "enemy": "#b52f2c", "target": "#da2831"}
         self._chart = None
         self._chart_image = None
         self._store = ChartStore()
@@ -43,6 +48,7 @@ class MapView(ttk.Frame):
         self._images = []
         self._drag = None
         self._fitted = False
+        self._fit_to_theatre = True
         self._destroyed = False
         self._render_timer = None
         self._online = tk.BooleanVar(value=False)
@@ -90,21 +96,50 @@ class MapView(ttk.Frame):
             self._message.set(f"Saved chart could not be loaded: {exc}")
         self.fit()
 
+    def set_theme(self, palette):
+        """Theme offline geometry and labels; leave imported/online imagery intact."""
+        dark = palette.get("theme", "dark") == "dark"
+        self._map_colors.update({
+            "ocean": "#142837" if dark else "#a8c8d8",
+            "land": "#293b49" if dark else "#e4dec5",
+            "outline": "#526777" if dark else "#a49e83",
+            "text": palette.get("foreground", "#35423f"),
+            "label": palette.get("field", "#f5f2e7"),
+            "grid": "#627c90" if dark else "#738994",
+            "boundary": "#9ab7d2" if dark else "#4f5362",
+            "neutral": "#9daebb" if dark else "#65717b",
+            "friendly": "#69b9ff" if dark else "#1263b5",
+            "enemy": "#ff9690" if dark else "#b52f2c",
+            "target": "#ff7777" if dark else "#da2831",
+        })
+        self.canvas.configure(background=self._map_colors["ocean"])
+        self._schedule_render()
+
+    def set_home_airport(self, name):
+        self._home_airport = name
+        self._schedule_render()
+
     def set_target(self, lat, lon=None):
         self.target = None if lat is None or lon is None else (float(lat), float(lon))
         self._schedule_render()
 
     def fit(self):
+        self._fit_to_theatre = True
         if self.theatre:
-            self.viewport.fit(self.theatre.bounds)
+            width, height = self.canvas.winfo_width(), self.canvas.winfo_height()
+            if width > 20 and height > 20:
+                self.viewport.width, self.viewport.height = width, height
+            self.viewport.fit(self.theatre.bounds, padding=12)
             self._fitted = self.canvas.winfo_width() > 20
         self._schedule_render()
 
     def zoom_in(self):
+        self._fit_to_theatre = False
         self.viewport.zoom_at(1)
         self._schedule_render()
 
     def zoom_out(self):
+        self._fit_to_theatre = False
         self.viewport.zoom_at(-1)
         self._schedule_render()
 
@@ -178,7 +213,7 @@ class MapView(ttk.Frame):
         self.viewport.width, self.viewport.height = max(1, event.width), max(1, event.height)
         self._coordinate_label.configure(wraplength=max(100, event.width - 8))
         self._status_label.configure(wraplength=max(100, event.width - 8))
-        if self.theatre and not self._fitted:
+        if self.theatre and self._fit_to_theatre:
             self.fit()
         self._schedule_render()
 
@@ -192,6 +227,7 @@ class MapView(ttk.Frame):
             moved = moved or abs(event.x - x) + abs(event.y - y) > 5
             self._drag = (x, y, cx, cy, moved)
             if moved:
+                self._fit_to_theatre = False
                 self.viewport.center_x = max(0, min(1, cx - (event.x - x) / self.viewport.scale))
                 self.viewport.center_y = max(0, min(1, cy - (event.y - y) / self.viewport.scale))
                 self._schedule_render()
@@ -212,13 +248,17 @@ class MapView(ttk.Frame):
 
     def _hover(self, event):
         lat, lon = self.viewport.to_latlon(event.x, event.y)
-        self._coordinates.set(f"Cursor: {lat:.5f}°, {lon:.5f}°   ·   Zoom {self.viewport.zoom}   ·   Blue = friendly airbase, red = enemy")
+        hovered = next((a["name"] for a in self._airports
+                        if math.dist(self.viewport.to_pixel(a["lat"], a["lon"]), (event.x, event.y)) < 9), None)
+        suffix = f"   |   {hovered}" if hovered else "   |   Blue: friendly, red: enemy, gray: neutral"
+        self._coordinates.set(f"Cursor: {lat:.5f}°, {lon:.5f}°   |   Zoom {self.viewport.zoom}{suffix}")
 
     def _clear_target(self, event=None):
         self.set_target(None, None)
         self.on_select(None, None)
 
     def _wheel(self, event, delta=None):
+        self._fit_to_theatre = False
         delta = delta if delta is not None else (1 if event.delta > 0 else -1)
         self.viewport.zoom_at(delta, event.x, event.y)
         self._schedule_render()
@@ -236,14 +276,14 @@ class MapView(ttk.Frame):
         canvas.delete("all")
         self._images.clear()
         if self.theatre is None:
-            canvas.create_text(20, 20, anchor="nw", text="Choose a map to plan a target.")
+            canvas.create_text(20, 20, anchor="nw", text="Choose a map to plan a target.", fill=self._map_colors["text"])
             return
         for _name, polygon in COUNTRY_POLYGONS:
             points = [self.viewport.to_pixel(lat, lon) for lon, lat in polygon]
             xs, ys = zip(*points)
             if max(xs) < 0 or min(xs) > self.viewport.width or max(ys) < 0 or min(ys) > self.viewport.height:
                 continue
-            canvas.create_polygon(points, fill="#e4dec5", outline="#a49e83", width=1)
+            canvas.create_polygon(points, fill=self._map_colors["land"], outline=self._map_colors["outline"], width=1)
         if self._online.get() and self._chart_image is None:
             self._draw_tiles()
         if self._chart_image is not None:
@@ -252,24 +292,39 @@ class MapView(ttk.Frame):
         west, south, east, north = self.theatre.bounds
         x1, y1 = self.viewport.to_pixel(north, west)
         x2, y2 = self.viewport.to_pixel(south, east)
-        canvas.create_rectangle(x1, y1, x2, y2, outline="#4f5362", dash=(5, 4), width=2)
+        canvas.create_rectangle(x1, y1, x2, y2, outline=self._map_colors["boundary"], dash=(5, 4), width=2)
         for lat, lon, name in CITIES.get(self.theatre.key, ()):
             x, y = self.viewport.to_pixel(lat, lon)
             if -80 <= x <= self.viewport.width + 80 and -20 <= y <= self.viewport.height + 20:
-                canvas.create_oval(x-2, y-2, x+2, y+2, fill="#4b4b41", outline="")
+                canvas.create_oval(x-2, y-2, x+2, y+2, fill=self._map_colors["text"], outline="")
                 self._label(x+5, y-4, name)
-        for airport in self._airports:
+        label_boxes = []
+        airports = sorted(self._airports, key=lambda a: (a["name"] != self._home_airport,
+                           a.get("friendly") is not True, a.get("helicopter_only", False), a["name"]))
+        for airport in airports:
             x, y = self.viewport.to_pixel(airport["lat"], airport["lon"])
-            color = "#1263b5" if airport.get("friendly", False) else "#b52f2c"
-            canvas.create_rectangle(x-4, y-4, x+4, y+4, fill=color, outline="white")
-            self._label(x+7, y+5, airport["name"], color)
+            if not (-8 <= x <= self.viewport.width + 8 and -8 <= y <= self.viewport.height + 8):
+                continue
+            selected = airport["name"] == self._home_airport
+            side = "friendly" if selected or airport.get("friendly") is True else (
+                "enemy" if airport.get("friendly") is False else "neutral")
+            color = self._map_colors[side]
+            canvas.create_rectangle(x-3, y-3, x+3, y+3, fill=color, outline=self._map_colors["label"])
+            if selected:
+                canvas.create_oval(x-9, y-9, x+9, y+9, outline=color, width=2)
+            text = ("Home: " if selected else "") + airport["name"]
+            box = (x+7, y+4, x+12+len(text)*6.5, y+20)
+            if selected or not any(box[0] < old[2] and box[2] > old[0]
+                                   and box[1] < old[3] and box[3] > old[1] for old in label_boxes):
+                self._label(x+7, y+5, text, color)
+                label_boxes.append(box)
         if self.target:
             lat, lon = self.target
             x, y = self.viewport.to_pixel(lat, lon)
-            canvas.create_oval(x-8, y-8, x+8, y+8, outline="#da2831", width=3)
-            canvas.create_line(x-13, y, x+13, y, fill="#da2831", width=2)
-            canvas.create_line(x, y-13, x, y+13, fill="#da2831", width=2)
-            self._label(x+12, y-12, f"Target {lat:.4f}, {lon:.4f}", "#a31f25")
+            canvas.create_oval(x-8, y-8, x+8, y+8, outline=self._map_colors["target"], width=3)
+            canvas.create_line(x-13, y, x+13, y, fill=self._map_colors["target"], width=2)
+            canvas.create_line(x, y-13, x, y+13, fill=self._map_colors["target"], width=2)
+            self._label(x+12, y-12, f"Target {lat:.4f}, {lon:.4f}", self._map_colors["target"])
         if self._chart:
             self._message.set(f"Local DCS chart: {self._chart.path.name} · {self._chart.crs} · cached offline · accuracy depends on georeferencing")
         elif self._online.get():
@@ -278,12 +333,12 @@ class MapView(ttk.Frame):
         else:
             self._message.set("Natural Earth geography (public domain, coarse coastlines) · Import a georeferenced DCS chart for its actual map imagery")
 
-    def _label(self, x, y, text, color="#35423f"):
-        # A light background keeps labels legible over detailed imported charts.
-        item = self.canvas.create_text(x, y, anchor="nw", text=text, fill=color, font=("TkDefaultFont", 9))
+    def _label(self, x, y, text, color=None):
+        item = self.canvas.create_text(x, y, anchor="nw", text=text,
+                                       fill=color or self._map_colors["text"], font=("TkDefaultFont", 9))
         bounds = self.canvas.bbox(item)
         if bounds:
-            background = self.canvas.create_rectangle(bounds, fill="#f5f2e7", outline="")
+            background = self.canvas.create_rectangle(bounds, fill=self._map_colors["label"], outline="")
             self.canvas.tag_lower(background, item)
 
     def _draw_grid(self):
@@ -296,7 +351,7 @@ class MapView(ttk.Frame):
             if lon > east:
                 break
             x, _y = self.viewport.to_pixel(north, lon)
-            self.canvas.create_line(x, 0, x, self.viewport.height, fill="#738994", dash=(2, 6), stipple="gray50")
+            self.canvas.create_line(x, 0, x, self.viewport.height, fill=self._map_colors["grid"], dash=(2, 6), stipple="gray50")
             self._label(x+3, 4, f"{lon:.2f}°")
             lon += step
         lat = math.ceil(south / step) * step
@@ -304,7 +359,7 @@ class MapView(ttk.Frame):
             if lat > north:
                 break
             _x, y = self.viewport.to_pixel(lat, west)
-            self.canvas.create_line(0, y, self.viewport.width, y, fill="#738994", dash=(2, 6), stipple="gray50")
+            self.canvas.create_line(0, y, self.viewport.width, y, fill=self._map_colors["grid"], dash=(2, 6), stipple="gray50")
             self._label(4, y+2, f"{lat:.2f}°")
             lat += step
 

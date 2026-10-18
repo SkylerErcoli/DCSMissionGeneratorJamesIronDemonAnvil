@@ -32,7 +32,7 @@ def test_client_boundaries_are_supported(clients):
 @pytest.mark.parametrize("field,value", (
     ("map", "unknown"), ("aircraft", "nonexistent"), ("mission", "campaign"),
     ("difficulty", "impossible"), ("start", "carrier"),
-    ("time_of_day", "noon"), ("weather", "storm"),
+    ("time_of_day", "noon"), ("weather", "unknown-weather"),
     ("loadout", "all-weapons"), ("opponent", "aliens"),
     ("seed", 1.5), ("seed", True), ("seed", "1"),
 ))

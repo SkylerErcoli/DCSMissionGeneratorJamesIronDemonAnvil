@@ -87,20 +87,27 @@ def self_test() -> dict:
     needed. Temporary missions are removed on exit. This is not a DCS flight test.
     """
     from io import BytesIO
+    from math import hypot
     import zipfile
     from dcs import Mission, lua
     from PIL import Image
     import pyproj
+    from ironanvil.airfields import airport_catalogue
     from ironanvil.generator import generate, PLAYER_GROUP
     from ironanvil.mapdata import Chart, ChartStore, TileCache, cache_directory, is_land
     from ironanvil.model import MISSION_LABELS, MissionOptions, aircraft_catalogue, default_output_dir
     from ironanvil.theatres import THEATRES, get_theatre
+    from ironanvil.weather import WEATHER_LABELS
 
     checks = []
     catalogue = aircraft_catalogue()
     if not any(item["id"] == "FA_18C_hornet" for item in catalogue):
         raise RuntimeError("The bundled aircraft catalogue is incomplete")
     checks.append(f"Aircraft catalogue: {len(catalogue)} supported aircraft")
+    airport_counts = {key: len(airport_catalogue(key)) for key in THEATRES}
+    if airport_counts != {"caucasus": 21, "syria": 224, "germany": 227}:
+        raise RuntimeError(f"The bundled airfield catalogues are incomplete: {airport_counts}")
+    checks.append("All 472 airfields and heliports in the pinned terrain catalogues")
     # Requires the PROJ database and native pyproj DLLs, not just Python imports.
     transformer = pyproj.Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
     x, y = transformer.transform(10, 50)
@@ -136,38 +143,122 @@ def self_test() -> dict:
             raise RuntimeError("An empty offline tile cache should return no tile")
         checks.append("Offline map cache")
 
-        missions = []
+        cases = []
         for key in THEATRES:
             for mission_type in MISSION_LABELS:
                 for opposition in (True, False):
-                    options = MissionOptions(map=key, mission=mission_type, clients=2,
-                                             enemy_cap=opposition, air_defenses=opposition,
-                                             seed=42, tanker=True, awacs=True)
-                    path = generate(options, directory / f"{key}-{mission_type}-{opposition}.miz")
-                    with zipfile.ZipFile(path) as archive:
-                        if archive.testzip() is not None:
-                            raise RuntimeError(f"Corrupt generated mission: {path.name}")
-                        metadata = json.loads(archive.read("ironanvil.json"))
-                        if not is_land(metadata["target_lat"], metadata["target_lon"]):
-                            raise RuntimeError(f"Default target is offshore: {path.name}")
-                        warehouses = lua.loads(archive.read("warehouses").decode("utf-8"))["warehouses"]
-                        home = warehouses["airports"][metadata["home_airport_id"]]
-                        if home["coalition"] != "BLUE" or not home["unlimitedFuel"] or not home["unlimitedMunitions"]:
-                            raise RuntimeError(f"Home base cannot supply friendly pilots: {path.name}")
-                        scripts = [name for name in archive.namelist() if name.endswith("ironanvil_runtime.lua")]
-                        if len(scripts) != 1 or b"IRON_ANVIL" not in archive.read(scripts[0]):
-                            raise RuntimeError(f"Bundled mission runtime is missing: {path.name}")
-                        if metadata["options"]["enemy_cap"] is not opposition or metadata["options"]["air_defenses"] is not opposition:
-                            raise RuntimeError(f"Enemy toggle mismatch: {path.name}")
-                    reloaded = Mission()
-                    reloaded.load_file(str(path))
-                    if reloaded.terrain.name != get_theatre(key).terrain().name:
-                        raise RuntimeError(f"Terrain failed to reload: {path.name}")
-                    clients = reloaded.coalition["blue"].find_group(PLAYER_GROUP)
-                    if clients is None or len(clients.units) != 2 or any(unit.skill.value != "Client" for unit in clients.units):
-                        raise RuntimeError(f"Multiplayer slots failed to reload: {path.name}")
-                    missions.append({"map": key, "mission": mission_type, "opposition": opposition})
-        checks.append(f"Generated and reloaded {len(missions)} missions: three maps, five types, enemy forces on/off")
+                    cases.append(MissionOptions(map=key, mission=mission_type, clients=2,
+                                                enemy_cap=opposition, air_defenses=opposition,
+                                                seed=42, tanker=True, awacs=True))
+        for key, name in (("caucasus", "Sochi-Adler"), ("syria", "Damascus"), ("germany", "Stendal")):
+            cases.append(MissionOptions(map=key, mission="facility", clients=2,
+                                        departure_airport=name, seed=42))
+        for weather in WEATHER_LABELS:
+            cases.append(MissionOptions(map="caucasus", mission="facility", clients=2,
+                                        weather=weather, seed=42))
+        missions = []
+        weather_checks = {}
+        facility_checks = []
+        support_checks = 0
+        for index, options in enumerate(cases):
+            path = generate(options, directory / f"mission-{index}.miz")
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise RuntimeError(f"Corrupt generated mission: {path.name}")
+                metadata = json.loads(archive.read("ironanvil.json"))
+                if not is_land(metadata["target_lat"], metadata["target_lon"]):
+                    raise RuntimeError(f"Default target is offshore: {path.name}")
+                warehouses = lua.loads(archive.read("warehouses").decode("utf-8"))["warehouses"]
+                home = warehouses["airports"][metadata["home_airport_id"]]
+                if home["coalition"] != "BLUE" or not home["unlimitedFuel"] or not home["unlimitedMunitions"]:
+                    raise RuntimeError(f"Home base cannot supply friendly pilots: {path.name}")
+                if options.departure_airport and metadata["home_airport"] != options.departure_airport:
+                    raise RuntimeError(f"Selected airfield was not used: {path.name}")
+                scripts = [name for name in archive.namelist() if name.endswith("ironanvil_runtime.lua")]
+                if len(scripts) != 1 or b"IRON_ANVIL" not in archive.read(scripts[0]):
+                    raise RuntimeError(f"Bundled mission runtime is missing: {path.name}")
+                for toggle in ("enemy_cap", "air_defenses"):
+                    if metadata["options"][toggle] is not getattr(options, toggle):
+                        raise RuntimeError(f"Enemy toggle mismatch: {path.name}")
+                saved = lua.loads(archive.read("mission").decode("utf-8"))["mission"]
+                weather = saved["weather"]
+                if options.mission == "facility":
+                    sites = metadata["facility_sites"]
+                    red_countries = saved["coalition"]["red"]["country"].values()
+                    red_statics = {unit["name"]: unit for country in red_countries
+                                   for group in country.get("static", {}).get("group", {}).values()
+                                   for unit in group["units"].values()}
+                    red_vehicles = {group["name"]: group for country in saved["coalition"]["red"]["country"].values()
+                                    for group in country.get("vehicle", {}).get("group", {}).values()}
+                    if len(sites) < 3 or metadata["facility_decoration_count"] < 24:
+                        raise RuntimeError(f"Facility does not contain three detailed sites: {path.name}")
+                    if sum(unit["type"] == "Workshop A" for unit in red_statics.values()) > 1:
+                        raise RuntimeError(f"Facility repeats its large factory building: {path.name}")
+                    for site in sites:
+                        if site["decoration_count"] < 8 or site["garrison_units"] < 2 or not site["vehicle_groups"]:
+                            raise RuntimeError(f"Facility site lacks decoration or occupants: {path.name}")
+                        if any(name not in red_statics for name in site["decoration_statics"] + site["objective_statics"]):
+                            raise RuntimeError(f"Facility buildings are missing from the saved mission: {path.name}")
+                        occupants = [unit for name in site["vehicle_groups"]
+                                     for unit in red_vehicles[name]["units"].values()]
+                        if sum(unit["type"] == "Infantry AK" for unit in occupants) < 2:
+                            raise RuntimeError(f"Facility occupants are missing from the saved mission: {path.name}")
+                    facility_checks.append({"map": options.map, "site_count": len(sites),
+                                            "decoration_count": metadata["facility_decoration_count"]})
+                blue_planes = {group["name"]: group for country in saved["coalition"]["blue"]["country"].values()
+                               for group in country.get("plane", {}).get("group", {}).values()}
+                for name, enabled, role in (("TEXACO", options.tanker, "Tanker"), ("OVERLORD", options.awacs, "AWACS")):
+                    if not enabled:
+                        continue
+                    group = blue_planes[name]
+                    points = group["route"]["points"]
+                    if len(points) != 3 or group["task"] != ("Refueling" if role == "Tanker" else "AWACS"):
+                        raise RuntimeError(f"Support aircraft has an incomplete route or role: {path.name}")
+                    first_tasks = list(points[1]["task"]["params"]["tasks"].values())
+                    if not any(item["id"] == role for item in first_tasks):
+                        raise RuntimeError(f"Support aircraft's role does not start immediately: {path.name}")
+                    commands = {item["params"]["action"]["id"]: item["params"]["action"]["params"]
+                                for item in first_tasks if item["id"] == "WrappedAction"}
+                    if (commands.get("SetInvisible", {}).get("value") is not True
+                            or commands.get("SetImmortal", {}).get("value") is not True):
+                        raise RuntimeError(f"Support aircraft is not protected from hostile AI: {path.name}")
+                    orbits = [item for item in points[2]["task"]["params"]["tasks"].values() if item["id"] == "Orbit"]
+                    if len(orbits) != 1 or orbits[0]["params"]["pattern"] != "Race-Track":
+                        raise RuntimeError(f"Support aircraft lacks its racetrack orbit: {path.name}")
+                    if abs(hypot(points[3]["x"] - points[2]["x"], points[3]["y"] - points[2]["y"]) - 25000) > 1:
+                        raise RuntimeError(f"Support aircraft lacks its second orbit anchor: {path.name}")
+                    support_checks += 1
+                if options.weather in ("rain", "storm"):
+                    if weather["clouds"]["iprecptns"] != (1 if options.weather == "rain" else 2):
+                        raise RuntimeError(f"Precipitation was not serialized: {path.name}")
+                    weather_checks[options.weather] = weather["clouds"]["iprecptns"]
+                elif options.weather == "fog":
+                    if not weather["enable_fog"] or weather["fog"]["visibility"] != 3000:
+                        raise RuntimeError(f"Fog was not serialized: {path.name}")
+                    weather_checks["fog"] = weather["fog"]
+                elif options.weather == "windy":
+                    speeds = [weather["wind"][level]["speed"] for level in ("atGround", "at2000", "at8000")]
+                    if speeds != [10, 17, 25] or weather["groundTurbulence"] != 15:
+                        raise RuntimeError(f"Strong winds were not serialized: {path.name}")
+                    weather_checks["windy"] = speeds
+            reloaded = Mission()
+            reloaded.load_file(str(path))
+            if reloaded.terrain.name != get_theatre(options.map).terrain().name:
+                raise RuntimeError(f"Terrain failed to reload: {path.name}")
+            if reloaded.weather.dict() != weather:
+                raise RuntimeError(f"Weather failed to reload: {path.name}")
+            clients = reloaded.coalition["blue"].find_group(PLAYER_GROUP)
+            if clients is None or len(clients.units) != 2 or any(unit.skill.value != "Client" for unit in clients.units):
+                raise RuntimeError(f"Multiplayer slots failed to reload: {path.name}")
+            if not reloaded.terrain.airport_by_id(metadata["home_airport_id"]).is_blue():
+                raise RuntimeError(f"Selected airfield is not friendly: {path.name}")
+            missions.append({"map": options.map, "mission": options.mission,
+                             "opposition": options.enemy_cap, "weather": options.weather,
+                             "departure": metadata["home_airport"]})
+        checks.append(f"Generated and reloaded {len(missions)} missions: all maps/types/opposition, selected airfields and every weather")
+        checks.append("Actual serialized rain, thunderstorm, fog and winds verified and reloaded")
+        checks.append("Facility strikes contain three occupied decorated sites and at most one large factory")
+        checks.append("Support aircraft have immediate roles/protection and complete three-point racetrack routes")
 
     # These destinations are deliberately outside PyInstaller's read-only bundle.
     if getattr(sys, "frozen", False):
@@ -176,40 +267,76 @@ def self_test() -> dict:
             if output.resolve().is_relative_to(bundle):
                 raise RuntimeError(f"Application data would be written into its installation: {output}")
     return {"checks": checks, "missions": missions, "mission_count": len(missions),
+            "airport_counts": airport_counts, "weather_checks": weather_checks,
+            "facility_checks": facility_checks, "support_checks": support_checks,
             "aircraft_count": len(catalogue), "pyproj_version": pyproj.__version__}
 
 
 def smoke_gui() -> dict:
-    """Start the actual Tk application, render every map, and close it in CI."""
-    from ironanvil.gui import Application
+    """Render every map/theme and reload real settings without user-data writes."""
+    from ironanvil.airfields import airport_catalogue
+    from ironanvil.gui import Application, THEME_PALETTES
     from ironanvil.theatres import THEATRES
+    from ironanvil.weather import WEATHER_LABELS
 
-    app = Application()
-    errors = []
-    rendered = []
+    original_data_dir = os.environ.get("IRONANVIL_DATA_DIR")
+    with tempfile.TemporaryDirectory(prefix="IronAnvil-gui-test-") as temporary:
+        os.environ["IRONANVIL_DATA_DIR"] = temporary
+        app = None
+        errors = []
+        rendered = []
 
-    def callback_error(exception, value, tb):
-        errors.append("".join(traceback.format_exception(exception, value, tb)))
-        app.quit()
+        def callback_error(exception, value, tb):
+            errors.append("".join(traceback.format_exception(exception, value, tb)))
+            if app is not None:
+                app.quit()
 
-    app.report_callback_exception = callback_error
-    try:
-        app.update()
-        for theatre in THEATRES.values():
-            app.theatre_var.set(theatre.label)
-            app._theatre_changed()
+        try:
+            app = Application()
+            app.report_callback_exception = callback_error
             app.update()
-            rendered.append(theatre.key)
-        app.after(1500, app.quit)
-        app.mainloop()
-        if errors:
-            raise RuntimeError("Tk callback failed: " + errors[0])
-        if not app.winfo_exists():
-            raise RuntimeError("Application closed before the smoke test completed")
-        return {"checks": ["Actual desktop window opened", "All three offline maps rendered", "Tk event loop completed"],
-                "maps": rendered, "tk_version": app.tk.call("info", "patchlevel")}
-    finally:
-        app.destroy()
+            for theme in ("dark", "light"):
+                app.theme_var.set(theme)
+                app._theme_changed()
+                if app.cget("background") != THEME_PALETTES[theme]["bg"]:
+                    raise RuntimeError(f"Desktop did not apply the {theme} theme")
+                for theatre in THEATRES.values():
+                    app.theatre_var.set(theatre.label)
+                    app._theatre_changed()
+                    app.update()
+                    if len(app.departure_combo.cget("values")) != len(airport_catalogue(theatre.key)) + 1:
+                        raise RuntimeError(f"Departure selector is incomplete for {theatre.key}")
+                    rendered.append({"map": theatre.key, "theme": theme})
+            for key, label in WEATHER_LABELS.items():
+                if key != "cloudy" and label not in app.weather_combo.cget("values"):
+                    raise RuntimeError(f"Weather selector is missing {key}")
+            app.departure_var.set("Stendal")
+            app.weather_var.set(WEATHER_LABELS["rain"])
+            app._save_settings()
+            app.after(750, app.quit)
+            app.mainloop()
+            if errors:
+                raise RuntimeError("Tk callback failed: " + errors[0])
+            tk_version = app.tk.call("info", "patchlevel")
+            app.destroy()
+            app = Application()
+            app.report_callback_exception = callback_error
+            app.update()
+            if (app.theme_var.get() != "light" or app.departure_var.get() != "Stendal"
+                    or app.weather_var.get() != WEATHER_LABELS["rain"]):
+                raise RuntimeError("Preferences did not survive a desktop restart")
+            if errors:
+                raise RuntimeError("Tk callback failed after restart: " + errors[0])
+            return {"checks": ["Actual desktop window opened", "All three offline maps rendered in dark and light modes",
+                               "Complete airfield/weather selectors", "Theme, airfield and weather survive restart", "Tk event loop completed"],
+                    "maps": rendered, "tk_version": tk_version, "preferences_reloaded": True}
+        finally:
+            if app is not None:
+                app.destroy()
+            if original_data_dir is None:
+                os.environ.pop("IRONANVIL_DATA_DIR", None)
+            else:
+                os.environ["IRONANVIL_DATA_DIR"] = original_data_dir
 
 
 def main(argv: list[str] | None = None) -> int:

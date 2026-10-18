@@ -22,6 +22,8 @@ CASES = (
     "loss_excludes_dead_client_from_recovery",
     "all_clients_lost_fails_mission",
     "birth_registers_late_joined_client",
+    "cap_activation_retries_documented_api",
+    "cap_waits_for_actual_spawn",
 )
 
 

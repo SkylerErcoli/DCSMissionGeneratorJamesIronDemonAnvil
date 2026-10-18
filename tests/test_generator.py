@@ -89,28 +89,24 @@ class GeneratorTests(unittest.TestCase):
                     self.assertEqual(unit.pylons[4]["CLSID"], expected)
                     self.assertIn(5, unit.pylons)
 
-    def test_facility_compounds_have_four_sides_a_gate_and_varied_seeded_styles(self):
-        styles = set()
-        for seed in range(8):
-            mission, metadata = build_mission(MissionOptions(seed=seed, air_defenses=False, enemy_cap=False))
-            same_mission, same_metadata = build_mission(MissionOptions(seed=seed, air_defenses=False, enemy_cap=False))
-            self.assertEqual(metadata["compound_style"], same_metadata["compound_style"])
-            styles.add(metadata["compound_style"])
-            groups = mission.country("Russia").static_group
-            perimeter = [g.units[0] for g in groups if g.name.startswith("Compound perimeter")]
-            self.assertTrue(all(unit.type == "Container_40ft" for unit in perimeter))
-            objectives = [g.units[0].position for g in groups if g.name.startswith("OBJECTIVE ")]
-            left, right = min(u.position.x for u in perimeter), max(u.position.x for u in perimeter)
-            bottom, top = min(u.position.y for u in perimeter), max(u.position.y for u in perimeter)
-            for point in objectives:
-                self.assertTrue(left < point.x < right and bottom < point.y < top)
-            for side in (-1, 1):
-                self.assertGreater(len([g for g in groups if g.name.startswith(f"Compound perimeter horizontal {side}")]), 10)
-                self.assertGreater(len([g for g in groups if g.name.startswith(f"Compound perimeter vertical {side}")]), 10)
-            upper = [u for u in perimeter if abs(u.position.y - top) < .01]
-            lower = [u for u in perimeter if abs(u.position.y - bottom) < .01]
-            self.assertEqual(len(upper), len(lower) + 1)  # One entrance section is omitted.
-        self.assertEqual(styles, {"container yard", "long depot", "divided compound"})
+    def test_facility_selection_builds_occupied_separated_sites_and_tracks_every_objective(self):
+        for kind in ("fuel", "command", "ammunition", "factory", "radar"):
+            with self.subTest(facility_type=kind):
+                mission, metadata = build_mission(MissionOptions(
+                    facility_type=kind, air_defenses=False, enemy_cap=False))
+                self.assertEqual(metadata["facility_type"], kind)
+                sites = metadata["facility_sites"]
+                self.assertEqual(len(sites), 3)
+                self.assertEqual(sites[0]["type"], kind)
+                self.assertTrue(all(site["garrison_units"] >= 3 for site in sites))
+                self.assertTrue(all(site["decoration_count"] >= 8 for site in sites))
+                self.assertGreaterEqual(metadata["facility_decoration_count"], 24)
+                expected = [name for site in sites for name in site["objective_statics"]]
+                self.assertEqual(metadata["runtime"]["target_statics"], expected)
+                self.assertEqual(len(metadata["runtime"]["facility_sites"]), 3)
+                statics = [u for group in mission.country("Russia").static_group for u in group.units]
+                self.assertLessEqual(sum(u.type == "Workshop A" for u in statics), 1)
+                self.assertTrue(set(expected).issubset({u.name for u in statics}))
 
     def test_all_maps_missions_have_ground_targets_on_land(self):
         for terrain, mission_type in itertools.product(MAPS, MISSIONS):

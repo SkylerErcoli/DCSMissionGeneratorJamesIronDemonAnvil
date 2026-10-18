@@ -96,6 +96,7 @@ class MissionOptions:
     map: str = "caucasus"
     aircraft: str = "FA_18C_hornet"
     mission: str = "facility"
+    facility_type: str = "random"
     clients: int = 2
     difficulty: str = "normal"
     enemy_cap: bool = True
@@ -106,6 +107,7 @@ class MissionOptions:
     start: str = "cold"
     time_of_day: str = "day"
     weather: str = "clear"
+    departure_airport: str | None = None
     tanker: bool = False
     awacs: bool = False
     loadout: str = "auto"
@@ -116,14 +118,17 @@ class MissionOptions:
 
     def validate(self):
         from .theatres import get_theatre
+        from .weather import WEATHERS
+        from .airfields import resolve_airport
         theatre = get_theatre(self.map)
         if not isinstance(self.clients, int) or isinstance(self.clients, bool) or not 1 <= self.clients <= 4:
             raise ValueError("Clients must be an integer from 1 to 4")
         choices = {
             "mission": MISSION_LABELS, "difficulty": ("easy", "normal", "hard", "extreme"),
+            "facility_type": ("random", "fuel", "command", "ammunition", "factory", "radar"),
             "start": ("cold", "hot", "runway", "air"),
             "time_of_day": ("day", "dawn", "dusk", "night", "random"),
-            "weather": ("clear", "cloudy"), "loadout": ("auto", "default"),
+            "weather": WEATHERS, "loadout": ("auto", "default"),
             "opponent": ("regular", "insurgents"),
         }
         for field, allowed in choices.items():
@@ -132,6 +137,10 @@ class MissionOptions:
         if not isinstance(self.seed, int) or isinstance(self.seed, bool):
             raise ValueError("Seed must be an integer")
         aircraft = resolve_aircraft(self.aircraft)
+        if self.departure_airport is not None:
+            if not isinstance(self.departure_airport, str) or not self.departure_airport.strip():
+                raise ValueError("Choose a departure airfield, or use automatic selection")
+            resolve_airport(theatre.terrain(), self.departure_airport)
         if self.mission not in missions_for_aircraft(aircraft):
             raise ValueError(f"{aircraft.id} does not support {self.mission} missions")
         if self.opponent == "insurgents" and self.map != "syria":

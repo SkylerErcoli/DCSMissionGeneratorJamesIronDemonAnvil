@@ -14,6 +14,9 @@ do
         result = 0,
         roster = {},
         capStarted = false,
+        capActivated = {},
+        capSeenAlive = {},
+        capAnnounced = false,
         convoyStarted = false,
         stationTime = 0,
         lastTime = nil,
@@ -189,6 +192,17 @@ do
             if trigger and trigger.action and trigger.action.markToCoalition then
                 if trigger.action.removeMark then pcall(trigger.action.removeMark, 918700) end
                 pcall(trigger.action.markToCoalition, 918700, "Iron Anvil objective", point, blue, true)
+                for index, site in ipairs(config.facility_sites or {}) do
+                    local height = 0
+                    if land and land.getHeight then
+                        local ok, value = pcall(land.getHeight, {x = site.x, y = site.z})
+                        if ok then height = value end
+                    end
+                    local mark = 918710 + index
+                    if trigger.action.removeMark then pcall(trigger.action.removeMark, mark) end
+                    pcall(trigger.action.markToCoalition, mark, site.name or ("Facility site " .. index),
+                          {x = site.x, y = height, z = site.z}, blue, true)
+                end
             end
         else
             announce("No target position is available.")
@@ -223,17 +237,43 @@ do
     end
     local function startCAP()
         if state.capStarted or not config.enemy_cap then return end
-        state.capStarted = true
+        local allActivated = #(config.cap_groups or {}) > 0
+        local anyActivated = false
         for _, name in ipairs(config.cap_groups or {}) do
-            local flight = group(name)
-            if flight and Group and Group.activate then
-                local ok, err = pcall(Group.activate, flight)
-                if not ok then warnOnce("cap_" .. name, "Could not activate CAP group " .. name .. ": " .. tostring(err)) end
-            else
-                warnOnce("cap_" .. name, "Configured CAP group unavailable: " .. tostring(name))
+            if not state.capActivated[name] then
+                local flight = group(name)
+                -- activateGroup is a trigger action in the DCS sandbox. A
+                -- Group.activate method is not part of the documented API.
+                if flight and trigger and trigger.action and trigger.action.activateGroup then
+                    local ok, err = pcall(trigger.action.activateGroup, flight)
+                    if ok and err ~= false then
+                        state.capActivated[name] = true
+                    else
+                        warnOnce("cap_" .. name, "Could not activate CAP group " .. name .. ": " .. tostring(err) .. "; will retry.")
+                    end
+                else
+                    warnOnce("cap_" .. name, "CAP group or activation API temporarily unavailable: " .. tostring(name) .. "; will retry.")
+                end
             end
+            if state.capActivated[name] then anyActivated = true else allActivated = false end
         end
-        announce("Enemy CAP is active. Maintain a lookout for hostile fighters.")
+        state.capStarted = allActivated
+        if anyActivated and not state.capAnnounced then
+            state.capAnnounced = true
+            announce("Enemy CAP is active. Maintain a lookout for hostile fighters.")
+        end
+    end
+
+    local function capDefeated()
+        if not state.capStarted then return false end
+        local allObserved = true
+        for _, name in ipairs(config.cap_groups or {}) do
+            if liveCount({name}) > 0 then state.capSeenAlive[name] = true end
+            if not state.capSeenAlive[name] then allObserved = false end
+        end
+        -- Activation can take a simulation frame. Missing/unspawned groups
+        -- must never count as destroyed fighters and complete CAP instantly.
+        return allObserved and liveCount(config.cap_groups) == 0
     end
     local function routePoint(x, z, onRoad)
         return {
@@ -399,7 +439,7 @@ do
             if state.airborne and not state.objective then
                 if config.mission_type == "cap" then
                     if config.enemy_cap then
-                        if state.capStarted and #(config.cap_groups or {}) > 0 and liveCount(config.cap_groups) == 0 then
+                        if capDefeated() then
                             objectiveComplete()
                         end
                     elseif onStation then

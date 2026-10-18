@@ -36,10 +36,10 @@ local function newWorld(configuration)
     coalition = {side = {BLUE = 2}}
     Group = {
         getByName = function(name) return data.groups[name] end,
-        activate = function(group) data.activated[group.name] = (data.activated[group.name] or 0) + 1 end,
     }
     StaticObject = {getByName = function(name) return data.statics[name] end}
     trigger = {action = {
+        activateGroup = function(group) data.activated[group.name] = (data.activated[group.name] or 0) + 1 end,
         outTextForCoalition = function(_, text) data.messages[#data.messages + 1] = text end,
         setUserFlag = function(name, value) data.flags[name] = value end,
         markToCoalition = function(_, _, point) data.mark = point end,
@@ -360,6 +360,46 @@ function cases.birth_registers_late_joined_client()
     data.takeoff(late)
     data.land(late, "Home", 2)
     assert(data.flags.IRON_ANVIL_RESULT == 1)
+end
+
+function cases.cap_activation_retries_documented_api()
+    local data = newWorld(base("cap"))
+    local player = data.group("players", 1, "Pilot").all[1]
+    data.group("enemycap", 2)
+    local activate = trigger.action.activateGroup
+    local attempts = 0
+    trigger.action.activateGroup = function(flight)
+        attempts = attempts + 1
+        if attempts == 1 then error("simulation group not ready") end
+        activate(flight)
+    end
+    data.start()
+    assert(Group.activate == nil, "the mock must not invent a Group.activate API")
+    data.takeoff(player)
+    assert(not data.activated.enemycap, "a failed API call must not claim activation")
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE)
+    data.advance()
+    assert(data.activated.enemycap == 1, "the next airborne tick retries activation")
+    data.advance()
+    assert(data.activated.enemycap == 1, "an active flight must not be activated twice")
+end
+
+function cases.cap_waits_for_actual_spawn()
+    local data = newWorld(base("cap"))
+    local player = data.group("players", 1, "Pilot").all[1]
+    local pending = data.group("enemycap", 0)
+    data.start()
+    data.takeoff(player)
+    data.advance(2)
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE, "unspawned CAP is not a defeated CAP")
+    local enemy = data.unit("enemy1", nil)
+    enemy.owner = pending
+    pending.all[1] = enemy
+    data.advance()
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE)
+    enemy.life = 0
+    data.advance()
+    assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE == 1, "observed and subsequently destroyed CAP completes")
 end
 
 local selected = arg[2]

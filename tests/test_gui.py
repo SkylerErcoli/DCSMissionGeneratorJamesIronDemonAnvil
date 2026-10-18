@@ -15,12 +15,13 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def app(tmp_path):
+def app(tmp_path, monkeypatch):
     from ironanvil.gui import Application
 
     # Tk objects from a previous destroyed test window must be collected on the
     # UI thread, before a later test starts a mission-generation worker.
     gc.collect()
+    monkeypatch.setenv("IRONANVIL_DATA_DIR", str(tmp_path / "Application data"))
     window = Application()
     window.withdraw()
     window.output_var.set(str(tmp_path))
@@ -152,3 +153,162 @@ def test_generation_error_explains_how_to_fix_output_permissions(app, monkeypatc
     assert "Choose another mission folder" in errors[0][1]
     assert str(diagnostics.log_path()) in errors[0][1]
     assert "WinError" not in errors[0][1]
+
+
+def test_dark_theme_covers_inputs_popups_and_scroll_panels_and_can_switch(app):
+    from tkinter import ttk
+    from ironanvil.gui import THEME_PALETTES
+
+    assert app.theme_var.get() == "dark"
+    for theme in ("dark", "light", "dark"):
+        app.theme_var.set(theme)
+        app._theme_changed()
+        palette = THEME_PALETTES[theme]
+        style = ttk.Style(app)
+        assert app.cget("background") == palette["bg"]
+        assert style.lookup("TCombobox", "fieldbackground", ("readonly",)) == palette["field"]
+        assert style.lookup("TCombobox", "foreground", ("readonly",)) == palette["foreground"]
+        assert style.lookup("TCombobox", "foreground", ("disabled",)) == palette["muted"]
+        assert all(canvas.cget("background") == palette["surface"] for canvas in app._settings_canvases)
+        popup = app.tk.call("ttk::combobox::PopdownWindow", app.departure_combo)
+        assert app.tk.call(f"{popup}.f.l", "cget", "-background") == palette["field"]
+        assert app.tk.call(f"{popup}.f.l", "cget", "-foreground") == palette["foreground"]
+
+
+@pytest.mark.parametrize("map_key,count", [("caucasus", 21), ("syria", 224), ("germany", 227)])
+def test_departure_list_contains_every_airfield_and_type_search_does_not_hide_choices(app, map_key, count):
+    from ironanvil.airfields import airport_catalogue
+    from ironanvil.gui import AUTOMATIC_AIRFIELD
+    from ironanvil.theatres import THEATRES
+
+    app.theatre_var.set(THEATRES[map_key].label)
+    app._theatre_changed()
+    all_names = {airport["name"] for airport in airport_catalogue(map_key)}
+    assert len(all_names) == count
+    assert set(app.departure_combo["values"]) == {AUTOMATIC_AIRFIELD, *all_names}
+    name = sorted(all_names)[-1]
+    app.departure_var.set(name[:3])
+    app._filter_departures()
+    assert name in app.departure_combo["values"]
+    app.departure_var.set("")
+    app._filter_departures()
+    assert set(app.departure_combo["values"]) == {AUTOMATIC_AIRFIELD, *all_names}
+
+
+def test_airfield_selection_is_validated_and_resets_on_map_change(app):
+    app.departure_var.set("batumi")
+    assert app.collect_options().departure_airport == "Batumi"
+    app.departure_var.set("not an airfield")
+    with pytest.raises(ValueError, match="Choose a departure airfield"):
+        app.collect_options()
+    app.departure_var.set("Batumi")
+    app.theatre_var.set("Syria")
+    app._theatre_changed()
+    assert app.collect_options().departure_airport is None
+
+
+def test_all_weather_presets_and_facility_choices_are_available(app):
+    from ironanvil.gui import FACILITY_LABELS, MISSION_LABELS
+    from ironanvil.weather import WEATHER_LABELS
+
+    assert len(app.weather_combo["values"]) == 9
+    for key, label in WEATHER_LABELS.items():
+        app.weather_var.set(label)
+        assert app.collect_options().weather == key
+    for key, label in FACILITY_LABELS.items():
+        app.facility_var.set(label)
+        assert app.collect_options().facility_type == key
+    app.mission_var.set(MISSION_LABELS["convoy"])
+    app._mission_changed()
+    assert str(app.facility_combo["state"]) == "disabled"
+    app.mission_var.set(MISSION_LABELS["facility"])
+    app._mission_changed()
+    assert str(app.facility_combo["state"]) == "readonly"
+
+
+def test_preferences_survive_reopening_and_preserve_other_feature_settings(app, tmp_path):
+    from ironanvil.gui import Application, FACILITY_LABELS
+    from ironanvil.preferences import load_preferences, save_preferences
+    from ironanvil.weather import WEATHER_LABELS
+
+    save_preferences({"update_channel": "stable", "mission": {"future_setting": "keep"}})
+    app.theme_var.set("light")
+    app.departure_var.set("Batumi")
+    app.weather_var.set(WEATHER_LABELS["fog"])
+    app.facility_var.set(FACILITY_LABELS["fuel"])
+    app.output_var.set(str(tmp_path / "My missions"))
+    app.clients_var.set("4")
+    app.destroy()
+    reopened = Application()
+    reopened.withdraw()
+    try:
+        assert reopened.theme_var.get() == "light"
+        assert reopened.departure_var.get() == "Batumi"
+        assert reopened.weather_var.get() == WEATHER_LABELS["fog"]
+        assert reopened.facility_var.get() == FACILITY_LABELS["fuel"]
+        assert reopened.output_var.get() == str(tmp_path / "My missions")
+        assert reopened.collect_options().clients == 4
+        assert load_preferences()["update_channel"] == "stable"
+        assert load_preferences()["mission"]["future_setting"] == "keep"
+    finally:
+        reopened.destroy()
+
+
+def test_check_for_updates_runs_without_blocking_window(app, monkeypatch):
+    from ironanvil import gui, updater
+
+    messages = []
+    monkeypatch.setattr(updater, "check_for_update", lambda: None)
+    monkeypatch.setattr(gui.messagebox, "showinfo", lambda *args, **kwargs: messages.append(args))
+    responsive = []
+    app.after(1, lambda: responsive.append(True))
+    app._check_updates()
+    assert app._updating
+    deadline = time.monotonic() + 5
+    while app._updating and time.monotonic() < deadline:
+        app.update()
+        time.sleep(0.01)
+    assert responsive
+    assert not app._updating
+    assert "up to date" in messages[0][0]
+    assert str(app.generate_button["state"]) == "normal"
+
+
+def test_update_download_is_verified_by_updater_before_launch_and_window_closes(app, monkeypatch, tmp_path):
+    from ironanvil import gui, updater
+    from ironanvil.preferences import load_preferences
+
+    installer = tmp_path / "IronAnvil-Setup-x64.exe"
+    info = updater.UpdateInfo(version="99.0.0", installer_url="https://example.invalid/setup.exe",
+                              sha256="a" * 64, release_url="https://example.invalid/release")
+    calls = []
+    monkeypatch.setattr(gui.sys, "platform", "win32")
+    monkeypatch.setattr(gui.messagebox, "askyesno", lambda *args, **kwargs: True)
+    monkeypatch.setattr(updater, "download_update", lambda update, progress_callback: installer)
+    monkeypatch.setattr(updater, "launch_update", lambda path, expected_sha256: calls.append((path, expected_sha256)))
+    app.theme_var.set("light")
+    app._updating = True
+    app._update_results.put(("checked", info))
+    app._poll_updates()
+    deadline = time.monotonic() + 5
+    while not app._closed and time.monotonic() < deadline:
+        app._poll_updates()
+        time.sleep(0.01)
+    assert calls == [(installer, info.sha256)]
+    assert app._closed
+    assert load_preferences()["theme"] == "light"
+
+
+def test_failed_update_keeps_current_app_usable(app, monkeypatch):
+    from ironanvil import gui
+
+    errors = []
+    monkeypatch.setattr(gui.messagebox, "showerror", lambda *args, **kwargs: errors.append(args))
+    app._updating = True
+    app.generate_button.configure(state="disabled")
+    app._update_results.put(("update-error", "The update could not be verified."))
+    app._poll_updates()
+    assert not app._closed
+    assert not app._updating
+    assert str(app.generate_button["state"]) == "normal"
+    assert "keep using your current version" in errors[0][1]

@@ -11,6 +11,7 @@ on:
       - 'requirements*.txt'
       - 'pyproject.toml'
       - 'tools/build_windows.ps1'
+      - 'tools/write_update_manifest.py'
       - 'tools/test_matrix.py'
       - 'tests/**'
       - 'docs/START-HERE.txt'
@@ -88,7 +89,7 @@ jobs:
               }
             }
           }
-          foreach ($Report in @('frozen-self-test', 'frozen-smoke-gui', 'installed-self-test')) {
+          foreach ($Report in @('frozen-self-test', 'frozen-smoke-gui', 'installed-self-test', 'installed-smoke-gui', 'upgrade-validation')) {
             $ReportPath = "test-results/$Report.json"
             if (Test-Path $ReportPath) {
               $Summary.Add("### $Report")
@@ -122,6 +123,7 @@ jobs:
             dist/IronAnvil-Setup-x64.exe
             dist/IronAnvil-Windows-x64.zip
             dist/SHA256SUMS.txt
+            dist/update.json
           if-no-files-found: error
           retention-days: 30
       - name: Preserve executable validation reports
@@ -165,10 +167,20 @@ jobs:
           set -euo pipefail
           version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
           tag="v${version}"
+          (
+            cd release-assets
+            sha256sum --check SHA256SUMS.txt
+          )
+          python tools/write_update_manifest.py --installer release-assets/IronAnvil-Setup-x64.exe --output /tmp/verified-ironanvil-update.json
+          cmp release-assets/update.json /tmp/verified-ironanvil-update.json
           cat > /tmp/ironanvil-release.md <<'NOTES'
           Download **IronAnvil-Setup-x64.exe** below, double-click it, and follow the installer. Then open **Iron Anvil** from the desktop or Start menu.
 
           No Python installation, commands, administrator access, or GitHub account is needed to run it.
+
+          Already have Iron Anvil? Run this installer to update your existing installation. It keeps your selected installation folder, saved settings, and generated missions. There is no need to uninstall first. From this version onward, **Check for updates** in the application can download and verify future installers for you. Version 1.1 users need to download this update once.
+
+          New in this version: dark/light mode, every airfield and heliport from all three map catalogues, more weather choices including rain, fog and strong winds, saved preferences, and in-application update checks. Helicopter-only bases require a helicopter; ground starts require enough compatible parking for the selected flight.
 
           Portable alternative: download **IronAnvil-Windows-x64.zip**, right-click it, choose **Extract All**, then double-click **IronAnvil.exe**. Keep the `_internal` folder beside the application.
 
@@ -176,7 +188,7 @@ jobs:
 
           This download is unsigned; Windows may display an unrecognized publisher prompt. Only use downloads from this repository's release or a copy from someone you trust.
 
-          Validation: Windows application tests, an actual frozen Windows executable with 30 generated/reloaded missions, bundled map/chart/projection checks, a real Tk window startup, an actual install/uninstall with installed-app self-tests, Linux tests, and the Lua 5.1 mission controller tests. An in-simulator DCS multiplayer flight is still needed.
+          Validation: Windows application tests; 43 generated/reloaded missions covering all maps, mission types, opposition toggles, selected airfields and every weather preset; all 472 catalogue airfields/heliports; actual rain/fog/wind serialization; both desktop themes and saved-settings reload; bundled map/chart/projection checks; and an actual verified 1.1.0-to-current installer upgrade retaining a custom folder, preferences and mission bytes, followed by installed-app checks and uninstall. Linux and Lua 5.1 regression jobs must also pass before publication. An in-simulator DCS multiplayer flight is still needed.
           NOTES
           printf '\nBuilt from commit `%s`.\n' "$GITHUB_SHA" >> /tmp/ironanvil-release.md
           # Releases are immutable by version: never move a published tag or mix
@@ -184,5 +196,5 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; this run's ZIP remains available as a workflow artifact."
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --title "Iron Anvil $version for Windows" --notes-file /tmp/ironanvil-release.md release-assets/IronAnvil-Setup-x64.exe release-assets/IronAnvil-Windows-x64.zip release-assets/SHA256SUMS.txt release-assets/validation/frozen-self-test.json release-assets/validation/frozen-smoke-gui.json release-assets/validation/installed-self-test.json
+            gh release create "$tag" --target "$GITHUB_SHA" --title "Iron Anvil $version for Windows" --notes-file /tmp/ironanvil-release.md release-assets/IronAnvil-Setup-x64.exe release-assets/IronAnvil-Windows-x64.zip release-assets/SHA256SUMS.txt release-assets/update.json release-assets/validation/frozen-self-test.json release-assets/validation/frozen-smoke-gui.json release-assets/validation/installed-self-test.json release-assets/validation/installed-smoke-gui.json release-assets/validation/upgrade-validation.json
           fi

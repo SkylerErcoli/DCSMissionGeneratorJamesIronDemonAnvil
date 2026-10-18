@@ -16,8 +16,12 @@ from dcs.unit import Skill
 from dcs import lua
 
 from .loadouts import apply_loadout, tanker_type
-from .model import MissionOptions, resolve_aircraft
+from .model import MissionOptions, resolve_aircraft, default_output_dir
 from .theatres import get_theatre
+from .airfields import select_airport
+from .weather import apply_weather, WEATHER_LABELS
+from .air_support import create_support_flight, create_enemy_cap
+from .compounds import build_facility_complex
 
 
 PLAYER_GROUP = "IRON ANVIL CLIENTS"
@@ -29,16 +33,6 @@ LINE_TYPES = {
     "artillery": "SAU Msta",
 }
 AIR_DEFENSE_LINE_TYPES = frozenset(("manpads", "aaa"))
-
-
-def default_output_dir() -> Path:
-    if os.name == "nt":
-        saved = Path.home() / "Saved Games"
-        dcs = saved / "DCS"
-        if not dcs.exists() and (saved / "DCS.openbeta").exists():
-            dcs = saved / "DCS.openbeta"
-        return dcs / "Missions" / "IronAnvil"
-    return Path.home() / "IronAnvil" / "Missions"
 
 
 def _vehicle(identifier):
@@ -70,17 +64,6 @@ def _airports(terrain, names):
     return result
 
 
-def _friendly_base(terrain, theatre, position, aircraft, clients):
-    candidates = _airports(terrain, theatre.blue_airports)
-    if not candidates:
-        raise ValueError(f"No configured friendly airports were found for {theatre.label}")
-    # Prefer an airport which has enough compatible parking for the entire flight.
-    # A runway start still uses this list for its rearm/refuel destination.
-    compatible = [airport for airport in candidates
-                  if len(airport.free_parking_slots(aircraft)) >= clients]
-    return min(compatible or candidates, key=lambda a: a.position.distance_to_point(position))
-
-
 def _set_airport_ownership(terrain, theatre, home):
     for airport in _airports(terrain, theatre.red_airports):
         airport.set_red()
@@ -105,63 +88,6 @@ def _ground_group(mission, country, name, types, point, rng, level, heading=0):
 def _statics(mission, country, name, static_type, point, heading=0):
     group = mission.static_group(country, name, static_type, point, heading=heading)
     return group.units[0].name
-
-
-def _facility(mission, country, point, rng, level):
-    """Objective buildings and an uncluttered, varied static compound."""
-    variants = (
-        ("Command post", statics.Fortification._Command_Center),
-        ("Ammunition depot", statics.Warehouse._Ammunition_depot),
-        ("Fuel depot", statics.Warehouse.Tank),
-        ("Factory complex", statics.Fortification.Workshop_A),
-    )
-    label, objective_type = rng.choice(variants)
-    objectives = []
-    for i in range(2 + (level > 2)):
-        location = _ground_offset(point, 90, i * 75 - 40)
-        objectives.append(_statics(mission, country, f"OBJECTIVE {label} {i + 1}", objective_type, location))
-    # Buildings, cargo and fabric tents provide detail without bunker spam.
-    decorations = (statics.Cargo.Iso_container, statics.Fortification.FARP_Tent,
-                   statics.Cargo.Barrels_cargo)
-    for i in range(6):
-        _statics(mission, country, f"Compound supplies {i + 1}", decorations[i % len(decorations)],
-                 _ground_offset(point, i * 60, 110), heading=rng.randrange(360))
-    style, across, deep, partition = rng.choice((
-        ("container yard", 28, 20, False),
-        ("long depot", 36, 16, False),
-        ("divided compound", 32, 24, True),
-    ))
-    # Unlike the unknown HESCO mesh lengths, a 40ft ISO container has a known
-    # nominal footprint. Four complete runs contain the objective, with one
-    # deliberately omitted section forming the entrance. DCS mesh alignment
-    # still merits a visual check in the simulator.
-    length = 12.192
-    width, depth = across * length, deep * length
-    def local(dx, dy):
-        desired = mapping.Point(point.x + dx, point.y + dy, mission.terrain)
-        return _ground_offset(point, point.heading_between_point(desired), point.distance_to_point(desired))
-    for side in (-1, 1):
-        for i in range(across):
-            if side == -1 and i == across // 2:
-                continue
-            _statics(mission, country, f"Compound perimeter horizontal {side} {i}",
-                     statics.Fortification.Container_40ft,
-                     local(-width / 2 + (i + .5) * length, side * depth / 2), heading=0)
-        for i in range(deep):
-            _statics(mission, country, f"Compound perimeter vertical {side} {i}",
-                     statics.Fortification.Container_40ft,
-                     local(side * width / 2, -depth / 2 + (i + .5) * length), heading=90)
-    if partition:
-        # Separate logistics and objective yards, leaving a central passage.
-        for i in range(across):
-            if i in (across // 2 - 1, across // 2):
-                continue
-            _statics(mission, country, f"Compound partition {i}",
-                     statics.Fortification.Container_40ft,
-                     local(-width / 2 + (i + .5) * length, -65), heading=0)
-    _statics(mission, country, "Compound gate office", statics.Fortification.Container_office,
-             local(24, -depth / 2 - 12), heading=0)
-    return objectives, label, style
 
 
 def _fortified_line(mission, country, point, approach, options, rng, level):
@@ -217,14 +143,6 @@ def _air_defenses(mission, country, point, options, rng, level, objective=False)
     return groups
 
 
-def _support_flight(mission, country, name, aircraft, point, main_task, frequency):
-    group = mission.flight_group_inflight(country, name, aircraft, point, 7000, 600,
-                                          maintask=main_task, group_size=1)
-    group.frequency = frequency
-    group.points[0].tasks.append(task.OrbitAction(altitude=7000, speed=600))
-    return group
-
-
 def _briefing(options, theatre, home, target, label, tanker_name):
     latlng = target.latlng()
     objective = {
@@ -244,9 +162,11 @@ def _briefing(options, theatre, home, target, label, tanker_name):
              "Use F10 > Iron Anvil for status and target position. Return and land at home after objectives complete.",
              f"Seed: {options.seed}; difficulty: {options.difficulty}."]
     if tanker_name:
-        lines.append(f"Tanker: {tanker_name}, 251.5 MHz AM. Orbit is between home and target.")
+        lines.append(f"Tanker: {tanker_name}, 251.5 MHz AM, TACAN 11Y TEX. Stable racetrack between home and target, 7,000 m MSL.")
     if options.awacs:
-        lines.append("AWACS: OVERLORD, 252 MHz AM.")
+        lines.append("AWACS: OVERLORD, 252 MHz AM. Stable racetrack at 8,000 m MSL.")
+    if tanker_name or options.awacs:
+        lines.append("Friendly support aircraft are hidden from enemy AI targeting and protected from damage.")
     if options.loadout == "default":
         lines.append("DCS default payload selected: if no local payload was found, use the home-base rearm menu.")
     else:
@@ -268,7 +188,8 @@ def build_mission(options: MissionOptions):
     latitude, longitude = ((options.target_lat, options.target_lon)
                            if options.target_lat is not None else theatre.default_target)
     target = mapping.Point.from_latlng(mapping.LatLng(latitude, longitude), terrain)
-    home = _friendly_base(terrain, theatre, target, aircraft, options.clients)
+    home = select_airport(terrain, theatre, target, aircraft, options.clients,
+                          options.start, options.departure_airport)
     _set_airport_ownership(terrain, theatre, home)
     level = DIFFICULTY[options.difficulty]
     main_task = {"cap": task.CAP, "sead": task.SEAD}.get(options.mission, task.GroundAttack)
@@ -289,18 +210,26 @@ def build_mission(options: MissionOptions):
     apply_loadout(flight, options.mission, options.loadout)
     flight.add_waypoint(target, 500 if aircraft.helicopter else 4500,
                         180 if aircraft.helicopter else 650, name="TARGET / CAP STATION")
-    flight.add_runway_waypoint(home)
+    if home.runways:
+        flight.add_runway_waypoint(home)
+    else:
+        flight.add_waypoint(home.position, 100, 120, name="HOME HELIPAD")
+    flight.land_at(home)
     mission.triggers.add_triggerzone(target, radius=1200, name="IRON ANVIL TARGET")
     approach = target.heading_between_point(home.position)
     target_groups, target_statics, cap_groups = [], [], []
     label = options.mission
     compound_style = None
+    facility_metadata = None
     convoy = None
     convoy_destination = None
     if options.mission == "facility":
-        target_statics, label, compound_style = _facility(mission, red, target, rng, level)
-        _ground_group(mission, red, "FACILITY GARRISON", ["BMP-2", "Infantry AK"],
-                      _ground_offset(target, 30, 180), rng, level)
+        target_statics, label, facility_metadata = build_facility_complex(
+            mission, red, target, rng, level, facility_type=options.facility_type)
+        compound_style = facility_metadata["style"]
+        for index, site in enumerate(facility_metadata["sites"], 1):
+            mission.triggers.add_triggerzone(mapping.Point(site["x"], site["z"], terrain),
+                radius=155, name=f"FACILITY SITE {index}: {site['type']}")
     elif options.mission == "line":
         target_groups = _fortified_line(mission, red, target, approach, options, rng, level)
     elif options.mission == "convoy":
@@ -325,18 +254,10 @@ def build_mission(options: MissionOptions):
     if options.enemy_cap:
         enemy_type = planes.MiG_21Bis if options.map == "germany" else planes.MiG_29A
         for wave in range(1 if level < 3 else 2):
-            group = mission.flight_group_inflight(red, f"ENEMY CAP {wave + 1}", enemy_type,
-                        _offset(target, approach + 180, 45000 + wave * 15000),
-                        6500, 800, maintask=task.CAP, group_size=1 if level == 1 else 2)
-            group.late_activation = True
-            group.set_skill((Skill.Average, Skill.Good, Skill.High, Skill.Excellent)[level - 1])
-            group.load_task_default_loadout(task.CAP)
-            # DCS payload databases are absent on cloud machines; supply legal missiles.
-            if not group.units[0].pylons:
-                apply_loadout(group, "cap")
-            waypoint = group.add_waypoint(target, 6500, 800, name="INTERCEPT")
-            waypoint.tasks.append(task.EngageTargets(max_distance=100000, targets=[task.Targets.All.Air]))
-            waypoint.tasks.append(task.OrbitAction(6500, 800, task.OrbitAction.OrbitPattern.Circle))
+            group = create_enemy_cap(mission, red, f"ENEMY CAP {wave + 1}", enemy_type,
+                        _offset(target, approach + 180, 45000 + wave * 15000), target,
+                        group_size=1 if level == 1 else 2,
+                        skill=(Skill.Average, Skill.Good, Skill.High, Skill.Excellent)[level - 1])
             cap_groups.append(group.name)
     support_position = _offset(home.position, home.position.heading_between_point(target),
                                min(40000, home.position.distance_to_point(target) * .35))
@@ -345,23 +266,27 @@ def build_mission(options: MissionOptions):
         tanker = tanker_type(aircraft)
         if tanker:
             tanker_name = tanker.id
-            _support_flight(mission, blue, "TEXACO", tanker, support_position, task.Refueling, 251.5)
+            create_support_flight(mission, blue, "TEXACO", tanker, support_position,
+                                  task.Refueling, 251.5, heading=approach + 90)
     if options.awacs:
-        _support_flight(mission, blue, "OVERLORD", planes.E_3A,
-                        _offset(support_position, approach + 90, 10000), task.AWACS, 252)
+        create_support_flight(mission, blue, "OVERLORD", planes.E_3A,
+                        _offset(support_position, approach + 90, 10000), task.AWACS, 252,
+                        altitude=8000, heading=approach + 90)
     if options.base_detail:
         _ground_group(mission, blue, "Home ground services", ["M 818", "M978 HEMTT Tanker"],
                       _ground_offset(home.position, 90, 700), rng, 1)
     hour = {"day": 12, "dawn": 6, "dusk": 18, "night": 0}.get(options.time_of_day, rng.randrange(24))
     mission.start_time = datetime(1985 if options.map == "germany" else 2020, 6, 15, hour, 0, 0)
-    if options.weather == "cloudy":
-        mission.weather.clouds_base = 2500
-        mission.weather.clouds_thickness = 800
-        mission.weather.clouds_density = 6
-    mission.weather.wind_at_ground.speed = 2
-    mission.weather.wind_at_ground.direction = rng.randrange(360)
+    resolved_weather = apply_weather(mission, options.weather, rng)
     mission.set_sortie_text(f"Iron Anvil — {options.mission.title()} — {theatre.label}")
     briefing = _briefing(options, theatre, home, target, label, tanker_name)
+    briefing += f"\n\nWeather: {WEATHER_LABELS[resolved_weather]}. Surface wind {mission.weather.wind_at_ground.speed} m/s."
+    if facility_metadata:
+        briefing += (f"\n\nFacility complex: {facility_metadata['site_count']} occupied sites, "
+                     f"{facility_metadata['objective_count']} objective objects. "
+                     "Destroy the primary facility and supporting sites. F10 Target position marks each site.")
+        for index, site in enumerate(facility_metadata["sites"], 1):
+            briefing += f"\nSite {index} ({site['type']}): {site['latitude']:.5f}, {site['longitude']:.5f}"
     mission.set_description_text(briefing)
     mission.set_description_bluetask_text(briefing)
     config = {
@@ -372,10 +297,16 @@ def build_mission(options: MissionOptions):
         "home": {"x": home.position.x, "z": home.position.y}, "base_name": home.name,
         "convoy_group": convoy.name if convoy else None,
         "convoy_destination": {"x": convoy_destination.x, "z": convoy_destination.y} if convoy_destination else None,
+        "facility_sites": [{"name": f"Site {i}: {site['type']}", "x": site["x"], "z": site["z"]}
+                           for i, site in enumerate(facility_metadata["sites"], 1)] if facility_metadata else [],
     }
     metadata = {"options": asdict(options), "home_airport": home.name, "home_airport_id": home.id,
                 "target_lat": latitude, "target_lon": longitude, "runtime": config,
-                "tanker": tanker_name, "compound_style": compound_style, "generator_version": 1}
+                "tanker": tanker_name, "compound_style": compound_style,
+                "resolved_weather": resolved_weather, "generator_version": 2,
+                "facility_type": facility_metadata["primary_type"] if facility_metadata else None,
+                "facility_sites": facility_metadata["sites"] if facility_metadata else [],
+                "facility_decoration_count": facility_metadata["decoration_count"] if facility_metadata else 0}
     return mission, metadata
 
 

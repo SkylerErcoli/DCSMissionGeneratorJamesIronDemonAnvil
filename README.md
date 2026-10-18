@@ -19,10 +19,16 @@ Download **[IronAnvil-Windows-x64.zip](https://github.com/SkylerErcoli/DCSMissio
 
 Both downloads are on the **[Downloads / Releases](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/latest)** page. GitHub's **Source code** ZIP is for developers; it is not the Windows app.
 
+## Updating an existing copy
+
+**Keep your current installation.** Run the new installer over it; it updates the same folder and keeps your missions and saved settings. You do not need to uninstall first. If you are moving from version 1.1, download this update once. Version 1.2 and later have a **Check for updates** button: it downloads and verifies the new version, then opens the upgrade wizard.
+
+The app remembers dark/light mode, your flight settings, departure airfield, and mission output folder. Switch **Dark mode** on or off in the header.
+
 ## Make your first mission
 
-1. Choose **Caucasus**, **Syria**, or **Cold War Germany**, your aircraft, and **1–4 pilots**.
-2. Pick a mission. For a first ground attack, try **Strike — fortified line**.
+1. Choose **Caucasus**, **Syria**, or **Cold War Germany**, your aircraft, and **1–4 pilots**. Leave the departure airfield automatic or choose one from the searchable list.
+2. Pick a mission. For a facility strike, choose a fuel depot, command center, ammunition depot, factory, radar station, or random facility.
 3. Choose the opposition using the two checkboxes. **Enemy CAP flights** adds enemy fighter patrols. **Enemy air defenses** adds enemy missiles and anti-aircraft guns.
 4. Click the map to place the targets, or leave the target unset to have the app choose a location. Use the mouse wheel or **+ / −** to zoom, and drag to move the map.
 5. Click **Generate mission**, then **Open mission folder**.
@@ -34,13 +40,21 @@ Only the person creating missions needs this app. Your friends can join your DCS
 
 | Mission | What you do |
 | --- | --- |
-| Strike — facility | Attack a defended compound. |
+| Strike — facility | Attack several nearby occupied sites with varied buildings, vehicles, supplies, and clutter. |
 | Strike — fortified line | Attack staggered units protected by sandbags. |
 | Strike — moving convoy | Find and attack a moving convoy. |
 | SEAD / DEAD | Attack enemy air defenses. With air defenses off, attack their support vehicles instead. |
 | CAP | Defeat enemy fighters. With enemy CAP off, fly an unopposed patrol. |
 
 Both opposition switches work for every mission type. Friendly starting airbases support rearming and refueling. Weather, time of day, start type, tanker support, and other options are available when you want them; you can leave the defaults for your first mission.
+
+**All airfields:** the lists include all **472 airfields and helipads** in the supported terrain data: **21 Caucasus, 224 Syria, and 227 Cold War Germany**. Any selected launch base becomes friendly with fuel and ammunition. A helicopter-only pad cannot host a fixed-wing aircraft; parking capacity is checked for cold/hot starts, with clear guidance to change the base, pilot count, or start type.
+
+**Weather:** clear, scattered clouds, broken clouds, overcast, rain, thunderstorms, fog, strong winds, or random flyable conditions.
+
+**Friendly support:** tanker and AWACS fly complete racetrack orbits, are hidden from enemy AI targeting, and are protected from damage. Tanker radio is **251.5 MHz / TACAN 11Y TEX**; AWACS is **252 MHz**. Enemy CAP activates after a client takes off or joins an airborne slot.
+
+**Facility variety:** difficulty creates two to four separated sites with different functions, parked logistics vehicles, infantry, containers, tents, equipment and supplies. Factories contain at most one main workshop building. Use **F10 → Iron Anvil → Target position / mark** to mark the individual sites. Fortified troop lines retain staggered positions and sandbag cover.
 
 ## Seeing the target area
 
@@ -53,7 +67,7 @@ Actual DCS map artwork is not included. Importing your own DCS chart is an optio
 - **The app will not open:** run the installer again. If you chose the portable ZIP, extract it first and keep `IronAnvil.exe` beside its `_internal` folder.
 - **You cannot find the mission:** click **Open mission folder** in the app. You can also choose a different folder in its output settings.
 - **The internet map does not load:** leave it off and use the offline map. Mission generation still works.
-- **You want to update:** download and run the latest installer. For the portable app, extract the new ZIP into a new folder.
+- **You want to update:** use **Check for updates**, or run the latest installer over your existing installation. For the portable app, extract the new ZIP into a new folder; saved settings and missions remain outside the app folder.
 
 Before your first group flight, open the generated mission in the DCS Mission Editor and check the target placement and aircraft loadouts. Full flight testing in DCS remains outstanding. [Validation details](docs/VALIDATION.md) record the checks completed so far.
 

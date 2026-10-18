@@ -14,9 +14,27 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter import font as tkfont
 
+from .airfields import airport_catalogue
 from .mapview import MapView
 from .model import MissionOptions, aircraft_catalogue, default_output_dir
+from .preferences import load_preferences, save_preferences
 from .theatres import THEATRES, get_theatre
+from .weather import WEATHER_LABELS
+
+
+AUTOMATIC_AIRFIELD = "Automatic (nearest friendly)"
+THEME_PALETTES = {
+    "dark": {
+        "theme": "dark", "bg": "#161c25", "surface": "#202936", "field": "#111923",
+        "foreground": "#edf3fa", "muted": "#b0bfd0", "border": "#48566a",
+        "accent": "#3987cf", "active": "#344a62", "header": "#101923", "select": "#245d8e",
+    },
+    "light": {
+        "theme": "light", "bg": "#e9edf2", "surface": "#f5f7fa", "field": "#ffffff",
+        "foreground": "#243448", "muted": "#5b6b7b", "border": "#9aabbc",
+        "accent": "#2367a3", "active": "#dce8f4", "header": "#172b40", "select": "#2367a3",
+    },
+}
 
 
 MISSION_LABELS = {
@@ -32,6 +50,10 @@ MISSION_HELP = {
     "convoy": "Intercept a moving convoy. Its position is available from the mission's F10 menu.",
     "sead": "Destroy enemy air defenses around the selected target area.",
     "cap": "Patrol the target area and engage enemy fighter flights.",
+}
+FACILITY_LABELS = {
+    "random": "Random facility", "fuel": "Fuel depot", "command": "Command center",
+    "ammunition": "Ammunition depot", "factory": "Factory", "radar": "Radar station",
 }
 LINE_UNITS = {
     "mbt": "Tanks",
@@ -55,7 +77,8 @@ class Application(tk.Tk):
         height = min(820, self.winfo_screenheight() - 80)
         self.geometry(f"{width}x{height}")
         self.minsize(min(960, width), min(640, height))
-        self.configure(background="#e9edf2")
+        self._preferences = load_preferences()
+        self._settings_canvases = []
         icon = Path(__file__).parent / "assets" / "ironanvil.ico"
         if sys.platform == "win32" and icon.is_file():
             try:
@@ -63,6 +86,9 @@ class Application(tk.Tk):
             except tk.TclError:
                 logging.warning("The application icon could not be loaded")
         self._results: queue.Queue = queue.Queue()
+        self._update_results: queue.Queue = queue.Queue()
+        self._updating = False
+        self._closed = False
         self._busy = False
         self._last_output: Path | None = None
         self._catalogue = [item for item in aircraft_catalogue() if item["missions"]]
@@ -73,9 +99,14 @@ class Application(tk.Tk):
         }
         self._map_by_label = {theatre.label: key for key, theatre in THEATRES.items()}
         self._mission_by_label = {label: key for key, label in MISSION_LABELS.items()}
+        self._weather_by_label = {label: key for key, label in WEATHER_LABELS.items()}
+        self._facility_by_label = {label: key for key, label in FACILITY_LABELS.items()}
         self._variables()
+        self._restore_settings()
         self._style()
         self._build()
+        self._apply_theme()
+        self.bind("<Map>", self._theme_titlebar, add="+")
         self._aircraft_changed()
         self._theatre_changed()
         self._poll_timer = self.after(100, self._poll_generation)
@@ -88,15 +119,21 @@ class Application(tk.Tk):
         )
         first_map = "caucasus" if "caucasus" in THEATRES else next(iter(THEATRES))
         self.theatre_var = tk.StringVar(value=THEATRES[first_map].label)
+        self.departure_var = tk.StringVar(value=AUTOMATIC_AIRFIELD)
+        self.departure_help_var = tk.StringVar()
+        theme = self._preferences.get("theme", "dark")
+        self.theme_var = tk.StringVar(value=theme if isinstance(theme, str) and theme in THEME_PALETTES else "dark")
+        self.update_status_var = tk.StringVar(value="")
         self.aircraft_var = tk.StringVar(value=default_aircraft)
         self.mission_var = tk.StringVar(value=MISSION_LABELS["facility"])
+        self.facility_var = tk.StringVar(value=FACILITY_LABELS["random"])
         self.clients_var = tk.StringVar(value="2")
         self.difficulty_var = tk.StringVar(value="normal")
         self.enemy_cap_var = tk.BooleanVar(value=True)
         self.air_defenses_var = tk.BooleanVar(value=True)
         self.start_var = tk.StringVar(value="cold")
         self.time_var = tk.StringVar(value="day")
-        self.weather_var = tk.StringVar(value="clear")
+        self.weather_var = tk.StringVar(value=WEATHER_LABELS["clear"])
         self.loadout_var = tk.StringVar(value="auto")
         self.tanker_var = tk.BooleanVar(value=True)
         self.awacs_var = tk.BooleanVar(value=True)
@@ -123,31 +160,162 @@ class Application(tk.Tk):
         if "clam" in style.theme_names():
             style.theme_use("clam")
         style.configure(".", font=(self._font_family, 10))
-        style.configure("TFrame", background="#f5f7fa")
-        style.configure("TLabel", background="#f5f7fa", foreground="#243448")
-        style.configure("TLabelframe", background="#f5f7fa")
-        style.configure("TLabelframe.Label", background="#f5f7fa", foreground="#243448")
-        style.configure("TCheckbutton", background="#f5f7fa", foreground="#243448")
-        style.configure("TRadiobutton", background="#f5f7fa", foreground="#243448")
-        style.configure("TNotebook", background="#f5f7fa", borderwidth=0)
         style.configure("TNotebook.Tab", padding=(10, 7))
         style.configure("TButton", padding=(9, 5))
         style.configure("Primary.TButton", font=(self._font_family, 11, "bold"), padding=(16, 10))
-        style.configure("Help.TLabel", foreground="#5b6b7b", font=(self._font_family, 9))
+        style.configure("Help.TLabel", font=(self._font_family, 9))
         style.configure("Status.TLabel", font=(self._font_family, 10, "bold"))
-        style.configure("Header.TFrame", background="#172b40")
-        style.configure("Title.TLabel", background="#172b40", foreground="#ffffff",
-                        font=(self._font_family, 23, "bold"))
-        style.configure("Subtitle.TLabel", background="#172b40", foreground="#cbd8e5")
+        style.configure("Title.TLabel", font=(self._font_family, 23, "bold"))
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        """Theme inputs and their popups as well as the surrounding panels."""
+        palette = THEME_PALETTES[self.theme_var.get()]
+        self.configure(background=palette["bg"])
+        style = ttk.Style(self)
+        surface, foreground = palette["surface"], palette["foreground"]
+        style.configure(".", background=surface, foreground=foreground,
+                        bordercolor=palette["border"], lightcolor=surface, darkcolor=surface,
+                        troughcolor=palette["field"], selectbackground=palette["select"],
+                        selectforeground="#ffffff")
+        for name in ("TFrame", "TLabel", "TLabelframe", "TLabelframe.Label", "TCheckbutton", "TRadiobutton"):
+            style.configure(name, background=surface, foreground=foreground)
+        for name in ("TCheckbutton", "TRadiobutton"):
+            style.map(name, background=[("active", surface)],
+                      foreground=[("disabled", palette["muted"]), ("active", foreground)],
+                      indicatorbackground=[("selected", palette["accent"]), ("!selected", palette["field"])],
+                      indicatorforeground=[("selected", "#ffffff")])
+        style.configure("Help.TLabel", foreground=palette["muted"])
+        style.configure("TNotebook", background=surface, borderwidth=0)
+        style.configure("TNotebook.Tab", background=palette["bg"], foreground=palette["muted"])
+        style.map("TNotebook.Tab", background=[("selected", surface), ("active", palette["active"])],
+                  foreground=[("selected", foreground), ("active", foreground)])
+        for name in ("TEntry", "TCombobox", "TSpinbox"):
+            style.configure(name, fieldbackground=palette["field"], background=palette["field"],
+                            foreground=foreground, insertcolor=foreground, arrowcolor=foreground,
+                            selectbackground=palette["select"], selectforeground="#ffffff")
+            style.map(name, fieldbackground=[("disabled", palette["bg"]), ("readonly", palette["field"])],
+                      foreground=[("disabled", palette["muted"]), ("readonly", foreground)],
+                      background=[("active", palette["active"]), ("readonly", palette["field"])],
+                      arrowcolor=[("disabled", palette["muted"]), ("!disabled", foreground)])
+        style.configure("TButton", background=palette["active"], foreground=foreground)
+        style.map("TButton", background=[("active", palette["select"]), ("disabled", surface)],
+                  foreground=[("disabled", palette["muted"]), ("active", "#ffffff")])
+        style.configure("Primary.TButton", background=palette["accent"], foreground="#ffffff")
+        style.map("Primary.TButton", background=[("active", palette["select"]), ("disabled", palette["active"])])
+        style.configure("TScrollbar", background=palette["active"], arrowcolor=foreground)
+        style.map("TScrollbar", background=[("active", palette["border"])])
+        style.configure("TProgressbar", background=palette["accent"])
+        style.configure("TSeparator", background=palette["border"])
+        style.configure("Header.TFrame", background=palette["header"])
+        for name, color in (("Title.TLabel", "#ffffff"), ("Subtitle.TLabel", "#cbd8e5")):
+            style.configure(name, background=palette["header"], foreground=color)
+        style.configure("Header.TCheckbutton", background=palette["header"], foreground="#edf3fa")
+        style.map("Header.TCheckbutton", background=[("active", palette["header"])],
+                  foreground=[("active", "#ffffff")])
+        for canvas in self._settings_canvases:
+            canvas.configure(background=surface)
+        for option, value in (("background", palette["field"]), ("foreground", foreground),
+                              ("selectBackground", palette["select"]), ("selectForeground", "#ffffff")):
+            self.option_add(f"*TCombobox*Listbox.{option}", value)
+        def theme_popups(widget):
+            if isinstance(widget, ttk.Combobox):
+                popup = self.tk.call("ttk::combobox::PopdownWindow", widget)
+                self.tk.call(f"{popup}.f.l", "configure", "-background", palette["field"],
+                             "-foreground", foreground, "-selectbackground", palette["select"],
+                             "-selectforeground", "#ffffff")
+            for child in widget.winfo_children():
+                theme_popups(child)
+        theme_popups(self)
+        if hasattr(self, "map_view") and hasattr(self.map_view, "set_theme"):
+            self.map_view.set_theme(palette)
+        self._theme_titlebar()
+
+    def _theme_titlebar(self, event=None) -> None:
+        if sys.platform != "win32" or (event is not None and event.widget is not self):
+            return
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            user32.GetParent.argtypes = [wintypes.HWND]
+            user32.GetParent.restype = wintypes.HWND
+            handle = user32.GetParent(self.winfo_id())
+            dark = ctypes.c_int(self.theme_var.get() == "dark")
+            setter = ctypes.windll.dwmapi.DwmSetWindowAttribute
+            setter.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+            setter.restype = ctypes.c_long
+            if setter(handle, 20, ctypes.byref(dark), ctypes.sizeof(dark)) != 0:
+                # Earlier Windows 10 releases use the previous attribute number.
+                setter(handle, 19, ctypes.byref(dark), ctypes.sizeof(dark))
+        except (AttributeError, OSError, tk.TclError):
+            logging.debug("Native title-bar theme is unavailable", exc_info=True)
+
+    def _theme_changed(self) -> None:
+        self._apply_theme()
+        self._save_settings()
+
+    def _settings_variables(self):
+        return {name: getattr(self, f"{name}_var") for name in (
+            "theatre", "aircraft", "departure", "mission", "facility", "clients", "difficulty", "enemy_cap",
+            "air_defenses", "start", "time", "weather", "loadout", "tanker", "awacs",
+            "base_detail", "opponent", "seed", "output")}
+
+    def _restore_settings(self) -> None:
+        settings = self._preferences.get("mission", {})
+        if not isinstance(settings, dict):
+            return
+        allowed = {
+            "theatre": self._map_by_label, "aircraft": self._aircraft_by_label,
+            "mission": self._mission_by_label, "clients": ("1", "2", "3", "4"),
+            "facility": self._facility_by_label,
+            "difficulty": ("easy", "normal", "hard", "extreme"),
+            "start": ("cold", "hot", "runway", "air"), "time": ("day", "dawn", "dusk", "night", "random"),
+            "weather": self._weather_by_label, "loadout": ("auto", "default"),
+            "opponent": ("regular", "insurgents"),
+        }
+        for name, variable in self._settings_variables().items():
+            value = settings.get(name)
+            if isinstance(variable, tk.BooleanVar):
+                if isinstance(value, bool):
+                    variable.set(value)
+            elif isinstance(value, str) and (name not in allowed or value in allowed[name]):
+                variable.set(value)
+        units = settings.get("line_units")
+        if isinstance(units, list) and all(isinstance(key, str) for key in units):
+            for key, variable in self.line_vars.items():
+                variable.set(key in units)
+
+    def _save_settings(self) -> None:
+        settings = {name: variable.get() for name, variable in self._settings_variables().items()}
+        settings["line_units"] = [key for key, variable in self.line_vars.items() if variable.get()]
+        # Re-read to preserve settings saved by other features, including the updater.
+        preferences = load_preferences()
+        preferences.update(theme=self.theme_var.get(), mission=settings)
+        try:
+            save_preferences(preferences)
+        except (OSError, ValueError):
+            logging.exception("Iron Anvil could not save preferences")
 
     def _build(self) -> None:
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
         header = ttk.Frame(self, style="Header.TFrame", padding=(22, 14))
         header.grid(row=0, column=0, sticky="ew")
-        ttk.Label(header, text="IRON ANVIL", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(header, text="Choose your flight. Create a mission. Fly together in DCS World.",
+        title = ttk.Frame(header, style="Header.TFrame")
+        title.pack(side="left", fill="x", expand=True)
+        ttk.Label(title, text="IRON ANVIL", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(title, text="Choose your flight. Create a mission. Fly together in DCS World.",
                   style="Subtitle.TLabel").pack(anchor="w", pady=(2, 0))
+        tools = ttk.Frame(header, style="Header.TFrame")
+        tools.pack(side="right", padx=(12, 0))
+        ttk.Checkbutton(tools, text="Dark mode", variable=self.theme_var, onvalue="dark", offvalue="light",
+                        style="Header.TCheckbutton", command=self._theme_changed).grid(row=0, column=0, padx=(0, 12))
+        self.update_button = ttk.Button(tools, text="Check for updates", command=self._check_updates)
+        self.update_button.grid(row=0, column=1)
+        ttk.Label(tools, textvariable=self.update_status_var, style="Subtitle.TLabel").grid(
+            row=1, column=0, columnspan=2, sticky="e", pady=(4, 0))
 
         body = ttk.Frame(self, padding=12)
         body.grid(row=1, column=0, sticky="nsew")
@@ -222,8 +390,9 @@ class Application(tk.Tk):
         container = ttk.Frame(notebook)
         container.columnconfigure(0, weight=1)
         container.rowconfigure(0, weight=1)
-        canvas = tk.Canvas(container, background="#f5f7fa", highlightthickness=0,
+        canvas = tk.Canvas(container, background=THEME_PALETTES[self.theme_var.get()]["surface"], highlightthickness=0,
                            width=340, height=430)
+        self._settings_canvases.append(canvas)
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.grid(row=0, column=0, sticky="nsew")
@@ -276,8 +445,16 @@ class Application(tk.Tk):
         aircraft_combo = self._combo(parent, 2, "Your aircraft", self.aircraft_var,
                                      list(self._aircraft_by_label))
         aircraft_combo.bind("<<ComboboxSelected>>", self._aircraft_changed)
+        self.departure_combo = self._combo(parent, 4, "Departure airfield · type to search", self.departure_var,
+                                           [AUTOMATIC_AIRFIELD])
+        self.departure_combo.configure(state="normal")
+        self.departure_combo.bind("<KeyRelease>", self._filter_departures)
+        self.departure_combo.bind("<<ComboboxSelected>>", self._departure_changed)
+        self.departure_combo.bind("<FocusOut>", self._departure_changed)
+        ttk.Label(parent, textvariable=self.departure_help_var, style="Help.TLabel", wraplength=315).grid(
+            row=6, column=0, sticky="w", pady=(7, 0))
         flight_row = ttk.Frame(parent)
-        flight_row.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        flight_row.grid(row=7, column=0, sticky="ew", pady=(8, 0))
         flight_row.columnconfigure(0, weight=1)
         flight_row.columnconfigure(1, weight=1)
         clients_frame = ttk.Frame(flight_row, padding=(0, 0, 6, 0))
@@ -289,16 +466,16 @@ class Application(tk.Tk):
         self._combo(clients_frame, 0, "Number of pilots", self.clients_var, ["1", "2", "3", "4"], width=15)
         self._combo(loadout_frame, 0, "Loadout", self.loadout_var, ["auto", "default"], width=15)
         ttk.Label(parent, text="Auto builds a role-appropriate starting payload. You can adjust it in DCS.",
-                  style="Help.TLabel", wraplength=315).grid(row=5, column=0, sticky="w", pady=(7, 10))
+                  style="Help.TLabel", wraplength=315).grid(row=8, column=0, sticky="w", pady=(7, 10))
         ttk.Checkbutton(parent, text="Tanker support, where compatible", variable=self.tanker_var).grid(
-            row=6, column=0, sticky="w", pady=3)
+            row=9, column=0, sticky="w", pady=3)
         ttk.Checkbutton(parent, text="AWACS support", variable=self.awacs_var).grid(
-            row=7, column=0, sticky="w", pady=3)
+            row=10, column=0, sticky="w", pady=3)
         ttk.Checkbutton(parent, text="Airbase detail", variable=self.base_detail_var).grid(
-            row=8, column=0, sticky="w", pady=3)
-        ttk.Separator(parent).grid(row=9, column=0, sticky="ew", pady=9)
+            row=11, column=0, sticky="w", pady=3)
+        ttk.Separator(parent).grid(row=12, column=0, sticky="ew", pady=9)
         ttk.Label(parent, text="Your airbase is friendly, with fuel and weapons available for rearming and refueling.",
-                  style="Help.TLabel", wraplength=315).grid(row=10, column=0, sticky="w")
+                  style="Help.TLabel", wraplength=315).grid(row=13, column=0, sticky="w")
 
     def _mission_tab(self, parent) -> None:
         parent.columnconfigure(0, weight=1)
@@ -306,8 +483,9 @@ class Application(tk.Tk):
         self.mission_combo.bind("<<ComboboxSelected>>", self._mission_changed)
         ttk.Label(parent, textvariable=self.mission_help_var, style="Help.TLabel", wraplength=315).grid(
             row=2, column=0, sticky="w", pady=(8, 2))
+        self.facility_combo = self._combo(parent, 3, "Facility type", self.facility_var, list(FACILITY_LABELS.values()))
         opposition_row = ttk.Frame(parent)
-        opposition_row.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        opposition_row.grid(row=5, column=0, sticky="ew", pady=(8, 0))
         opposition_row.columnconfigure(0, weight=1)
         opposition_row.columnconfigure(1, weight=1)
         difficulty_frame = ttk.Frame(opposition_row, padding=(0, 0, 6, 0))
@@ -321,7 +499,7 @@ class Application(tk.Tk):
         self.opponent_combo = self._combo(opponent_frame, 0, "Syria opponent", self.opponent_var,
                                           ["regular", "insurgents"], width=15)
         self.line_frame = ttk.LabelFrame(parent, text="Fortified-line units", padding=8)
-        self.line_frame.grid(row=4, column=0, sticky="ew", pady=(12, 0))
+        self.line_frame.grid(row=6, column=0, sticky="ew", pady=(12, 0))
         self._line_buttons = []
         for index, (key, label) in enumerate(LINE_UNITS.items()):
             check = ttk.Checkbutton(self.line_frame, text=label, variable=self.line_vars[key])
@@ -343,7 +521,8 @@ class Application(tk.Tk):
         weather_frame.columnconfigure(0, weight=1)
         self._combo(time_frame, 0, "Time of day", self.time_var,
                     ["day", "dawn", "dusk", "night", "random"], width=15)
-        self._combo(weather_frame, 0, "Weather", self.weather_var, ["clear", "cloudy"], width=15)
+        self.weather_combo = self._combo(weather_frame, 0, "Weather", self.weather_var,
+                                         [label for key, label in WEATHER_LABELS.items() if key != "cloudy"], width=19)
         ttk.Label(parent, text="Mission variation number (optional)").grid(row=3, column=0, sticky="w", pady=(10, 3))
         seed_row = ttk.Frame(parent)
         seed_row.grid(row=4, column=0, sticky="ew")
@@ -362,11 +541,41 @@ class Application(tk.Tk):
 
     def _theatre_changed(self, _event=None) -> None:
         key = self._map_by_label[self.theatre_var.get()]
+        self._departures = airport_catalogue(key)
+        self._departure_by_name = {airport["name"]: airport for airport in self._departures}
+        self._departure_names = [AUTOMATIC_AIRFIELD, *self._departure_by_name]
+        self.departure_combo.configure(values=self._departure_names)
+        if self.departure_var.get() not in self._departure_names:
+            self.departure_var.set(AUTOMATIC_AIRFIELD)
         self.map_view.set_theatre(get_theatre(key))
+        self._departure_changed()
         self._clear_target()
         self.opponent_combo.configure(state="readonly" if key == "syria" else "disabled")
         if key != "syria":
             self.opponent_var.set("regular")
+
+    def _filter_departures(self, event=None) -> None:
+        if event is not None and event.keysym in {"Up", "Down", "Return", "Escape", "Tab"}:
+            return
+        search = self.departure_var.get().strip().casefold()
+        names = self._departure_names
+        if search and search != AUTOMATIC_AIRFIELD.casefold():
+            names = [name for name in names if search in name.casefold()]
+        self.departure_combo.configure(values=names)
+
+    def _departure_changed(self, _event=None) -> None:
+        if not hasattr(self, "_departure_by_name"):
+            return
+        name = self.departure_var.get()
+        airport = self._departure_by_name.get(name)
+        if hasattr(self.map_view, "set_home_airport"):
+            self.map_view.set_home_airport(name if airport else None)
+        if airport:
+            runway = "Runway" if airport.get("runways") else "Helipad / no runway"
+            parking = airport.get("parking", 0)
+            self.departure_help_var.set(f"{runway} · {parking} parking spots. This airfield becomes friendly, with fuel and weapons.")
+        else:
+            self.departure_help_var.set(f"All {len(self._departures)} airfields are listed, including helipads. Choose a runway for fixed-wing aircraft. Automatic picks a suitable friendly base.")
 
     def _aircraft_changed(self, _event=None) -> None:
         item = self._aircraft_by_label[self.aircraft_var.get()]
@@ -378,10 +587,13 @@ class Application(tk.Tk):
         if self.mission_var.get() not in labels:
             self.mission_var.set(labels[0])
         self._mission_changed()
+        if hasattr(self, "_departure_by_name"):
+            self._departure_changed()
 
     def _mission_changed(self, _event=None) -> None:
         mission = self._mission_by_label[self.mission_var.get()]
         self.mission_help_var.set(MISSION_HELP[mission])
+        self.facility_combo.configure(state="readonly" if mission == "facility" else "disabled")
         for check in self._line_buttons:
             check.configure(state="normal" if mission == "line" else "disabled")
         self._opposition_changed()
@@ -459,10 +671,19 @@ class Application(tk.Tk):
         units = tuple(key for key, variable in self.line_vars.items() if variable.get())
         if mission == "line" and not units:
             raise ValueError("Select at least one unit type for the fortified line.")
+        departure = self.departure_var.get().strip()
+        if departure == AUTOMATIC_AIRFIELD:
+            departure = None
+        else:
+            departure = next((name for name in self._departure_by_name
+                              if name.casefold() == departure.casefold()), None)
+            if departure is None:
+                raise ValueError("Choose a departure airfield from the list, or select Automatic (nearest friendly).")
         return MissionOptions(
             map=self._map_by_label[self.theatre_var.get()],
             aircraft=self._aircraft_by_label[self.aircraft_var.get()]["id"],
             mission=mission,
+            facility_type=self._facility_by_label.get(self.facility_var.get(), self.facility_var.get()),
             clients=int(self.clients_var.get()),
             difficulty=self.difficulty_var.get(),
             enemy_cap=self.enemy_cap_var.get(),
@@ -472,7 +693,8 @@ class Application(tk.Tk):
             seed=seed,
             start=self.start_var.get(),
             time_of_day=self.time_var.get(),
-            weather=self.weather_var.get(),
+            weather=self._weather_by_label.get(self.weather_var.get(), self.weather_var.get()),
+            departure_airport=departure,
             tanker=self.tanker_var.get(),
             awacs=self.awacs_var.get(),
             loadout=self.loadout_var.get(),
@@ -483,13 +705,14 @@ class Application(tk.Tk):
         ).validate()
 
     def _generate(self) -> None:
-        if self._busy:
+        if self._busy or self._updating:
             return
         try:
             options = self.collect_options()
         except (ValueError, KeyError) as exc:
             messagebox.showerror("Check mission settings", str(exc), parent=self)
             return
+        self._save_settings()
         self._busy = True
         self.generate_button.configure(state="disabled")
         self.progress.start(14)
@@ -521,7 +744,102 @@ class Application(tk.Tk):
                 message = "Try creating the mission again. If this keeps happening, share the log file below when asking for help."
             results.put((False, message))
 
+    def _check_updates(self) -> None:
+        if self._updating:
+            return
+        if self._busy:
+            messagebox.showinfo("Finish creating your mission", "Check for updates after your mission is ready.", parent=self)
+            return
+        self._updating = True
+        self.update_button.configure(state="disabled")
+        self.generate_button.configure(state="disabled")
+        self.update_status_var.set("Checking for updates...")
+        threading.Thread(target=self._check_update_worker, args=(self._update_results,), daemon=True).start()
+
+    @staticmethod
+    def _check_update_worker(results) -> None:
+        try:
+            from .updater import check_for_update
+
+            results.put(("checked", check_for_update()))
+        except Exception as exc:
+            logging.exception("Iron Anvil update check failed")
+            results.put(("update-error", str(exc)))
+
+    @staticmethod
+    def _download_update_worker(info, results) -> None:
+        try:
+            from .updater import download_update
+
+            def progress(received, total):
+                results.put(("update-progress", (received, total)))
+
+            path = download_update(info, progress_callback=progress)
+            results.put(("downloaded", (path, info)))
+        except Exception as exc:
+            logging.exception("Iron Anvil update download failed")
+            results.put(("update-error", str(exc)))
+
+    def _poll_updates(self) -> None:
+        while True:
+            try:
+                event, result = self._update_results.get_nowait()
+            except queue.Empty:
+                return
+            if event == "update-progress":
+                received, total = result
+                text = f"{received / total:.0%}" if total else f"{received / 1048576:.1f} MB"
+                self.update_status_var.set(f"Downloading update... {text}")
+            elif event == "checked":
+                if result is None:
+                    self._finish_update("You're up to date.")
+                    messagebox.showinfo("Iron Anvil is up to date", "You already have the latest version of Iron Anvil.", parent=self)
+                    continue
+                if sys.platform != "win32":
+                    self._finish_update(f"Version {result.version} is available.")
+                    messagebox.showinfo("Windows update available", f"Iron Anvil {result.version} is available for Windows.\n\n{result.release_url}", parent=self)
+                    continue
+                install = messagebox.askyesno("Iron Anvil update available",
+                    f"Download and install Iron Anvil {result.version}?\n\n"
+                    "This updates your current installation. Your saved missions and settings stay in place. "
+                    "Iron Anvil will close when the installer is ready.", parent=self)
+                if not install:
+                    self._finish_update(f"Version {result.version} is available.")
+                    continue
+                self.generate_button.configure(state="disabled")
+                self.update_status_var.set("Downloading update...")
+                threading.Thread(target=self._download_update_worker,
+                                 args=(result, self._update_results), daemon=True).start()
+            elif event == "downloaded":
+                path, info = result
+                try:
+                    from .updater import launch_update
+
+                    self._save_settings()
+                    launch_update(path, expected_sha256=info.sha256)
+                except Exception as exc:
+                    logging.exception("Iron Anvil could not start its update")
+                    self._finish_update("Update could not start.")
+                    messagebox.showerror("Update could not start", str(exc), parent=self)
+                else:
+                    self.destroy()
+                    return
+            elif event == "update-error":
+                self._finish_update("Update unavailable. Try again later.")
+                messagebox.showerror("Could not update Iron Anvil",
+                                     f"{result}\n\nYou can keep using your current version.", parent=self)
+
+    def _finish_update(self, text) -> None:
+        self._updating = False
+        self.update_button.configure(state="normal")
+        if not self._busy:
+            self.generate_button.configure(state="normal")
+        self.update_status_var.set(text)
+
     def _poll_generation(self) -> None:
+        self._poll_updates()
+        if self._closed:
+            return
         try:
             success, result = self._results.get_nowait()
         except queue.Empty:
@@ -546,6 +864,11 @@ class Application(tk.Tk):
         self._poll_timer = self.after(100, self._poll_generation)
 
     def destroy(self) -> None:
+        if getattr(self, "_closed", False):
+            return
+        if hasattr(self, "line_vars"):
+            self._save_settings()
+        self._closed = True
         if getattr(self, "_poll_timer", None):
             self.after_cancel(self._poll_timer)
             self._poll_timer = None
@@ -556,6 +879,7 @@ class Application(tk.Tk):
                                          initialdir=self.output_var.get(), mustexist=False)
         if folder:
             self.output_var.set(folder)
+            self._save_settings()
 
     def _open_output(self) -> None:
         folder = self._last_output.parent if self._last_output else Path(self.output_var.get()).expanduser()
