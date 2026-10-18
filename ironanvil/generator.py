@@ -24,6 +24,7 @@ from .air_support import create_support_flight, create_enemy_cap
 from .compounds import build_facility_complex
 from .operations import build_operation, choose_target, operation_briefing
 from . import APP_DATA_NAME, __version__
+from .planning import search_intelligence, planner_metadata
 
 
 PLAYER_GROUP = "IRON ANVIL CLIENTS"
@@ -158,8 +159,9 @@ def _briefing(options, theatre, home, target, label, tanker_name):
     }[options.mission]
     if options.operation != "classic":
         objective = "Follow the required and bonus goals in the operation briefing. Guards and scenery are not mandatory targets."
+    location_label = "Search-area center" if options.intelligence == "search" else "Target / CAP station"
     lines = [f"IRON ANVIL — {theatre.label}", objective,
-             f"Target / CAP station: {latlng.lat:.5f}, {latlng.lng:.5f}",
+             f"{location_label}: {latlng.lat:.5f}, {latlng.lng:.5f}",
              f"Home: {home.name} — BLUE coalition, unlimited fuel and ammunition.",
              "All player slots are CLIENT slots. Flight radio 251 MHz AM.",
              f"Enemy fighters: {'enabled' if options.enemy_cap else 'disabled'}. Air defences: {'enabled' if options.air_defenses else 'disabled'}.",
@@ -200,6 +202,8 @@ def build_mission(options: MissionOptions):
         latitude, longitude = coordinates.lat, coordinates.lng
     _set_airport_ownership(terrain, theatre, home)
     alternate = select_alternate(terrain, home, target, aircraft) if options.recovery == "home_or_alternate" else None
+    intelligence = search_intelligence(target, theatre, aircraft, rng) if options.intelligence == "search" else None
+    navigation_target = mapping.Point(intelligence["center"]["x"], intelligence["center"]["z"], terrain) if intelligence else target
     level = DIFFICULTY[options.difficulty]
     main_task = {"cap": task.CAP, "sead": task.SEAD}.get(options.mission, task.GroundAttack)
     # Assign only a task the module advertises; some helicopters have CAS only.
@@ -217,14 +221,10 @@ def build_mission(options: MissionOptions):
     flight.set_client()
     flight.frequency = 251
     apply_loadout(flight, options.mission, options.loadout)
-    flight.add_waypoint(target, 500 if aircraft.helicopter else 4500,
-                        180 if aircraft.helicopter else 650, name="TARGET / CAP STATION")
-    if home.runways:
-        flight.add_runway_waypoint(home)
-    else:
-        flight.add_waypoint(home.position, 100, 120, name="HOME HELIPAD")
-    flight.land_at(home)
-    mission.triggers.add_triggerzone(target, radius=1200, name="IRON ANVIL TARGET")
+    flight.add_waypoint(navigation_target, 500 if aircraft.helicopter else 4500,
+                        180 if aircraft.helicopter else 650, name="SEARCH AREA" if intelligence else "TARGET / CAP STATION")
+    mission.triggers.add_triggerzone(navigation_target, radius=intelligence["radius"] if intelligence else 1200,
+                                    name="IRON ANVIL SEARCH AREA" if intelligence else "IRON ANVIL TARGET")
     approach = target.heading_between_point(home.position)
     target_groups, target_statics, cap_groups = [], [], []
     label = options.mission
@@ -267,6 +267,16 @@ def build_mission(options: MissionOptions):
         command = _ground_group(mission, red, "OBJECTIVE AIR DEFENSE SUPPORT",
                                 ["Ural-375 PBU", "ZIL-131 KUNG", "Ural-375"], target, rng, level)
         target_groups.append(command.name)
+    if operation_config and not intelligence:
+        for goal in operation_config["objectives"]:
+            if not goal["required"]:
+                flight.add_waypoint(mapping.Point(goal["position"]["x"],goal["position"]["z"],terrain),
+                    500 if aircraft.helicopter else 4500,180 if aircraft.helicopter else 650,name="BONUS - OPTIONAL")
+    if home.runways:
+        flight.add_runway_waypoint(home)
+    else:
+        flight.add_waypoint(home.position,100,120,name="HOME HELIPAD")
+    flight.land_at(home)
     defense_groups = _air_defenses(mission, red, target, options, rng, level,
                                    objective=options.mission == "sead")
     if options.mission == "sead":
@@ -299,9 +309,14 @@ def build_mission(options: MissionOptions):
     mission.start_time = datetime(1985 if options.map == "germany" else 2020, 6, 15, hour, 0, 0)
     resolved_weather = apply_weather(mission, options.weather, rng)
     mission.set_sortie_text(f"Iron Anvil Experimental — {operation_config['title'] if operation_config else options.mission.title()} — {theatre.label}")
-    distance_km = home.position.distance_to_point(target) / 1000
+    distance_km = home.position.distance_to_point(navigation_target) / 1000
     cruise_kph = 180 if aircraft.helicopter else 650
-    briefing = _briefing(options, theatre, home, target, label, tanker_name)
+    briefing = _briefing(options, theatre, home, navigation_target, label, tanker_name)
+    if intelligence:
+        briefing += (f"\n\nSEARCH-AREA INTELLIGENCE: exact objective and response coordinates are unconfirmed. "
+                     f"Search radius {intelligence['radius']/1000:g} km. {intelligence['description']} "
+                     "F10 Recon check-in confirms updated coordinates for the whole team. Cooperative operations award 50 shared points once. "
+                     "Enemy ground groups are hidden from native F10 symbols; real sensors and visual sighting remain usable.")
     if operation_config:
         briefing = operation_briefing(operation_config) + "\n\nFLIGHT AND SUPPORT\n\n" + briefing
     briefing += f"\n\nWeather: {WEATHER_LABELS[resolved_weather]}. Surface wind {mission.weather.wind_at_ground.speed} m/s."
@@ -324,8 +339,9 @@ def build_mission(options: MissionOptions):
                      ("Follow the required/bonus thresholds above. " if operation_config else
                       "Destroy the primary facility and supporting sites. ") +
                      "F10 Target position marks each site.")
-        for index, site in enumerate(facility_metadata["sites"], 1):
-            briefing += f"\nSite {index} ({site['type']}): {site['latitude']:.5f}, {site['longitude']:.5f}"
+        if not intelligence:
+            for index, site in enumerate(facility_metadata["sites"], 1):
+                briefing += f"\nSite {index} ({site['type']}): {site['latitude']:.5f}, {site['longitude']:.5f}"
     mission.set_description_text(briefing)
     mission.set_description_bluetask_text(briefing)
     config = {
@@ -338,13 +354,19 @@ def build_mission(options: MissionOptions):
                            for airport in ([home, alternate] if alternate else [home])],
         "recovery_label": home.name + (f" or {alternate.name}" if alternate else ""),
         "allow_withdrawal": options.allow_withdrawal,
+        "intelligence": intelligence,
         "convoy_group": convoy.name if convoy else None,
         "convoy_destination": {"x": convoy_destination.x, "z": convoy_destination.y} if convoy_destination else None,
         "operation": operation_config,
         "facility_sites": [{"name": f"Site {i}: {site['type']}", "x": site["x"], "z": site["z"]}
                            for i, site in enumerate(facility_metadata["sites"], 1)] if facility_metadata else [],
     }
+    if intelligence:
+        for group in red.vehicle_group + red.static_group:
+            group.hidden = True
     metadata = {"options": asdict(options), "home_airport": home.name, "home_airport_id": home.id,
+                "intelligence": intelligence,
+                "planner": planner_metadata(terrain,home,target,alternate,operation_config,intelligence),
                 "target_lat": latitude, "target_lon": longitude, "runtime": config,
                 "tanker": tanker_name, "compound_style": compound_style,
                 "alternate_airport": alternate.name if alternate else None,

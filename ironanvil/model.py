@@ -41,6 +41,7 @@ MISSION_LABELS = {"facility": "Strike — facility", "line": "Strike — fortifi
                   "convoy": "Strike — moving convoy", "sead": "SEAD / DEAD", "cap": "CAP"}
 LINE_UNITS = ("mbt", "ifv", "apc", "atgm", "infantry", "manpads", "aaa", "artillery")
 RECOVERY_LABELS = {"home": "Home base only", "home_or_alternate": "Home or friendly alternate"}
+INTELLIGENCE_LABELS = {"precise": "Briefed target locations", "search": "Search area + recon check-in"}
 
 
 def default_output_dir():
@@ -104,6 +105,7 @@ class MissionOptions:
     enemy_response: bool = True
     recovery: str = "home"
     allow_withdrawal: bool = True
+    intelligence: str = "precise"
     clients: int = 2
     difficulty: str = "normal"
     enemy_cap: bool = True
@@ -136,6 +138,7 @@ class MissionOptions:
             "operation": ("classic", "broken_relay", "supply_denial", "rolling_thunder"),
             "pace": ("compact", "standard", "extended"),
             "recovery": RECOVERY_LABELS,
+            "intelligence": INTELLIGENCE_LABELS,
             "start": ("cold", "hot", "runway", "air"),
             "time_of_day": ("day", "dawn", "dusk", "night", "random"),
             "weather": WEATHERS, "loadout": ("auto", "default"),
@@ -149,6 +152,8 @@ class MissionOptions:
         aircraft = resolve_aircraft(self.aircraft)
         if self.operation != "classic" and self.mission != "facility":
             raise ValueError("Cooperative operations use the facility mission; choose Strike — facility")
+        if self.intelligence == "search" and self.mission == "cap":
+            raise ValueError("Search-area intelligence is for ground missions. Use briefed locations for CAP.")
         for name in ("enemy_response", "enemy_cap", "air_defenses", "tanker", "awacs", "base_detail", "allow_withdrawal"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"{name.replace('_', ' ').title()} must be enabled or disabled")

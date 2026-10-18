@@ -8,6 +8,8 @@ do
     local config = IRON_ANVIL or {}
     local blue = coalition and coalition.side and coalition.side.BLUE or 2
     local operation
+    local intelligence=config.intelligence
+    local intelRevealed=not intelligence or intelligence.mode~="search"
     local state = {
         airborne = false,
         objective = false,
@@ -22,6 +24,7 @@ do
         stationTime = 0,
         lastTime = nil,
         warned = {},
+        reconTime = 0,
     }
     local function log(message)
         if env and env.info then
@@ -135,6 +138,9 @@ do
         return math.sqrt((point.x - target.x)^2 + (point.z - target.z)^2)
     end
     local function targetPoint()
+        if not intelRevealed then
+            return {x=intelligence.center.x,y=0,z=intelligence.center.z}
+        end
         if config.convoy_group then
             for _, unit in ipairs(units(config.convoy_group)) do
                 if alive(unit) then
@@ -188,6 +194,14 @@ do
     end
     local function reportPosition()
         local point = targetPoint()
+        if not intelRevealed then
+            announce("Search area: " .. coordinates(point) .. ". Radius " .. tostring(intelligence.radius) .. " m. Exact target coordinates require the shared recon check-in.",25)
+            if trigger and trigger.action and trigger.action.markToCoalition then
+                if trigger.action.removeMark then pcall(trigger.action.removeMark,918700) end
+                pcall(trigger.action.markToCoalition,918700,"Search area - recon check-in required",point,blue,true)
+            end
+            return
+        end
         if point then
             announce("Target position: " .. coordinates(point), 25)
             if trigger and trigger.action and trigger.action.markToCoalition then
@@ -209,7 +223,35 @@ do
             announce("No target position is available.")
         end
     end
+    local function clientInSearchArea()
+        if intelRevealed then return false end
+        for _, unit in ipairs(playerUnits()) do
+            if method(unit,"inAir") and horizontalDistance(method(unit,"getPoint"),intelligence.center)<=intelligence.radius then
+                return true
+            end
+        end
+        return false
+    end
+    local function reconCheckIn()
+        if state.complete then announce("The sortie already has a final result."); return end
+        if intelRevealed then announce("Confirmed target intelligence is already available to the team."); return end
+        local required=intelligence.required_seconds or 45
+        if not clientInSearchArea() or state.reconTime<required then
+            announce("Recon check-in needs an airborne teammate inside the search area for " .. required ..
+                " continuous seconds. Current progress: " .. math.floor(state.reconTime) .. " seconds.",25)
+            return
+        end
+        intelRevealed=true
+        flag("IRON_ANVIL_INTEL_CONFIRMED")
+        if operation then operation.confirmIntelligence(intelligence.points or 50) end
+        announce("Recon check-in confirmed. Updated target coordinates are shared with the whole team. This is an intelligence update, not sensor recognition.",25)
+        reportPosition()
+    end
     local function status()
+        if not intelRevealed then
+            announce("Search-area check-in progress: " .. math.floor(state.reconTime) .. "/" ..
+                tostring(intelligence.required_seconds or 45) .. " seconds. Use Recon check-in while inside the area.",20)
+        end
         if operation then
             operation.status()
             if not state.objective and not state.complete then return end
@@ -494,6 +536,17 @@ do
                 startCAP()
                 startConvoy()
             end
+            if not intelRevealed then
+                if clientInSearchArea() then
+                    state.reconTime=state.reconTime+delta
+                    if state.reconTime >= (intelligence.required_seconds or 45) and not state.reconReady then
+                        state.reconReady=true
+                        announce("Area check-in ready. Use F10 Recon check-in while a teammate remains inside the search area.",20)
+                    end
+                else
+                    state.reconTime=0;state.reconReady=false
+                end
+            end
             if state.airborne and operation then operation.tick(now) end
             if state.airborne and not state.objective then
                 if config.operation then
@@ -528,7 +581,13 @@ do
         local menu = missionCommands.addSubMenuForCoalition(blue, "Iron Anvil")
         missionCommands.addCommandForCoalition(blue, "Mission status", menu, status)
         if operation then missionCommands.addCommandForCoalition(blue, "Operation status", menu, operation.status) end
-        if operation then missionCommands.addCommandForCoalition(blue, "Response staging / mark", menu, operation.markStaging) end
+        if operation then missionCommands.addCommandForCoalition(blue, "Response staging / mark", menu, function()
+            if not intelRevealed then announce("Response staging is unconfirmed. Complete the area recon check-in first.")
+            else operation.markStaging() end
+        end) end
+        if intelligence and intelligence.mode=="search" then
+            missionCommands.addCommandForCoalition(blue,"Recon check-in",menu,reconCheckIn)
+        end
         missionCommands.addCommandForCoalition(blue, "Target position / mark", menu, reportPosition)
         missionCommands.addCommandForCoalition(blue, "Target bearing / range", menu, function() vectorTo(targetPoint(), "target") end)
         missionCommands.addCommandForCoalition(blue, "Vector home", menu, function() vectorTo(config.home, tostring(config.base_name or "home base")) end)

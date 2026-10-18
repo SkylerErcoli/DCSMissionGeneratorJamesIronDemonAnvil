@@ -263,6 +263,11 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
         end
         return points
     end
+    function op.confirmIntelligence(points)
+        if op.intelBonus then return end
+        op.intelBonus=true
+        op.bonus=op.bonus+points
+    end
 
     function op.status()
         local lines={config.title or 'Cooperative operation'}

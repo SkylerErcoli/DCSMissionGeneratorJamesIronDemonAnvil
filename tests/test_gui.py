@@ -384,3 +384,64 @@ def test_recovery_and_withdrawal_choices_survive_recipe_and_restart(app,tmp_path
         options=reopened.collect_options()
         assert options.recovery=='home_or_alternate' and not options.allow_withdrawal
     finally:reopened.destroy()
+
+
+def test_preview_is_async_writes_no_mission_and_matches_generated_plan(app,tmp_path):
+    import json,zipfile
+    from ironanvil.operations import OPERATION_LABELS
+    app.deiconify();app.geometry('1240x820');app.update()
+    app.operation_var.set(OPERATION_LABELS['rolling_thunder']);app._operation_changed()
+    app.seed_var.set('');app._preview()
+    deadline=time.monotonic()+20
+    while app._busy and time.monotonic()<deadline:app.update();time.sleep(.01)
+    assert not app._busy and app._preview_metadata is not None
+    assert app.seed_var.get() and not list(tmp_path.glob('*.miz'))
+    expected=app._preview_metadata['planner']
+    assert app.map_view.canvas.find_withtag('mission-plan')
+    for point in expected['points']:
+        x,y=app.map_view.viewport.to_pixel(point['lat'],point['lon'])
+        assert 0<=x<=app.map_view.viewport.width and 0<=y<=app.map_view.viewport.height
+    app._generate()
+    deadline=time.monotonic()+20
+    while app._busy and time.monotonic()<deadline:app.update();time.sleep(.01)
+    assert not app._busy and app._last_output
+    with zipfile.ZipFile(app._last_output) as archive:actual=json.loads(archive.read('ironanvil.json'))
+    assert actual['planner']==expected
+
+
+def test_search_preview_hides_exact_sites_and_changed_settings_clear_it(app):
+    from ironanvil.model import INTELLIGENCE_LABELS
+    app.deiconify();app.update()
+    app.intelligence_var.set(INTELLIGENCE_LABELS['search']);app._preview()
+    deadline=time.monotonic()+20
+    while app._busy and time.monotonic()<deadline:app.update();time.sleep(.01)
+    assert app._preview_metadata
+    assert {point['role'] for point in app._preview_metadata['planner']['points']}=={'home','search'}
+    app.clients_var.set('3');app.update()
+    assert app._preview_metadata is None and not app.map_view.canvas.find_withtag('mission-plan')
+
+
+def test_stale_preview_is_not_displayed_after_settings_change(app):
+    from ironanvil.generator import build_mission
+    app.seed_var.set('4')
+    app._request_signature=app._input_signature()
+    _,metadata=build_mission(app.collect_options())
+    app.seed_var.set('5')
+    app._results.put((True,{'kind':'preview','metadata':metadata}));app._poll_generation()
+    assert app._preview_metadata is None and 'Settings changed' in app.status_var.get()
+
+
+def test_nearby_plan_labels_remain_readable_and_inside_map(app):
+    app.deiconify();app.geometry('1240x820');app.update()
+    roles=('home','required','bonus','response','delivery','alternate')
+    app.map_view.set_plan({'points':[{'role':role,'label':'Nearby '+role,'lat':42.1+index*.001,'lon':43.1}
+                                    for index,role in enumerate(roles)]},fit=True)
+    app.update();app.map_view._render()
+    canvas=app.map_view.canvas
+    boxes=[canvas.bbox(item) for item in canvas.find_withtag('mission-plan-label')]
+    assert len(boxes)==len(roles)
+    for index,box in enumerate(boxes):
+        assert 0<=box[0]<box[2]<=canvas.winfo_width()
+        assert 0<=box[1]<box[3]<=canvas.winfo_height()
+        assert not any(box[0]<other[2] and box[2]>other[0] and box[1]<other[3] and box[3]>other[1]
+                       for other in boxes[:index])

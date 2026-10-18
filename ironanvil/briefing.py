@@ -18,6 +18,7 @@ def title(metadata):
 
 def summary_lines(metadata):
     options=metadata['options'];route=metadata['route_summary'];operation=metadata['runtime'].get('operation')
+    intelligence=metadata.get('intelligence')
     lines=[f"{options['map'].title()} | {options['clients']} pilots | {options['aircraft']}",
            f"Home: {metadata['home_airport']} | Flight: 251 MHz AM",
            f"Weather: {metadata['resolved_weather']} | Start: {options['start']} | Time: {options['time_of_day']}",
@@ -34,9 +35,9 @@ def summary_lines(metadata):
             site=metadata['facility_sites'][index]
             total=len(goal.get('statics', []))+len(goal.get('units', []))
             kind='supply trucks' if goal.get('units') else 'objective structures'
+            location='Coordinates unconfirmed.' if intelligence else f"{site['latitude']:.5f}, {site['longitude']:.5f}"
             lines.append(('REQUIRED: ' if goal['required'] else 'BONUS: ')+goal['title']+
-                         f" - disable {goal['threshold']} of {total} {kind}. "
-                         f"{site['latitude']:.5f}, {site['longitude']:.5f}")
+                         f" - disable {goal['threshold']} of {total} {kind}. {location}")
         if operation.get('convoy'):
             lines.append('Convoy departs after takeoff. F10 follows its live position; stopping it before delivery earns 150 bonus points.')
         if operation.get('response'):
@@ -44,7 +45,10 @@ def summary_lines(metadata):
             lines.append('Bonus before dispatch '+('delays response by six minutes.' if operation['id']=='broken_relay' else 'cancels the ground response.'))
         else:lines.append('Ground response disabled; bonus remains optional.')
     else:
-        lines.append(f"Main target: {metadata['target_lat']:.5f}, {metadata['target_lon']:.5f}")
+        if not intelligence:lines.append(f"Main target: {metadata['target_lat']:.5f}, {metadata['target_lon']:.5f}")
+    if intelligence:
+        lines.append(f"Search center: {intelligence['latitude']:.5f}, {intelligence['longitude']:.5f}. Radius {intelligence['radius']/1000:g} km.")
+        lines.append('Stay airborne inside the area for 45 seconds, then use F10 Recon check-in for shared updated coordinates. No special sensor required.')
     lines.append('F10 > Iron Anvil: status, target marks, bearing/range and vector home.')
     lines.append('Complete the required goal and recover all surviving teammates at an approved base.')
     if options.get('allow_withdrawal'):
@@ -65,23 +69,20 @@ def kneeboard_png(metadata):
         for word in words:
             candidate=(line+' '+word).strip()
             if face.getlength(candidate)>930 and line:
-                draw.text((35,y),line,font=face,fill=color);y+=29;line=word
+                draw.text((35,y),line,font=face,fill=color);y+=29 if face==font else 24;line=word
             else:line=candidate
-        if line:draw.text((35,y),line,font=face,fill=color);y+=29
+        if line:draw.text((35,y),line,font=face,fill=color);y+=29 if face==font else 24
     lines=summary_lines(metadata)
     for value in lines[:9]:text(value)
     y+=10;top=y;bottom=top+365
     draw.rectangle((35,top,965,bottom),fill='#e0e6e5',outline='#829394',width=2)
-    home=metadata['runtime']['home'];target=metadata['runtime']['target']
-    points=[('HOME',home,'#21679e'),('MAIN',target,'#b54630')]
-    for alternate in metadata['runtime'].get('recovery_bases', [])[1:]:
-        points.append(('ALTERNATE',alternate,'#21679e'))
-    operation=metadata['runtime'].get('operation')
-    if operation:
-        points.extend((goal['title'],goal['position'],'#b54630' if goal['required'] else '#aa790b')
-                      for goal in operation['objectives'] if not goal['required'])
-        response=operation.get('response')
-        if response:points.append(('RESERVES',response['staging'],'#714b8e'))
+    public_points=metadata['planner']['points']
+    palette={'home':'#21679e','alternate':'#21679e','required':'#b54630','bonus':'#aa790b',
+             'response':'#714b8e','search':'#aa790b','delivery':'#714b8e'}
+    labels={'home':'HOME','alternate':'ALTERNATE','required':'MAIN','response':'RESERVES','search':'SEARCH AREA','delivery':'DELIVERY'}
+    points=[(labels.get(p['role'],p['label']),p,palette[p['role']]) for p in public_points]
+    home=next(p for p in public_points if p['role']=='home')
+    target=next(p for p in public_points if p['role'] in ('required','search'))
     low_x=min(p['x'] for _,p,_ in points);high_x=max(p['x'] for _,p,_ in points)
     low_z=min(p['z'] for _,p,_ in points);high_z=max(p['z'] for _,p,_ in points)
     scale=min(750/max(high_z-low_z,1000),225/max(high_x-low_x,1000))
@@ -89,6 +90,9 @@ def kneeboard_png(metadata):
         return (500+(point['z']-(low_z+high_z)/2)*scale,
                 (top+bottom)/2-(point['x']-(low_x+high_x)/2)*scale)
     draw.line((*project(home),*project(target)),fill='#5d7a88',width=3)
+    if metadata.get('intelligence'):
+        x,z=project(target);radius=metadata['intelligence']['radius']*scale
+        draw.ellipse((x-radius,z-radius,x+radius,z+radius),outline='#aa790b',width=3)
     draw.text((52,top+14),'ROUTE SCHEMATIC - terrain and obstacles not shown',fill='#41575d',font=small)
     for index,(label,point,color) in enumerate(points):
         x,z=project(point);draw.ellipse((x-7,z-7,x+7,z+7),fill=color)

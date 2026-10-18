@@ -29,6 +29,7 @@ class MapView(ttk.Frame):
         self.viewport = Viewport()
         self.theatre = None
         self.target = None
+        self._plan = None
         self._airports = []
         self._home_airport = None
         self._map_colors = {"ocean": "#a8c8d8", "land": "#e4dec5", "outline": "#a49e83",
@@ -59,6 +60,7 @@ class MapView(ttk.Frame):
         ttk.Button(toolbar, text="+", width=3, command=self.zoom_in).pack(side="left")
         ttk.Button(toolbar, text="-", width=3, command=self.zoom_out).pack(side="left", padx=(2, 3))
         ttk.Button(toolbar, text="Fit map", command=self.fit).pack(side="left", padx=(0, 8))
+        ttk.Button(toolbar, text="Fit mission", command=self.fit_plan).pack(side="left", padx=(0, 8))
         ttk.Checkbutton(toolbar, text="Internet map (OSM)", variable=self._online,
                         command=self._online_changed).pack(side="left")
         chart_toolbar = ttk.Frame(self)
@@ -86,6 +88,7 @@ class MapView(ttk.Frame):
     def set_theatre(self, theatre):
         self.theatre = theatre
         self.target = None
+        self._plan = None
         self._airports = list(theatre.airports()) if callable(getattr(theatre, "airports", None)) else []
         self._chart, self._chart_image = None, None
         try:
@@ -122,6 +125,90 @@ class MapView(ttk.Frame):
     def set_target(self, lat, lon=None):
         self.target = None if lat is None or lon is None else (float(lat), float(lon))
         self._schedule_render()
+
+    def set_plan(self, plan, *, fit=False):
+        self._plan = plan
+        if plan and fit:
+            self.fit_plan()
+        else:
+            self._schedule_render()
+
+    def fit_plan(self):
+        if not self._plan or not self._plan.get("points"):
+            return
+        points=self._plan["points"]
+        bounds=[]
+        for point in points:
+            latitude,longitude=point["lat"],point["lon"]
+            lat_radius=point.get("radius",0)/111000
+            lon_radius=lat_radius/max(.1,math.cos(math.radians(latitude)))
+            bounds.extend([(latitude-lat_radius,longitude-lon_radius),(latitude+lat_radius,longitude+lon_radius)])
+        south,north=min(p[0] for p in bounds),max(p[0] for p in bounds)
+        west,east=min(p[1] for p in bounds),max(p[1] for p in bounds)
+        lat_pad=max(.015,(north-south)*.15);lon_pad=max(.015,(east-west)*.15)
+        self.viewport.width=max(100,self.canvas.winfo_width())
+        self.viewport.height=max(100,self.canvas.winfo_height())
+        self.viewport.fit((west-lon_pad,south-lat_pad,east+lon_pad,north+lat_pad),padding=35)
+        self._fit_to_theatre=False
+        self._fitted=True
+        self._schedule_render()
+
+    def _draw_plan(self):
+        if not self._plan:
+            return
+        points=self._plan["points"]
+        home=next((p for p in points if p["role"]=="home"),None)
+        main=next((p for p in points if p["role"] in ("required","search")),None)
+        if home and main:
+            self.canvas.create_line(*self.viewport.to_pixel(home["lat"],home["lon"]),
+                *self.viewport.to_pixel(main["lat"],main["lon"]),fill="#2f9da9",width=3,dash=(9,5),arrow="last",tags="mission-plan")
+        colors={"home":self._map_colors["friendly"],"alternate":"#38aaa2","required":self._map_colors["target"],
+                "bonus":"#c49b21","response":"#aa6ac8","delivery":"#aa6ac8","search":"#c49b21"}
+        markers=[]
+        for point in points:
+            x,y=self.viewport.to_pixel(point["lat"],point["lon"])
+            markers.append((x-9,y-9,x+9,y+9))
+        labels=[]
+        for point in points:
+            x,y=self.viewport.to_pixel(point["lat"],point["lon"])
+            color=colors[point["role"]]
+            if point.get("radius"):
+                latitude=point["lat"]+point["radius"]/111000
+                _,edge=self.viewport.to_pixel(latitude,point["lon"])
+                radius=abs(edge-y)
+                self.canvas.create_oval(x-radius,y-radius,x+radius,y+radius,outline=color,width=3,dash=(6,4),tags="mission-plan")
+            self.canvas.create_oval(x-7,y-7,x+7,y+7,fill=color,outline=self._map_colors["label"],width=2,tags="mission-plan")
+            prefix={"home":"Home", "alternate":"Alternate", "required":"Required", "bonus":"Bonus", "response":"Staging", "delivery":"Delivery", "search":"Search"}[point["role"]]
+            label=prefix if point["label"].casefold().startswith(prefix.casefold()) else prefix+": "+point["label"]
+            if not (-10<=x<=self.viewport.width+10 and -10<=y<=self.viewport.height+10):
+                continue
+            item=self.canvas.create_text(0,0,anchor="nw",text=label,fill=color,
+                                         font=("TkDefaultFont",9),tags="mission-plan-label")
+            bounds=self.canvas.bbox(item)
+            width,height=bounds[2]-bounds[0],bounds[3]-bounds[1]
+            def overlaps(box,old):
+                return box[0]<old[2]+4 and box[2]>old[0]-4 and box[1]<old[3]+4 and box[3]>old[1]-4
+            candidates=[]
+            for row in range(9):
+                gap=12+row*(height+9)
+                for left in (x+13,x-width-13):
+                    for top in (y-gap-height,y+gap):
+                        left=max(5,min(self.viewport.width-width-5,left))
+                        top=max(5,min(self.viewport.height-height-5,top))
+                        box=(left,top,left+width,top+height)
+                        score=sum(overlaps(box,old) for old in labels+markers)
+                        candidates.append((score,box))
+                        if not score:break
+                    if candidates[-1][0]==0:break
+                if candidates[-1][0]==0:break
+            _,box=min(candidates,key=lambda candidate:candidate[0])
+            labels.append(box)
+            self.canvas.move(item,box[0]-bounds[0],box[1]-bounds[1])
+            end_x=max(box[0],min(box[2],x));end_y=max(box[1],min(box[3],y))
+            leader=self.canvas.create_line(x,y,end_x,end_y,fill=color,tags="mission-plan")
+            self.canvas.tag_lower(leader,item)
+            background=self.canvas.create_rectangle(box,fill=self._map_colors["label"],outline="",tags="mission-plan")
+            self.canvas.tag_lower(background,item)
 
     def fit(self):
         self._fit_to_theatre = True
@@ -312,12 +399,16 @@ class MapView(ttk.Frame):
             canvas.create_rectangle(x-3, y-3, x+3, y+3, fill=color, outline=self._map_colors["label"])
             if selected:
                 canvas.create_oval(x-9, y-9, x+9, y+9, outline=color, width=2)
+            if self._plan and any(point["role"] in ("home","alternate") and point["label"]==airport["name"]
+                                  for point in self._plan["points"]):
+                continue
             text = ("Home: " if selected else "") + airport["name"]
             box = (x+7, y+4, x+12+len(text)*6.5, y+20)
             if selected or not any(box[0] < old[2] and box[2] > old[0]
                                    and box[1] < old[3] and box[3] > old[1] for old in label_boxes):
                 self._label(x+7, y+5, text, color)
                 label_boxes.append(box)
+        self._draw_plan()
         if self.target:
             lat, lon = self.target
             x, y = self.viewport.to_pixel(lat, lon)

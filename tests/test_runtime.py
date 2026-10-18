@@ -45,6 +45,10 @@ CASES = (
     "approved_alternate_allows_split_team_recovery",
     "alternate_rejects_hostile_and_unlisted_airfields",
     "alternate_helipad_event_without_place_checks_coalition",
+    "search_intelligence_withholds_exact_marks_and_requires_airborne_checkin",
+    "search_checkin_resets_if_team_leaves_and_does_not_count_parked_clients",
+    "search_checkin_needs_live_area_presence_at_confirmation",
+
 
 
 

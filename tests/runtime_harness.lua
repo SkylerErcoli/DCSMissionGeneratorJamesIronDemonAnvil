@@ -681,6 +681,61 @@ function cases.alternate_helipad_event_without_place_checks_coalition()
     assert(data.flags.IRON_ANVIL_RESULT==1)
 end
 
+
+local function searchWorld()
+    local config=base('facility');config.enemy_cap=false
+    config.intelligence={mode='search',center={x=10000,z=10000},radius=2500,required_seconds=45,points=50}
+    config.operation={title='Search',seed=11,objectives={
+        {id='primary',title='Fuel',required=true,statics={'fuel'},threshold=1,points=300}},
+        response={group='response',staging={x=18000,z=18000},destination={x=5000,z=5000},delay=180}}
+    local data=newWorld(config);local players=data.group('players',2,'Pilot')
+    data.group('target',1);data.group('response',1);data.statics.fuel=data.unit('fuel')
+    data.start();data.takeoff(players.all[1]);data.takeoff(players.all[2])
+    return data,players
+end
+
+function cases.search_intelligence_withholds_exact_marks_and_requires_airborne_checkin()
+    local data,players=searchWorld()
+    data.menus['Target position / mark']()
+    assert(data.mark.x==10000 and data.mark.z==10000,'unconfirmed mark is the search center')
+    data.menus['Response staging / mark']()
+    assert(data.mark.x==10000,'staging does not leak before check-in')
+    data.menus['Recon check-in']()
+    assert(not data.flags.IRON_ANVIL_INTEL_CONFIRMED)
+    players.all[1].point={x=10000,y=1000,z=10000}
+    data.advance(10);data.menus['Recon check-in']()
+    assert(data.flags.IRON_ANVIL_INTEL_CONFIRMED==1 and data.mark.x==5000)
+    data.menus['Response staging / mark']()
+    assert(data.mark.x==18000 and data.mark.z==18000)
+    data.menus['Recon check-in']() -- must not award twice
+    data.statics.fuel.life=0;data.advance()
+    data.land(players.all[1],'Home',2);data.land(players.all[2],'Home',2)
+    assert(data.flags.IRON_ANVIL_SCORE==400,'300 objective + 50 recon + 50 recovery')
+end
+
+function cases.search_checkin_resets_if_team_leaves_and_does_not_count_parked_clients()
+    local data,players=searchWorld()
+    players.all[1].point={x=10000,y=1000,z=10000};data.advance(5)
+    players.all[1].point={x=0,y=1000,z=0};data.advance()
+    players.all[1].point={x=10000,y=1000,z=10000};data.advance(5);data.menus['Recon check-in']()
+    assert(not data.flags.IRON_ANVIL_INTEL_CONFIRMED,'leaving the area resets continuous coverage')
+    data.advance(4);data.menus['Recon check-in']()
+    assert(data.flags.IRON_ANVIL_INTEL_CONFIRMED==1)
+    local parked,pilots=searchWorld()
+    pilots.all[1].point={x=10000,y=0,z=10000};pilots.all[1].flying=false
+    pilots.all[2].point={x=10000,y=0,z=10000};pilots.all[2].flying=false
+    parked.advance(20);parked.menus['Recon check-in']()
+    assert(not parked.flags.IRON_ANVIL_INTEL_CONFIRMED,'parked clients cannot earn recon')
+end
+
+function cases.search_checkin_needs_live_area_presence_at_confirmation()
+    local data,players=searchWorld()
+    players.all[1].point={x=10000,y=1000,z=10000};data.advance(10)
+    players.all[1].point={x=0,y=1000,z=0}
+    data.menus['Recon check-in']()
+    assert(not data.flags.IRON_ANVIL_INTEL_CONFIRMED,'leaving after the ready message is not confirmation')
+end
+
 local selected = arg[2]
 if selected then
     assert(cases[selected], "Unknown runtime case: " .. selected)()

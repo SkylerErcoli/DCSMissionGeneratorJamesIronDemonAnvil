@@ -77,3 +77,11 @@ Implemented optional friendly alternate recovery (actual compatible BLUE airfiel
 Validation: 36 Lua cases now pass (seven new withdrawal/alternate scenarios); seven saved-recovery/input cases verify all three maps and fixed-wing/helicopter alternates, actual BLUE warehouses and supplies. The 35 GUI/recipe checks passed, including restart/import of the new options. Default recovery remains home-only and both options can be changed in the desktop or recipe. No DCS flight has been performed.
 
 Continue directly into operational intelligence and visual planning. Publishing remains held until the combined preview is validated; no user approval or environment configuration edit is pending.
+
+## Continued creative development — batch 7
+
+Implemented optional search-area intelligence for ground missions. Public planning, briefing, kneeboard, F10 marks and flight waypoints withhold exact objectives until an airborne teammate spends 45 continuous seconds in the search area and requests the shared radio check-in. Enemy ground/static F10 symbols are hidden. This is an explicit intelligence game rule, not simulated sensor recognition or mission-file encryption. The team can still find and attack targets visually; confirmation grants one small shared bonus.
+
+Added an asynchronous map preview showing home, alternate and briefed objectives or search area. Preview fixes a previously blank variation number so Generate uses the same plan; changing settings clears the plan and stale worker results are ignored. Preview writes no mission file. Nearby marker labels use separated callouts, with pan/zoom and Fit mission controls retained.
+
+Validation: **85 focused GUI/recipe/intelligence/Lua checks passed**, including 39 Lua scenarios, search archives on all three maps, absence of exact target coordinates from public briefings, actual saved hidden symbols/search waypoints, asynchronous preview-to-generated-plan equality, stale-result handling and nearby label readability. The worst-case search/alternate/support kneeboard was visually checked and fits its page. Combined Windows packaging, actual old-preview upgrade and full regression validation are next; no new binary is published at this checkpoint.

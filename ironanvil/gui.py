@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 from pathlib import Path
 import queue
@@ -19,7 +20,7 @@ from tkinter import font as tkfont
 
 from .airfields import airport_catalogue
 from .mapview import MapView
-from .model import MissionOptions, aircraft_catalogue, default_output_dir, RECOVERY_LABELS
+from .model import MissionOptions, aircraft_catalogue, default_output_dir, RECOVERY_LABELS, INTELLIGENCE_LABELS
 from .preferences import load_preferences, save_preferences
 from .theatres import THEATRES, get_theatre
 from .weather import WEATHER_LABELS
@@ -96,6 +97,8 @@ class Application(tk.Tk):
         self._closed = False
         self._busy = False
         self._last_output: Path | None = None
+        self._request_signature = None
+        self._preview_metadata = None
         self._catalogue = [item for item in aircraft_catalogue() if item["missions"]]
         if not self._catalogue:
             raise RuntimeError("The aircraft library could not be loaded. Download a fresh copy of Iron Anvil.")
@@ -109,6 +112,7 @@ class Application(tk.Tk):
         self._operation_by_label = {label: key for key, label in OPERATION_LABELS.items()}
         self._pace_by_label = {label: key for key, label in PACE_LABELS.items()}
         self._recovery_by_label = {label: key for key, label in RECOVERY_LABELS.items()}
+        self._intelligence_by_label = {label: key for key, label in INTELLIGENCE_LABELS.items()}
         self._variables()
         self._restore_settings()
         self._style()
@@ -117,6 +121,8 @@ class Application(tk.Tk):
         self.bind("<Map>", self._theme_titlebar, add="+")
         self._aircraft_changed()
         self._theatre_changed()
+        for variable in [*self._settings_variables().values(), self.latitude_var, self.longitude_var, *self.line_vars.values()]:
+            variable.trace_add("write", self._settings_changed)
         self._poll_timer = self.after(100, self._poll_generation)
 
     def _variables(self) -> None:
@@ -140,6 +146,7 @@ class Application(tk.Tk):
         self.response_var = tk.BooleanVar(value=True)
         self.recovery_var = tk.StringVar(value=RECOVERY_LABELS["home"])
         self.withdrawal_var = tk.BooleanVar(value=True)
+        self.intelligence_var = tk.StringVar(value=INTELLIGENCE_LABELS["precise"])
         self.preset_var = tk.StringVar()
         self.facility_var = tk.StringVar(value=FACILITY_LABELS["random"])
         self.clients_var = tk.StringVar(value="2")
@@ -275,7 +282,7 @@ class Application(tk.Tk):
         return {name: getattr(self, f"{name}_var") for name in (
             "theatre", "aircraft", "departure", "mission", "facility", "clients", "difficulty", "enemy_cap",
             "air_defenses", "start", "time", "weather", "loadout", "tanker", "awacs",
-            "base_detail", "opponent", "seed", "output", "operation", "pace", "response", "recovery", "withdrawal")}
+            "base_detail", "opponent", "seed", "output", "operation", "pace", "response", "recovery", "withdrawal", "intelligence")}
 
     def _restore_settings(self) -> None:
         settings = self._preferences.get("mission", {})
@@ -291,6 +298,7 @@ class Application(tk.Tk):
             "opponent": ("regular", "insurgents"),
             "operation": self._operation_by_label, "pace": self._pace_by_label,
             "recovery": self._recovery_by_label,
+            "intelligence": self._intelligence_by_label,
         }
         for name, variable in self._settings_variables().items():
             value = settings.get(name)
@@ -404,6 +412,8 @@ class Application(tk.Tk):
         self.generate_button.grid(row=0, column=2, rowspan=2)
         ttk.Button(footer, text="Mission briefing", command=self._open_briefing).grid(row=2, column=1, padx=(10, 8))
         ttk.Button(footer, text="Repeat last mission", command=self._repeat_last).grid(row=2, column=2)
+        self.preview_button = ttk.Button(footer,text="Preview mission on map",command=self._preview)
+        self.preview_button.grid(row=3,column=1,columnspan=2,sticky="ew",padx=(10,0),pady=(6,0))
 
     def _settings_tab(self, notebook, label):
         """Keep every setting reachable on small screens and at larger DPI."""
@@ -526,6 +536,9 @@ class Application(tk.Tk):
         self._combo(operation, 4, "Automatic target distance", self.pace_var, list(PACE_LABELS.values()))
         ttk.Label(operation, text="A target you pin on the map always takes priority.", style="Help.TLabel", wraplength=295).grid(
             row=6, column=0, sticky="w", pady=5)
+        self.intelligence_combo = self._combo(operation,7,"Target intelligence",self.intelligence_var,list(INTELLIGENCE_LABELS.values()))
+        ttk.Label(operation,text="Search mode needs a 45-second airborne area check-in for refined coordinates. No special sensor or extra module is required.",
+            style="Help.TLabel",wraplength=295).grid(row=9,column=0,sticky="w",pady=5)
         settings = ttk.Frame(parent)
         settings.grid(row=1, column=0, sticky="ew")
         parent = settings
@@ -645,6 +658,9 @@ class Application(tk.Tk):
         mission = self._mission_by_label[self.mission_var.get()]
         if mission != "facility":
             self.operation_var.set(OPERATION_LABELS["classic"])
+        if mission == "cap":
+            self.intelligence_var.set(INTELLIGENCE_LABELS["precise"])
+        self.intelligence_combo.configure(state="disabled" if mission=="cap" else "readonly")
         operation = self._operation_by_label[self.operation_var.get()]
         self.operation_help_var.set(OPERATION_HELP[operation])
         self.response_check.configure(state="normal" if operation != "classic" else "disabled")
@@ -755,6 +771,7 @@ class Application(tk.Tk):
             enemy_response=self.response_var.get(),
             recovery=self._recovery_by_label[self.recovery_var.get()],
             allow_withdrawal=self.withdrawal_var.get(),
+            intelligence=self._intelligence_by_label[self.intelligence_var.get()] if mission!="cap" else "precise",
             clients=int(self.clients_var.get()),
             difficulty=self.difficulty_var.get(),
             enemy_cap=self.enemy_cap_var.get(),
@@ -784,8 +801,10 @@ class Application(tk.Tk):
             messagebox.showerror("Check mission settings", str(exc), parent=self)
             return
         self._save_settings()
+        self._request_signature = self._input_signature()
         self._busy = True
         self.generate_button.configure(state="disabled")
+        self.preview_button.configure(state="disabled")
         self.progress.start(14)
         self.status_var.set("Creating your mission...")
         self.output_status_var.set("Preparing your aircraft, targets and support flights. This may take a few seconds.")
@@ -793,6 +812,56 @@ class Application(tk.Tk):
         # The worker owns only plain data. Closing the window must not leave a
         # worker holding the last reference to a Tk interpreter or its widgets.
         threading.Thread(target=self._generate_worker, args=(options, self._results), daemon=True).start()
+
+    def _input_signature(self):
+        return tuple((name,variable.get()) for name,variable in self._settings_variables().items()) + (
+            self.latitude_var.get(),self.longitude_var.get(),tuple(v.get() for v in self.line_vars.values()))
+
+    def _settings_changed(self,*_):
+        if getattr(self,"_closed",False):
+            return
+        self._preview_metadata=None
+        if hasattr(self,"map_view"):
+            self.map_view.set_plan(None)
+
+    def _preview(self):
+        if self._busy or self._updating:
+            return
+        try:
+            options=self.collect_options()
+        except (ValueError,KeyError) as error:
+            messagebox.showerror("Check mission settings",str(error),parent=self)
+            return
+        # A preview selects a variation so the following Generate uses this plan.
+        if not self.seed_var.get().strip():
+            self.seed_var.set(str(options.seed))
+        self._request_signature=self._input_signature()
+        self._save_settings()
+        self._busy=True
+        self.generate_button.configure(state="disabled");self.preview_button.configure(state="disabled")
+        self.progress.start(14)
+        self.status_var.set("Planning the mission preview...")
+        self.output_status_var.set("Checking the departure, objectives and recovery bases. No mission file is saved by Preview.")
+        self.next_step_var.set("")
+        threading.Thread(target=self._preview_worker,args=(options,self._results),daemon=True).start()
+
+    @staticmethod
+    def _preview_worker(options,results):
+        try:
+            from .generator import build_mission
+            _,metadata=build_mission(options)
+            results.put((True,{"kind":"preview","metadata":metadata}))
+        except Exception as error:
+            logging.exception("Mission preview failed")
+            results.put((False,str(error) if isinstance(error,ValueError) else "Could not plan this mission. Check the log and try another target."))
+
+    def _display_plan(self,metadata):
+        if self._request_signature!=self._input_signature():
+            return False
+        self._preview_metadata=metadata
+        self.map_view.set_plan(metadata["planner"],fit=True)
+        self.map_view.set_home_airport(metadata["home_airport"])
+        return True
 
     @staticmethod
     def _generate_worker(options, results) -> None:
@@ -919,8 +988,23 @@ class Application(tk.Tk):
             self._busy = False
             self.progress.stop()
             self.generate_button.configure(state="normal")
-            if success:
+            self.preview_button.configure(state="normal")
+            if success and isinstance(result,dict) and result.get("kind")=="preview":
+                metadata=result["metadata"]
+                if self._display_plan(metadata):
+                    self.status_var.set("Preview ready. Generate mission will use this variation.")
+                    self.output_status_var.set(f"Home: {metadata['home_airport']} · Navigation leg: {metadata['route_summary']['one_way_km']:.1f} km · Variation {metadata['options']['seed']}")
+                    self.next_step_var.set("Map shows the briefed plan, with search areas instead of unconfirmed targets. DCS terrain and obstacles still need review.")
+                else:
+                    self.status_var.set("Settings changed during planning. Preview again to see the current mission.")
+            elif success:
                 self._last_output = result
+                try:
+                    with zipfile.ZipFile(result) as archive:
+                        metadata=json.loads(archive.read("ironanvil.json"))
+                    self._display_plan(metadata)
+                except (OSError,ValueError,KeyError,zipfile.BadZipFile):
+                    logging.warning("Could not display the generated mission plan",exc_info=True)
                 self.status_var.set(f"Mission ready: {result.name}")
                 self.output_status_var.set(str(result))
                 self.next_step_var.set("In DCS: Mission > My Missions to fly solo, or Multiplayer > New server to host for friends. Add the saved mission.")
@@ -969,6 +1053,7 @@ class Application(tk.Tk):
         self.response_var.set(options.enemy_response)
         self.recovery_var.set(RECOVERY_LABELS[options.recovery])
         self.withdrawal_var.set(options.allow_withdrawal)
+        self.intelligence_var.set(INTELLIGENCE_LABELS[options.intelligence])
         for name, value in {"clients": str(options.clients), "difficulty": options.difficulty,
                 "enemy_cap": options.enemy_cap, "air_defenses": options.air_defenses, "start": options.start,
                 "time": options.time_of_day, "weather": WEATHER_LABELS[options.weather], "loadout": options.loadout,
