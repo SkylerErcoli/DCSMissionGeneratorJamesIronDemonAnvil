@@ -1,0 +1,4 @@
+# Iron Anvil Missions needs pydcs from GitHub: the PyPI release (0.15.0) has no Cold War Germany map and
+# lacks newer aircraft. This pins the exact commit the generator was tested with.
+pydcs @ https://github.com/pydcs/dcs/archive/55dc18adbd6907ea17d87de559445c4f9bc39146.zip
+pyproj

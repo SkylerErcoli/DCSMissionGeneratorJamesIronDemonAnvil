@@ -1,0 +1,190 @@
+Can you script a DCS custom mission for me and my friend to play in the F/A 18 Hornet?
+
+
+Read memory, updated memory, created a file
+Read memory, updated memory, created a file
+I’ve written Operation Iron Anvil, a 2-ship Hornet co-op strike mission. It’s a Lua script, iron_anvil.lua, that you load into the Mission Editor, so you build the units yourself and the script drives the mission logic. I haven’t run it in DCS, so expect to fix a typo or two on the first test.
+
+The mission
+
+SEAD: destroy the SAM site (75% of its units by default).
+Strike: destroy three ground targets.
+Reaction: the first target hit scrambles enemy fighters, and finishing both objectives scrambles a second wave.
+RTB: you win when every surviving Hornet lands at the home base. You lose if the whole flight is dead.
+F10 menu (per flight): mission status, bearing and range to the nearest target (magnetic and true), a smoke mark on it (3 per flight), and a vector home. Everyone also gets a briefing when they spawn, and the debrief shows kills per player.
+Mission Editor setup (Caucasus)
+
+Place one blue group of 2x F/A-18C, skill Client, starting from Batumi (or Kobuleti).
+Place a red SAM group named RED SAM (SA-6 or SA-11, plus some AAA) near the targets.
+Place three red ground units or statics and rename them TGT-1, TGT-2 and TGT-3.
+Place two late-activated red fighter groups named RED CAP 1 and RED CAP 2 (MiG-29s or Su-27s), each with a route toward the target area.
+Add a trigger: type ONCE, condition TIME MORE 5, action DO SCRIPT FILE, and pick iron_anvil.lua.
+If you use different names, change them in the CFG table at the top of the script. The header comment in the file repeats these steps.
+
+Things to know
+
+If a flight member sits cold on the ramp, they block the win until they land, since every pilot who joined has to be down.
+The script sets a flag called IRON_ANVIL_RESULT (1 = win, 2 = lose). You can hook a trigger to it if you want the mission to end or play a sound.
+Errors and missing group names are written to dcs.log with the prefix IRON ANVIL, so check there if something doesn’t trigger.
+I can also add a tanker, a mid-mission SAM relocation, or scale the mission up for a larger flight.
+
+
+Iron anvil
+LUA 
+Can you build a whole program like DCS Liberation has? But better
+
+
+Updated memory
+Updated memory
+A
+
+ask_user_input_v0
+Q: Which architecture do you want me to build first?
+A: External app that generates a new .miz each turn (Liberation style)
+
+
+Ran 11 commands
+Ran 11 commands
+The first .miz now generates, so I’m checking it before writing the command-line tool and README: reload it, check the embedded Lua, and confirm the groups and units are what I expect.
+
+
+Ran 6 commands
+Ran 6 commands
+Everything passes so far, including a full turn cycle that captures Kutaisi and rolls into a Senaki mission. I’m writing the README and packaging the project now.
+
+
+Ran a command, shared files
+Ran a command, shared files
+I’ve built a first version of the Liberation-style campaign tool, packaged as iron_anvil_campaign.zip. It’s a small slice of what Liberation does, not a replacement. I couldn’t run DCS here, so it hasn’t been flown yet. I did generate missions, reload them with pydcs, and run the mission Lua against a mock of the DCS API (full win path, Kutaisi captured, Senaki generated next). Expect the first real launch to need a small fix.
+
+How it works
+
+It keeps the war state in a campaign.json file and builds a new .miz for each sortie with pydcs, the same library Liberation uses.
+A small hook script in Saved Games\DCS\Scripts\Hooks writes the results while you fly, so no MissionScripting.lua edits are needed.
+The debrief command reads those results back, so what you destroy stays destroyed.
+What’s in this version
+
+Persistence: damage is tracked per unit, and destroyed depots show up as wrecks in later missions.
+Campaign: four red bases (Kutaisi, Senaki, Sukhumi, Gudauta) against Batumi and Kobuleti. A base flips to blue once its command post is dead and it’s mostly destroyed, and you then fly from the captured airfield.
+Economy: red rebuilds one damaged asset per turn, and its fighter pool shrinks when you shoot CAP down.
+Each sortie: a SEAD and strike on one base for two Hornet client slots. It comes with a tanker, an AWACS, a random time of day and wind, and red fighters launching 4 to 15 minutes in.
+Loadout: 2 HARM, 4 JDAM, 2 AMRAAM, 2 AIM-9X and a centre tank, set explicitly. The F10 menu has the same BRA, smoke and vector-home tools as the earlier script.
+To run it
+
+Run pip install -r requirements.txt.
+Run python -m ironanvil install-hook.
+Run python -m ironanvil new, then generate.
+Fly the mission, then run debrief.
+The README has the full workflow and the options (autoresolve skips a turn without flying).
+
+What it doesn’t do yet
+
+There’s no GUI.
+There are no blue AI packages, red retaliation strikes or front lines.
+There’s only one theatre, Caucasus.
+Site positions are offsets from each airfield, so a few may land on awkward terrain. They’re easy to move in theatre.py.
+Wait about a minute after the “State saved” message before exiting, because the hook polls every 10 seconds.
+Check dcs.log for lines starting IRON ANVIL if something doesn’t trigger.
+
+Which would you like next: a pick-your-package screen (target, loadout, time of day), red retaliation strikes, or a second theatre like Syria or the Persian Gulf?
+
+
+Iron anvil campaign
+ZIP 
+Lets make a GUI for it
+
+
+Ran 5 commands
+Ran 5 commands
+The GUI code compiles, so I’m launching it under a virtual display now to take a screenshot and exercise generate and debrief from the interface.
+
+
+Ran 4 commands, read 2 files
+Ran 4 commands, read 2 files
+Packaging is done and I’m handing over the updated zip with the GUI.
+
+
+Presented file
+Presented file
+The GUI is added to iron_anvil_campaign.zip. Unzip it and double-click run_gui.pyw, or run python -m ironanvil gui. It uses Tkinter, which comes with the standard Windows Python installer, so there’s nothing extra to install.
+
+I ran it headless under a virtual display and checked screenshots. Generating a mission, picking up a debrief, applying it, capturing a base, and auto-resolve all worked from the interface. I haven’t run it on real Windows or inside DCS.
+
+What you get
+
+Map: the theatre is drawn from real airfield positions. Click a red base to target it, and the nearest blue base is picked as your launch point (click a blue base to override).
+Base status: small boxes under each red base show command post, ammo, fuel, SAM and AAA health, and a ring shows its overall strength. Captured bases turn blue.
+Mission planner:
+time of day (random, dawn, day, dusk, night)
+red air defence (none, light, auto, heavy)
+loadout (SEAD + strike, heavy strike with 2000-lb JDAMs, SEAD only)
+a tanker and AWACS toggle
+Target intel: a panel lists the selected base’s defences and their health.
+After the flight: the GUI notices the debrief file on its own and shows a summary (units destroyed, aircraft lost, result). Press Apply debrief to roll the turn. If you want to skip flying a turn, there’s an Auto-resolve button.
+DCS setup: Browse sets your Saved Games folder, Install hook copies the debrief hook, and Open missions folder jumps to where the .miz files land.
+Generation runs in the background so the window doesn’t freeze. All the new planner options also work from the command line engine, and the README now covers both ways of running it.
+
+Two things to know. If you capture bases out of order, the auto-picked launch base is simply the closest blue one, so check it before generating. Also, the first launch needs the DCS folder and hook set up once, and you should restart DCS after installing the hook.
+
+If you want a next step, I’d add red retaliation against your airfields or a second theatre. Which would you like?
+
+
+Iron anvil campaign
+ZIP 
+We were so close bro. I just loaded into the plane, and then I got a mission script error popup. It says: [string "DictKey_Translation_5"]:1: '=' expected near '<eof>'
+
+That error means DCS tried to run the text DictKey_Translation_5 as code instead of my script. I’m checking how pydcs wrote that action into the mission file.
+
+
+Ran 6 commands, shared files
+Ran 6 commands, shared files
+Fixed. The updated iron_anvil_campaign.zip is attached. Use the new zip and generate a fresh mission, because any .miz you already made still has the bug.
+
+What went wrong: I embedded the mission script as inline “DO SCRIPT” text. For your mission, DCS never looked that text up and ran the placeholder key DictKey_Translation_5 as if it were code, which gave the '=' expected near '<eof>' error. I haven’t confirmed why the lookup failed.
+
+The fix: the script now ships inside the .miz as a script file loaded with “DO SCRIPT FILE”. That’s the standard route the Mission Editor uses, so DCS loads the script directly with no text lookup.
+
+What I checked:
+
+The new .miz has the script file, the resource entry and the trigger pointing at it, and the script is no longer in the mission’s text dictionary.
+The script loads under Lua 5.1, which is the version DCS uses. My earlier check ran on a newer Lua that DCS doesn’t use.
+I ran the whole mission logic against a mock of the DCS API in Lua 5.1: briefing, F10 menu, SAM and strike objectives, both pilots landing, and the debrief export. It all behaved.
+I still can’t run DCS here, so this is the same caveat as before. If something else pops up, send me the exact text. Saved Games\DCS\Logs\dcs.log has more detail; search it for IRON ANVIL or ERROR.
+
+If it loads cleanly, the first things to check in flight are the F10 menu (status and BRA) and the HARM and JDAM loadout, since those are what I couldn’t see running.
+
+
+Iron anvil campaign
+ZIP 
+Files hidden when shared
+I have got a new version here that adds a bunch of stuff that you can probably figure out. One cool addition was that there are varied structures. However, I notice that the "Sndbx" structure is used way too often. I would like that to be toned down because it is essentially a bunker, and there can be like 5 per structure for some reason. 1 max for each would be good if any at all. I would also like if you could utilize more of the Static Objects for decorations for compounds and such. There are actual HESCO walls and such that can be used, as well as concrete walls. Would you be able to form those into varied structures to be on the map (and contain the objectives for things like strike missions?). Also, it would be useful for Strike missions, and Ground attack missions if the Hornet has a targeting pod.
+
+
+Ran 5 commands
+Ran 5 commands
+Looking for HESCO and concrete-wall statics: the pydcs copy here has none, so I’m checking whether a newer pydcs release adds them.
+
+
+Ran 12 commands
+Ran 12 commands
+The v3 baseline passes its own tests. Now I’m building the local definitions for the HESCO and concrete-wall objects, since PyPI’s pydcs doesn’t have them yet.
+
+
+Ran a command
+Ran a command
+Next the props catalogue: the new HESCO, T-wall, barrier, watchtower, container and tent objects, plus a size table that the calibration tool can later overwrite with real measurements.
+
+
+Ran 7 commands
+Ran 7 commands
+Continue
+
+
+Read a file, ran a command
+Read a file, ran a command
+Now the GUI: a pod selector and the new laser-strike loadout. After that, the verification test for every loadout.
+
+
+Ran 8 commands, read a file
+Ran 8 commands, read a file
+Now I’m tightening the GUI layout, because the 
