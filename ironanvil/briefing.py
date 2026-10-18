@@ -22,7 +22,7 @@ def summary_lines(metadata):
     lines=[f"{options['map'].title()} | {options['clients']} pilots | {options['aircraft']}",
            f"Home: {metadata['home_airport']} | Flight: 251 MHz AM",
            f"Weather: {metadata['resolved_weather']} | Start: {options['start']} | Time: {options['time_of_day']}",
-           f"Home to target: {route['one_way_km']:.1f} km / {route['one_way_km']/1.852:.1f} NM",
+           f"Home to {'search area' if intelligence else 'target'}: {route['one_way_km']:.1f} km / {route['one_way_km']/1.852:.1f} NM",
            f"Cruise-only round trip: ~{route['cruise_round_trip_minutes']} min; excludes startup, combat and recovery.",
            f"Enemy CAP: {'on' if options['enemy_cap'] else 'off'} | Air defenses: {'on' if options['air_defenses'] else 'off'}",
            f"Replay seed: {options['seed']}"]
