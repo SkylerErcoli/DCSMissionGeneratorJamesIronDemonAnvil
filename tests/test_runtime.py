@@ -42,6 +42,7 @@ CASES = (
     "withdrawal_proposal_expiry_cancel_and_disabled_option",
     "withdrawal_keeps_parked_teammates_safe_without_awarding_flight_points",
     "withdrawal_can_upgrade_to_full_success_and_loss_still_fails",
+    "final_recovery_samples_damage_since_last_poll",
     "approved_alternate_allows_split_team_recovery",
     "alternate_rejects_hostile_and_unlisted_airfields",
     "alternate_helipad_event_without_place_checks_coalition",

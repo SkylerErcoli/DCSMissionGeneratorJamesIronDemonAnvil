@@ -422,6 +422,11 @@ do
                 if record.recovered and (record.tookOff or state.withdrawn) then recovered = recovered + 1 end
             end
         end
+        -- Landing/loss events can arrive between the five-second objective
+        -- polls. Sample damage again before freezing the final result/score.
+        if operation and joined>0 and (surviving==0 or recovered==surviving) then
+            operation.tick(timer and timer.getTime and timer.getTime() or state.lastTime or 0)
+        end
         if joined > 0 and surviving == 0 then
             state.complete, state.result = true, 2
             flag("IRON_ANVIL_RESULT", 2)

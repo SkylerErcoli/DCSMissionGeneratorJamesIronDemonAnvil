@@ -49,4 +49,4 @@ The preview has its own **Experimental downloads** page. Run the newer experimen
 
 ![Experimental mission planner](docs/experimental/images/planner.png)
 
-[Player handout](docs/experimental/START-HERE.txt) · [Completed batches and resume notes](docs/experimental/PROGRESS.md) · [Research and roadmap](docs/experimental/README.md) · [Source development](docs/DEVELOPMENT.md)
+[Flying together and F10 controls](docs/experimental/FLYING-TOGETHER.md) · [Player handout](docs/experimental/START-HERE.txt) · [Completed batches and resume notes](docs/experimental/PROGRESS.md) · [Research and roadmap](docs/experimental/README.md) · [Source development](docs/DEVELOPMENT.md)

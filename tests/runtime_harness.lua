@@ -641,6 +641,22 @@ function cases.withdrawal_can_upgrade_to_full_success_and_loss_still_fails()
     assert(loss.flags.IRON_ANVIL_RESULT==2,'withdrawal cannot turn aircraft losses into safe recovery')
 end
 
+function cases.final_recovery_samples_damage_since_last_poll()
+    local data,players=operationWorld('delay',false)
+    data.menus['Propose withdrawal']();data.menus['Confirm withdrawal']()
+    data.statics.tank1.life=0;data.statics.tank2.life=0;data.statics.relay.life=0
+    -- No periodic tick between the hits and the final landing event.
+    data.land(players.all[1],'Home',2);data.land(players.all[2],'Home',2)
+    assert(data.flags.IRON_ANVIL_RESULT==1,'last-second main completion must upgrade withdrawal')
+    assert(data.flags.IRON_ANVIL_SCORE==450,'last-second bonus damage must count too')
+    local partial,pilots=operationWorld('delay',false)
+    partial.menus['Propose withdrawal']();partial.menus['Confirm withdrawal']()
+    partial.statics.tank1.life=0
+    partial.land(pilots.all[1],'Home',2);partial.land(pilots.all[2],'Home',2)
+    assert(partial.flags.IRON_ANVIL_RESULT==3 and partial.flags.IRON_ANVIL_SCORE==200,
+        'new partial damage must count without falsely completing the main objective')
+end
+
 local function alternateWorld()
     local config=base('facility');config.enemy_cap=false
     config.recovery_bases={{name='Home',x=0,z=0},{name='Alternate',x=9000,z=0}}
