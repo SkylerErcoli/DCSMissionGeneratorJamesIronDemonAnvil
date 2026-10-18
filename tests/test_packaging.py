@@ -72,3 +72,27 @@ def test_nontechnical_startup_error_shows_recovery_and_log(entrypoint, tmp_path,
     assert "Extract All" in shown[0]
     assert "_internal" in shown[0]
     assert "Cannot open data directory" in shown[0]
+
+
+def test_downloads_and_windows_version_properties_match_the_application():
+    import ast
+    import re
+    from ironanvil import __version__, RELEASE_TAG
+
+    root=Path(__file__).resolve().parents[1]
+    tree=ast.parse((root/'packaging/version_info.txt').read_text())
+    properties={ast.literal_eval(node.args[0]):ast.literal_eval(node.args[1])
+                for node in ast.walk(tree) if isinstance(node,ast.Call)
+                and isinstance(node.func,ast.Name) and node.func.id=='StringStruct'}
+    assert properties['ProductVersion']==__version__
+    assert properties['FileVersion']==__version__+'.0'
+    fixed=next(node for node in ast.walk(tree) if isinstance(node,ast.Call)
+               and isinstance(node.func,ast.Name) and node.func.id=='FixedFileInfo')
+    expected=tuple(int(part) for part in __version__.split('.'))+(0,)
+    values={keyword.arg:ast.literal_eval(keyword.value) for keyword in fixed.keywords}
+    assert values['filevers']==values['prodvers']==expected
+    project_version=re.search(r'^version = "([^"]+)"', (root/'pyproject.toml').read_text(),re.M).group(1)
+    assert project_version==__version__
+    assert RELEASE_TAG.startswith('v'+__version__+'-experimental.')
+    assert (root/'docs/releases'/f'{RELEASE_TAG}.md').is_file()
+    assert '/releases/tag/'+RELEASE_TAG in (root/'packaging/installer.iss').read_text()
