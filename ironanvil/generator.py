@@ -379,7 +379,9 @@ def build_mission(options: MissionOptions):
                 "facility_decoration_count": facility_metadata["decoration_count"] if facility_metadata else 0}
     from .loadouts import payload_summary
     from .briefing import mission_help_lines
+    from .navigation import navigation_card
     metadata['loadout']=payload_summary(flight,options.loadout)
+    metadata['navigation']=navigation_card(metadata['planner'],home,alternate)
     config['briefing_lines']=mission_help_lines(metadata)
     return mission, metadata
 
@@ -417,6 +419,8 @@ def generate(options: MissionOptions, output_path=None) -> Path:
                 from .briefing import kneeboard_png, briefing_html
                 kneeboard = kneeboard_png(metadata)
                 archive.writestr("KNEEBOARD/IMAGES/01-IronAnvil.png", kneeboard)
+                from .briefing import navigation_png
+                archive.writestr("KNEEBOARD/IMAGES/02-Navigation.png", navigation_png(metadata))
                 archive.writestr("ironanvil-briefing.html", briefing_html(metadata, kneeboard))
             # A failed generation leaves any previous mission intact.
             os.replace(staged, path)

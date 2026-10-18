@@ -164,10 +164,23 @@ do
             local ok, latitude, longitude = pcall(coord.LOtoLL, point)
             if ok and latitude and longitude then
                 local text = string.format("%.5f, %.5f", latitude, longitude)
+                local function axis(value, positive, negative, width, seconds)
+                    local scale=seconds and 36000 or 60000
+                    local total=math.floor(math.abs(value)*scale+.5)
+                    local degrees=math.floor(total/scale)
+                    local remainder=total%scale
+                    local prefix=(value>=0 and positive or negative) .. string.format('%0' .. width .. 'd',degrees)
+                    if seconds then
+                        return prefix .. string.format(' %02d\' %04.1f"',math.floor(remainder/600),(remainder%600)/10)
+                    end
+                    return prefix .. string.format(' %06.3f\'',remainder/1000)
+                end
+                text=text .. '\nDDM: ' .. axis(latitude,'N','S',2) .. ' ' .. axis(longitude,'E','W',3)
+                    .. '\nDMS: ' .. axis(latitude,'N','S',2,true) .. ' ' .. axis(longitude,'E','W',3,true)
                 if coord.LLtoMGRS then
                     local converted, grid = pcall(coord.LLtoMGRS, latitude, longitude)
                     if converted and grid then
-                        text = text .. string.format(" | %s %s %05d %05d",
+                        text = text .. string.format("\nMGRS: %s %s %05d %05d",
                             grid.UTMZone or "", grid.MGRSDigraph or "",
                             math.floor(grid.Easting or 0), math.floor(grid.Northing or 0))
                     end
@@ -188,9 +201,47 @@ do
         if not origin then announce("Join a client slot to request a vector."); return end
         local north, east = destination.x - origin.x, destination.z - origin.z
         local bearing = math.deg(math.atan2(east, north)) % 360
-        announce(string.format("From %s: %s bearing %03d, range %.1f NM.",
+        local referenceLabel='grid'
+        if coord and coord.LOtoLL then
+            local ok1,lat1,lon1=pcall(coord.LOtoLL,origin)
+            local ok2,lat2,lon2=pcall(coord.LOtoLL,destination)
+            if ok1 and ok2 and lat1 and lon1 and lat2 and lon2 then
+                lat1,lat2=math.rad(lat1),math.rad(lat2)
+                local delta=math.rad(lon2-lon1)
+                bearing=math.deg(math.atan2(math.sin(delta)*math.cos(lat2),
+                    math.cos(lat1)*math.sin(lat2)-math.sin(lat1)*math.cos(lat2)*math.cos(delta)))%360
+                referenceLabel='true'
+            end
+        end
+        announce(string.format("From %s: %s bearing %03d %s, range %.1f NM. Bearings are not magnetic.",
             method(reference, "getPlayerName") or "lead client", label,
-            math.floor(bearing + 0.5) % 360, horizontalDistance(origin, destination) / 1852), 20)
+            math.floor(bearing + 0.5) % 360, referenceLabel, horizontalDistance(origin, destination) / 1852), 20)
+    end
+    local function smokeTarget()
+        if config.mission_type=='cap' then announce('Smoke assistance is for ground targets only.');return end
+        if state.complete or state.objective then announce('The main objective is already complete.');return end
+        if not intelRevealed then announce('Confirm the search-area recon check-in before requesting target smoke.');return end
+        local point=targetPoint()
+        if not point then announce('No target position is available.');return end
+        local nearby=false
+        for _,unit in ipairs(playerUnits()) do
+            if method(unit,'inAir') and horizontalDistance(method(unit,'getPoint'),point)<=15000 then nearby=true;break end
+        end
+        if not nearby then announce('Target smoke needs an airborne teammate within 15 km of the target.');return end
+        local now=timer and timer.getTime and timer.getTime() or 0
+        if state.nextSmoke and now<state.nextSmoke then
+            announce('Target smoke was already requested. Available again in ' .. math.ceil(state.nextSmoke-now) .. ' seconds.');return
+        end
+        if not (trigger and trigger.action and trigger.action.smoke and land and land.getHeight) then
+            announce('Smoke assistance is unavailable. Use Target position / mark instead.');return
+        end
+        local heightOk,height=pcall(land.getHeight,{x=point.x,y=point.z})
+        if not heightOk or type(height)~='number' then announce('Target terrain height is unavailable; use the position mark.');return end
+        local color=trigger.smokeColor and trigger.smokeColor.Orange or 3
+        local ok=pcall(trigger.action.smoke,{x=point.x,y=height,z=point.z},color)
+        if not ok then announce('Smoke request failed. Use Target position / mark instead.');return end
+        state.nextSmoke=now+300
+        announce('Orange smoke marks the current ground target position. It is a visual assistance cue, not a JTAC or laser. Moving targets may leave the smoke behind.',25)
     end
     local function reportPosition(quiet)
         local point = targetPoint()
@@ -619,8 +670,12 @@ do
         if intelligence and intelligence.mode=="search" then
             missionCommands.addCommandForCoalition(blue,"Recon check-in",menu,reconCheckIn)
         end
-        missionCommands.addCommandForCoalition(blue, "Target position / mark", menu, reportPosition)
-        missionCommands.addCommandForCoalition(blue, "Target bearing / range", menu, function() vectorTo(targetPoint(), "target") end)
+        local assistance=missionCommands.addSubMenuForCoalition(blue,"Target assistance",menu)
+        missionCommands.addCommandForCoalition(blue, "Target position / mark", assistance, function() reportPosition() end)
+        missionCommands.addCommandForCoalition(blue, "Target bearing / range", assistance, function() vectorTo(targetPoint(), "target") end)
+        if config.mission_type~='cap' then
+            missionCommands.addCommandForCoalition(blue,"Smoke target (orange)",assistance,smokeTarget)
+        end
         missionCommands.addCommandForCoalition(blue, "Vector home", menu, function() vectorTo(config.home, tostring(config.base_name or "home base")) end)
         if config.recovery_bases and config.recovery_bases[2] then
             local alternate=config.recovery_bases[2]

@@ -52,10 +52,12 @@ CASES = (
     "search_intelligence_withholds_exact_marks_and_requires_airborne_checkin",
     "search_checkin_resets_if_team_leaves_and_does_not_count_parked_clients",
     "search_checkin_needs_live_area_presence_at_confirmation",
-
-
-
-
+    "target_coordinates_have_cockpit_formats_and_round_without_sixty",
+    "navigation_vectors_label_true_and_fallback_grid_bearings",
+    "smoke_requires_airborne_nearby_human_and_shares_cooldown",
+    "smoke_respects_hidden_intelligence_and_no_cap_option",
+    "smoke_api_failure_does_not_spend_cooldown_or_break_runtime",
+    "smoke_stops_after_main_objective_completion",
 )
 
 

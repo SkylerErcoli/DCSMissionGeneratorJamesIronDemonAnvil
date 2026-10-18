@@ -167,7 +167,7 @@ def self_test() -> dict:
             for aircraft in ("FA_18C_hornet", "AH_64D_BLK_II"):
                 cases.append(MissionOptions(map=key, aircraft=aircraft, operation="broken_relay",
                     recovery="home_or_alternate", start="air", seed=91))
-            cases.append(MissionOptions(map=key, operation="broken_relay", pace="compact", start="hot",
+            cases.append(MissionOptions(map=key, operation="broken_relay", pace="compact", start="cold",
                 recovery="home_or_alternate", enemy_cap=False, tanker=True, awacs=True, seed=2718))
         cases.append(MissionOptions(loadout="default",seed=4242))
         missions = []
@@ -180,6 +180,7 @@ def self_test() -> dict:
         loadout_checks = 0
         quick_setup_checks = 0
         local_preset_checks = 0
+        navigation_checks = 0
         for index, options in enumerate(cases):
             path = generate(options, directory / f"mission-{index}.miz")
             with zipfile.ZipFile(path) as archive:
@@ -192,6 +193,21 @@ def self_test() -> dict:
                     if kneeboard.size != (1000, 1440):
                         raise RuntimeError("Mission kneeboard has the wrong size")
                     kneeboard.verify()
+                with Image.open(BytesIO(archive.read("KNEEBOARD/IMAGES/02-Navigation.png"))) as navigation:
+                    if navigation.size != (1000,1440):raise RuntimeError("Navigation kneeboard has the wrong size")
+                    navigation.verify()
+                from ironanvil.navigation import coordinate_formats
+                from html import unescape
+                html=unescape(archive.read("ironanvil-briefing.html").decode())
+                card=metadata['navigation']
+                if len(card['points'])!=len(metadata['planner']['points']):raise RuntimeError("Navigation points were lost")
+                for point,public in zip(card['points'],metadata['planner']['points']):
+                    if (point['role']!=public['role'] or point['coordinates']!=coordinate_formats(public['lat'],public['lon'])
+                            or point['coordinates']['ddm'] not in html):raise RuntimeError("Navigation card differs from the public plan")
+                if options.intelligence=='search':
+                    private=coordinate_formats(metadata['target_lat'],metadata['target_lon'])
+                    if any(value in html for value in private.values()):raise RuntimeError("Navigation exposed a hidden target")
+                navigation_checks+=1
                 if b"data:image/png;base64," not in archive.read("ironanvil-briefing.html"):
                     raise RuntimeError("Standalone briefing lacks its embedded diagram")
                 from ironanvil.recipes import read_recipe
@@ -316,8 +332,13 @@ def self_test() -> dict:
             loadout_checks+=1
             if options.loadout=="default":local_preset_checks+=1
             if options.seed==2718:
-                if options.start!="hot" or options.enemy_cap or not options.air_defenses or not expected_stores:
+                if options.start!="cold" or options.enemy_cap or not options.air_defenses or not expected_stores:
                     raise RuntimeError("Recommended quick setup is not correctly equipped")
+                actual=next(group for country in saved['coalition']['blue']['country'].values()
+                    for category in ('plane','helicopter') for group in country.get(category,{}).get('group',{}).values()
+                    if group['name']==PLAYER_GROUP)['route']['points'][1]
+                if actual['type']!='TakeOffParking' or actual['action']!='From Parking Area':
+                    raise RuntimeError("Recommended cold start did not reach the actual DCS route")
                 quick_setup_checks+=1
             if not reloaded.terrain.airport_by_id(metadata["home_airport_id"]).is_blue():
                 raise RuntimeError(f"Selected airfield is not friendly: {path.name}")
@@ -353,7 +374,8 @@ def self_test() -> dict:
         checks.append(f"{alternate_checks} jet/helicopter alternate-recovery missions verify distinct friendly supplied bases")
         checks.append("Support aircraft have immediate roles/protection and complete three-point racetrack routes")
         checks.append("Every mission's F10 help describes recovery and its store manifest matches every client aircraft")
-        checks.append("Recommended hot-start cooperative settings serialize and reload on all maps; local-preset reporting is exercised")
+        checks.append("Recommended cold-start cooperative settings serialize and reload on all maps; local-preset reporting is exercised")
+        checks.append("Every mission includes a second navigation kneeboard and public-only cockpit coordinates")
 
     # These destinations are deliberately outside PyInstaller's read-only bundle.
     if getattr(sys, "frozen", False):
@@ -364,7 +386,8 @@ def self_test() -> dict:
     return {"channel": "experimental", "checks": checks, "missions": missions, "mission_count": len(missions),
             "operation_checks": operation_checks, "kneeboard_checks": len(missions),
             "intelligence_checks": intelligence_checks, "alternate_checks": alternate_checks,
-            "loadout_checks": loadout_checks, "quick_setup_checks": quick_setup_checks, "local_preset_checks": local_preset_checks,
+            "loadout_checks": loadout_checks, "navigation_checks": navigation_checks,
+            "quick_setup_checks": quick_setup_checks, "local_preset_checks": local_preset_checks,
             "airport_counts": airport_counts, "weather_checks": weather_checks,
             "facility_checks": facility_checks, "support_checks": support_checks,
             "aircraft_count": len(catalogue), "pyproj_version": pyproj.__version__}
@@ -400,7 +423,7 @@ def smoke_gui() -> dict:
             if app.setup_notebook.tab(app.setup_notebook.select(),"text")!="Quick setup":
                 raise RuntimeError("Desktop does not start with the simple mission workflow")
             options=app.collect_options()
-            if options.start!="hot" or options.pace!="compact" or options.enemy_cap or options.recovery!="home_or_alternate":
+            if options.start!="cold" or options.pace!="compact" or options.enemy_cap or options.recovery!="home_or_alternate":
                 raise RuntimeError("First-run defaults do not match recommended quick setup")
             app.geometry("1024x700");app.update()
             canvas=app._settings_canvases[0]
@@ -444,6 +467,7 @@ def smoke_gui() -> dict:
             app.intelligence_var.set(INTELLIGENCE_LABELS["search"])
             app.recovery_var.set(RECOVERY_LABELS["home_or_alternate"])
             app.withdrawal_var.set(False)
+            app.start_var.set('hot') # An explicit saved choice must survive the new cold default.
             app.seed_var.set("178")
             app._preview()
             deadline=time.monotonic()+45
@@ -471,7 +495,7 @@ def smoke_gui() -> dict:
                     or app.collect_options().pace != "compact" or app.collect_options().enemy_response
                     or app.collect_options().intelligence != "search"
                     or app.collect_options().recovery != "home_or_alternate" or app.collect_options().allow_withdrawal
-                    or app.pressure_var.get()!="Custom"):
+                    or app.pressure_var.get()!="Custom" or app.collect_options().start!='hot'):
                 raise RuntimeError("Preferences did not survive a desktop restart")
             if errors:
                 raise RuntimeError("Tk callback failed after restart: " + errors[0])

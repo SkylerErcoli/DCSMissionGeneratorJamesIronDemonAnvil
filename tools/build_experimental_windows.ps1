@@ -21,7 +21,7 @@ function Probe-App([string]$Executable, [string]$Prefix, [string]$Directory) {
             $Result = Get-Content $Report -Raw | ConvertFrom-Json
             if (-not $Result.ok -or -not $Result.frozen -or $Result.platform -ne "win32") { throw "$Prefix $Mode failed." }
             if ($Mode -eq "self-test" -and ($Result.mission_count -ne 77 -or $Result.operation_checks -ne 33 -or
-                $Result.intelligence_checks -ne 6 -or $Result.alternate_checks -ne 15 -or $Result.loadout_checks -ne 77 -or $Result.quick_setup_checks -ne 3 -or $Result.local_preset_checks -ne 1 -or $Result.channel -ne "experimental")) {
+                $Result.intelligence_checks -ne 6 -or $Result.alternate_checks -ne 15 -or $Result.loadout_checks -ne 77 -or $Result.navigation_checks -ne 77 -or $Result.quick_setup_checks -ne 3 -or $Result.local_preset_checks -ne 1 -or $Result.channel -ne "experimental")) {
                 throw "Incomplete experimental mission probe."
             }
             if ($Mode -eq "smoke-gui" -and ($Result.maps.Count -ne 6 -or -not $Result.preferences_reloaded -or
@@ -80,8 +80,8 @@ try {
     # Download the exact published stable version, verifying its published hash.
     $StableInstaller = Join-Path $TestRoot "Stable-1.2.0-Setup.exe"
     Get-VerifiedInstaller "v1.2.0" "IronAnvil-Setup-x64.exe" $StableInstaller $TestRoot
-    $PreviousInstaller = Join-Path $TestRoot "Experimental-1.3.2-Setup.exe"
-    Get-VerifiedInstaller "v1.3.2-experimental.3" "IronAnvil-Experimental-Setup-x64.exe" $PreviousInstaller $TestRoot
+    $PreviousInstaller = Join-Path $TestRoot "Experimental-1.3.3-Setup.exe"
+    Get-VerifiedInstaller "v1.3.3-experimental.4" "IronAnvil-Experimental-Setup-x64.exe" $PreviousInstaller $TestRoot
     foreach ($Path in @($StablePreferences, $ExperimentalPreferences)) {
         $Backups[$Path] = if (Test-Path $Path) { [IO.File]::ReadAllBytes($Path) } else { $null }
         New-Item -ItemType Directory -Force (Split-Path -Parent $Path) | Out-Null
@@ -95,7 +95,7 @@ try {
     $InstalledExperimental = $true
     $ExperimentalExe = Join-Path $ExperimentalDirectory "IronAnvil.exe"
     $PreviousVersion = (Get-Item $ExperimentalExe).VersionInfo.FileVersion
-    if ([version]$PreviousVersion -ne [version]"1.3.2.0") { throw "Wrong previous experimental baseline." }
+    if ([version]$PreviousVersion -ne [version]"1.3.3.0") { throw "Wrong previous experimental baseline." }
     [IO.File]::WriteAllText($StablePreferences, '{"theme":"dark","user_note":"stable settings must stay exactly as written"}')
     [IO.File]::WriteAllText($ExperimentalPreferences, '{"theme":"light","user_note":"settings from previous experimental install"}')
     $StableExeHash = (Get-FileHash $StableExe -Algorithm SHA256).Hash
@@ -135,7 +135,7 @@ try {
     if (-not $StableResult.ok -or -not $StableResult.frozen -or $StableResult.mission_count -ne 43) { throw "Stable app no longer works." }
     @{
         ok=$true; stable_version="1.2.0"; experimental_version=$Version; stable_installer_sha256_verified=$true
-        previous_experimental_version="1.3.2"; previous_experimental_installer_sha256_verified=$true
+        previous_experimental_version="1.3.3"; previous_experimental_installer_sha256_verified=$true
         actual_experimental_upgrade_passed=$true; experimental_upgrade_without_dir=$true
         separate_installer_identities=$true; stable_executable_unchanged=$true; stable_preferences_unchanged=$true
         experimental_preferences_preserved=$true; existing_mission_unchanged=$true; experimental_reinstall_without_dir=$true

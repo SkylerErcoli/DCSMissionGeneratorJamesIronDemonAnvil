@@ -17,7 +17,7 @@ Validation: 112 existing model/preferences/updater tests passed. Additional iden
 3. Separate experimental Windows build and prerelease; coexistence validation beside stable 1.2.0.
 4. Update this log with exact validation and any remaining limits before ending a batch.
 
-Python: `/workspace/.venvs/ironanvil/bin/python`. For complete cloud tests prepend `/workspace/.cloud-tools/usr/bin` to PATH and run under `xvfb-run -a`. GitHub API is unavailable directly in this cloud; authenticated repository pushes and workflows work. Public workflow pages and release downloads can be inspected with urllib; use a timestamp query to avoid stale cached status.
+Python: `/workspace/.venvs/ironanvil/bin/python`. For complete cloud tests prepend `/workspace/.cloud-tools/usr/bin` to PATH and run under `xvfb-run -a`. GitHub API access was restricted during earlier batches; expanded access was verified in the navigation batch. Authenticated repository pushes and workflows work. Public workflow pages and release downloads can be inspected with urllib; use a timestamp query to avoid stale cached status.
 
 ## Batch 2 — functional cooperative operations
 
@@ -153,3 +153,12 @@ Prepared numeric version **1.3.3** and new tag **v1.3.3-experimental.4**, its ch
 The source, concise player guides, research references and implementation checkpoints are committed and pushed on `experimental`. This final evidence commit changes documentation only. The existing cloud setup was reused successfully; no environment configuration or approval/publication action is pending for the user.
 
 The next useful feedback is from actual DCS co-op flights. Defaults, readability and guidance have automated coverage; terrain clearance, roads/ground AI, damage recognition and real multiplayer behavior remain unverified in the simulator. Keep further changes focused on observed friction and the shared-aircraft mission loop. Avoid another layer of settings or adding campaign/external-framework systems to this cleanup pass. Use a new version/tag for the next binary and preserve stable 1.2 and published preview assets.
+
+
+## Cold starts, target assistance and navigation — implementation checkpoint
+
+At the user's request, first-run and recommended desktop starts now use engines-off parking. Existing saved hot/air/runway choices are retained. Verified expanded public GitHub/API access and researched BriefingRoom smoke/coordinate designation, Liberation kneeboard radios/navigation, and the native DCS API; provenance is in [NAVIGATION-RESEARCH.md](NAVIGATION-RESEARCH.md). No third-party code or assets were reused.
+
+Implemented on-request orange smoke for confirmed ground objectives: an airborne human teammate within 15 km, shared five-minute cooldown, live convoy location and terrain height; no smoke command for CAP, no intelligence bypass, no cooldown charged on API failure. Grouped target commands keep the main radio menu bounded. Live coordinates add rounded DDM/DMS to decimal and MGRS. Vectors use geographic initial bearings where available and explicitly label true/grid rather than magnetic bearings. A second 1000×1440 kneeboard and browser navigation table contain public coordinates, catalogue home/alternate radios and runway directions. Search-only cards remain approximate. The navigation page was visually inspected with the six-point convoy plan.
+
+Source validation passed: **410 tests**, including **49 Lua scenarios**; the application self-test generated/reloaded **77 missions**, validating every navigation page and search privacy. Desktop smoke checks passed, including cold defaults and saved hot-start preferences. The full 168-mission matrix passed. The 1.3.4 / preview 5 Windows build is next. Prior preview 4 remains the verified released checkpoint until the pipeline and independent download checks finish. No DCS flight has been performed; smoke visuals, radio catalogue accuracy, terrain, AI, kneeboards and multiplayer behavior remain unverified in the simulator.

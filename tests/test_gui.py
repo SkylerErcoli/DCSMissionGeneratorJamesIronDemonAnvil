@@ -450,7 +450,7 @@ def test_nearby_plan_labels_remain_readable_and_inside_map(app):
 def test_quick_first_run_has_workable_defaults_and_keeps_details_optional(app):
     options=app.collect_options()
     assert app.setup_notebook.tab(app.setup_notebook.select(),'text')=='Quick setup'
-    assert options.start=='hot' and options.weather=='clear' and options.time_of_day=='day'
+    assert options.start=='cold' and options.weather=='clear' and options.time_of_day=='day'
     assert options.pace=='compact' and options.recovery=='home_or_alternate'
     assert options.loadout=='auto' and options.clients==2
     assert not options.enemy_cap and options.air_defenses and options.enemy_response
@@ -476,11 +476,11 @@ def test_quick_presets_are_shortcuts_and_manual_changes_survive_restart(app):
     assert app.collect_options().enemy_cap and app.collect_options().difficulty=='hard'
     app.air_defenses_var.set(False)
     assert app.pressure_var.get()=='Custom'
-    app.start_var.set('cold');app.seed_var.set('921');app._save_settings();app.destroy()
+    app.start_var.set('hot');app.seed_var.set('921');app._save_settings();app.destroy()
     reopened=Application();reopened.withdraw()
     try:
         options=reopened.collect_options()
-        assert options.start=='cold' and options.seed==921 and options.difficulty=='hard'
+        assert options.start=='hot' and options.seed==921 and options.difficulty=='hard'
         assert options.enemy_cap and not options.air_defenses and reopened.pressure_var.get()=='Custom'
     finally:reopened.destroy()
 
@@ -488,12 +488,12 @@ def test_quick_presets_are_shortcuts_and_manual_changes_survive_restart(app):
 def test_recommended_setup_preserves_player_choices_and_pinned_target(app):
     app.clients_var.set('4');app._map_selected(42.1,42.35);app.seed_var.set('73')
     aircraft=app.aircraft_var.get();output=app.output_var.get()
-    app.start_var.set('cold');app.pressure_var.set('Challenging');app._pressure_changed()
+    app.start_var.set('hot');app.pressure_var.set('Challenging');app._pressure_changed()
     app._recommended_setup();options=app.collect_options()
     assert (options.target_lat,options.target_lon)==(42.1,42.35)
     assert str(app.quick_distance_combo['state'])=='disabled' and 'map pin' in app.quick_help_var.get()
     assert options.clients==4 and options.seed==73 and app.aircraft_var.get()==aircraft and options.output_dir==output
-    assert options.start=='hot' and options.pace=='compact' and not options.enemy_cap
+    assert options.start=='cold' and options.pace=='compact' and not options.enemy_cap
     app._clear_target();assert str(app.quick_distance_combo['state'])=='readonly'
 
 

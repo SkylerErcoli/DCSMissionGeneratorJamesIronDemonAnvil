@@ -15,6 +15,6 @@ Reviewed the public issue reports below on 2026-10-18. They describe specific re
 
 This pass improves the existing shared-aircraft mission loop. It does not add campaigns, economies, external frameworks, required mods, extra aircraft roles or another tier of gameplay switches. Relaxed/Balanced/Challenging are shortcuts over existing threat and skill choices. Ground troops remain armed even when anti-air defenses are off.
 
-First-run desktop defaults become close-to-base, daylight, clear weather, engines running in parking, precise intelligence, automatic weapons and an approved friendly alternate. Balanced ground missions omit enemy fighters while keeping ground opposition. Existing saved settings are retained. CLI defaults and portable recipe meanings stay compatible.
+Preview 4 introduced first-run desktop defaults: close-to-base, daylight, clear weather, engines running in parking (changed to engines off in preview 5 at the user's request), precise intelligence, automatic weapons and an approved friendly alternate. Balanced ground missions omit enemy fighters while keeping ground opposition. Existing saved settings are retained. CLI defaults and portable recipe meanings stay compatible.
 
 Research describes design inputs. Exact implementation checks and publication evidence belong in [PROGRESS.md](PROGRESS.md); real DCS flight testing remains outstanding.

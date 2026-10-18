@@ -35,6 +35,8 @@ def mission_help_lines(metadata):
                 'Air defenses are off. Destroy the command and support vehicles instead.'}[options['mission']])
     if metadata.get('intelligence'):
         lines.append('Search: stay airborne inside the briefed area for 45 continuous seconds, then request Recon check-in.')
+    if options['mission']!='cap':
+        lines.append('Need a visual cue? F10 Target assistance > Smoke target (orange). An airborne teammate must be within 15 km; shared five-minute cooldown. Confirm search intelligence first.')
     lines.append('RECOVERY: land every surviving participating aircraft at '+metadata['runtime']['recovery_label']+'.')
     if options['allow_withdrawal']:lines.append('Need to leave early? Agree over comms, then Team withdrawal > Propose and Confirm. Recover everyone for partial credit.')
     lines.append('Flight radio: 251 MHz AM.'+(' Tanker: 251.5 MHz / TACAN 11Y.' if metadata['tanker'] else '')+
@@ -180,12 +182,56 @@ def briefing_html(metadata,png):
     task=''.join('<li>'+escape(line)+'</li>' for line in mission_help_lines(metadata))
     stores=''.join(f"<li>Station {store['station']}: {escape(store['name'])}</li>" for store in metadata.get('loadout',{}).get('stores',[]))
     loadout='<ul>'+stores+'</ul>' if stores else '<p>'+escape(metadata.get('loadout',{}).get('warning') or 'Review weapons in DCS before flying.')+'</p>'
+    navigation=metadata['navigation']
+    bases=''.join('<li>'+escape(base['role']+': '+base['name']+' | '+
+        (' / '.join(base['runways']) if base['runways'] else 'Helipad / no runway')+' | '+
+        (' | '.join(base['radios']) or 'No catalogue ATC frequency'))+'</li>' for base in navigation['airports'])
+    rows=''.join('<tr><td>'+escape(point['role'].upper()+': '+point['label'])+'</td><td>'+
+        '<br>'.join(escape(label+': '+point['coordinates'][key]) for label,key in
+                     (('Decimal','decimal'),('DDM','ddm'),('DMS','dms')))+'</td></tr>' for point in navigation['points'])
     return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{heading} - Iron Anvil Experimental</title><style>
 body{{margin:0;background:#111923;color:#edf3fa;font:17px/1.6 system-ui,sans-serif}}main{{max-width:980px;margin:auto;padding:28px}}
 h1{{line-height:1.2}}li{{margin:9px 0}}pre{{white-space:pre-wrap;font:inherit;background:#202936;padding:22px;border-radius:10px}}
 img{{max-width:100%;height:auto;border-radius:8px}}.muted{{color:#b0bfd0}}@media print{{body{{background:white;color:black}}pre{{background:#eee}}}}
+table{{width:100%;border-collapse:collapse}}td{{padding:12px;border-bottom:1px solid #48566a;vertical-align:top}}td:last-child{{font-variant-numeric:tabular-nums}}@media(max-width:650px){{td{{display:block}}}}
 </style><main><p class="muted">IRON ANVIL EXPERIMENTAL - COOPERATIVE BRIEFING</p><h1>{heading}</h1>
-<h2>Your job</h2><ul>{task}</ul><details><summary>Weapons and stores aboard</summary>{loadout}</details><details><summary>Flight details and full operation briefing</summary><ul>{items}</ul>{detail}</details><h2>Kneeboard and route schematic</h2><p>Included in the mission's DCS kneeboard. This is a schematic, not a terrain chart.</p>
+<h2>Your job</h2><ul>{task}</ul><h2>Navigation and radios</h2><ul>{bases}</ul><table><tbody>{rows}</tbody></table><p class="muted">{escape(navigation['note'])}</p><details><summary>Weapons and stores aboard</summary>{loadout}</details><details><summary>Flight details and full operation briefing</summary><ul>{items}</ul>{detail}</details><h2>Kneeboard and route schematic</h2><p>The mission includes this schematic and a separate navigation/radio kneeboard page.</p>
 <img alt="Mission kneeboard with objectives, communications and route schematic" src="data:image/png;base64,{data}">
 <p class="muted">Generated locally. No account or online service is required. Check the mission in DCS before flying.</p></main></html>'''
+
+
+def navigation_png(metadata):
+    """A second uncluttered page; hidden intelligence never enters this renderer."""
+    image=Image.new('RGB',(1000,1440),'#f3f1e8');draw=ImageDraw.Draw(image)
+    heading=ImageFont.load_default(size=32);font=ImageFont.load_default(size=21)
+    small=ImageFont.load_default(size=19);y=128
+    draw.rectangle((0,0,1000,105),fill='#172b40')
+    draw.text((35,23),'NAVIGATION AND RADIOS',font=heading,fill='white')
+    draw.text((35,67),title(metadata),font=font,fill='#b9def3')
+
+    def text(value,face=font,color='#172b40'):
+        nonlocal y
+        line=''
+        for word in value.split():
+            trial=(line+' '+word).strip()
+            if face.getlength(trial)>925 and line:
+                draw.text((35,y),line,font=face,fill=color);y+=27;line=word
+            else:line=trial
+        if line:draw.text((35,y),line,font=face,fill=color);y+=27
+
+    text('Flight: 251 MHz AM'+(' | Tanker: 251.5 MHz / TACAN 11Y TEX' if metadata['tanker'] else '')+
+         (' | AWACS: 252 MHz' if metadata['options']['awacs'] else ''))
+    for base in metadata['navigation']['airports']:
+        text(base['role'].upper()+': '+base['name']+' | '+
+             ('Runways '+', '.join(base['runways']) if base['runways'] else 'Helipad / no runway'))
+        text(' | '.join(base['radios']) or 'No catalogue ATC frequency',small)
+    y+=12
+    for point in metadata['navigation']['points']:
+        draw.line((35,y,965,y),fill='#829394');y+=8
+        text(point['role'].upper()+': '+point['label'])
+        for label,key in (('DDM','ddm'),('DMS','dms'),('Decimal','decimal')):
+            text(label+': '+point['coordinates'][key],small)
+        y+=8
+    y+=8;text(metadata['navigation']['note'],small,'#695746')
+    stream=BytesIO();image.save(stream,format='PNG');return stream.getvalue()

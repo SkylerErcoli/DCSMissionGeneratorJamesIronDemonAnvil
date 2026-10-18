@@ -163,7 +163,7 @@ class Application(tk.Tk):
         self.difficulty_var = tk.StringVar(value="normal")
         self.enemy_cap_var = tk.BooleanVar(value=False)
         self.air_defenses_var = tk.BooleanVar(value=True)
-        self.start_var = tk.StringVar(value="hot")
+        self.start_var = tk.StringVar(value="cold")
         self.time_var = tk.StringVar(value="day")
         self.weather_var = tk.StringVar(value=WEATHER_LABELS["clear"])
         self.loadout_var = tk.StringVar(value="auto")
@@ -520,7 +520,7 @@ class Application(tk.Tk):
 
     def _recommended_setup(self):
         # Keep the player's aircraft, map, pilot count, target and output path.
-        for name,value in {'pace':PACE_LABELS['compact'],'start':'hot','time':'day',
+        for name,value in {'pace':PACE_LABELS['compact'],'start':'cold','time':'day',
                 'weather':WEATHER_LABELS['clear'],'recovery':RECOVERY_LABELS['home_or_alternate'],
                 'intelligence':INTELLIGENCE_LABELS['precise'],'loadout':'auto','tanker':True,'awacs':True,
                 'withdrawal':True}.items():getattr(self,name+"_var").set(value)

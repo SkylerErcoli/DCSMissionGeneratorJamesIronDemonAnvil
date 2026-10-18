@@ -2,7 +2,7 @@
 
 Co-op DCS missions for the aircraft and maps your group already owns. Everyone can fly the same aircraft type.
 
-**[Download the Windows app and see what's changed](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.3-experimental.4)**
+**[Download the Windows app and see what's changed](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.4-experimental.5)**
 
 [Stable Iron Anvil 1.2](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0) stays unchanged and installs separately.
 
@@ -13,7 +13,7 @@ Co-op DCS missions for the aircraft and maps your group already owns. Everyone c
 3. Choose **Relaxed**, **Balanced** or **Challenging**, then **Generate mission**. You can preview the plan first.
 4. Open **Mission briefing**, then host the `.miz` in DCS. Friends only need DCS and the selected modules.
 
-New installs start with a nearby target, daylight, clear weather, engines running in parking, recommended weapons and a friendly alternate. **Balanced** ground missions have air defenses and a finite ground response, with enemy fighters off. **Relaxed** removes those optional threats; ground troops remain armed. Your existing saved settings are preserved.
+New installs start with a nearby target, daylight, clear weather, engines off in parking, recommended weapons and a friendly alternate. **Balanced** ground missions have air defenses and a finite ground response, with enemy fighters off. **Relaxed** removes those optional threats; ground troops remain armed. Your existing saved settings are preserved.
 
 F10 → **Iron Anvil → Briefing / help** explains your job and how to finish. Briefed targets are marked automatically. Complete the required objective and land all surviving participating aircraft at an approved base.
 
@@ -33,6 +33,10 @@ The fighter and air-defense switches stay visible. **Customize** contains depart
 **New variation** previews another layout without writing a mission. A preview uses the same variation as the next Generate. A map pin fixes the target location and overrides automatic distance.
 
 Every mission includes a kneeboard and a browser briefing with goals, radios, recovery information and actual loaded stores. Optional search intelligence starts with an approximate area and a shared radio check-in; precise locations remain the default. Save/share settings or repeat a favorite mission through **Customize → Flight → Squadron presets**.
+
+The second kneeboard page has cockpit-friendly coordinates, home/alternate ATC radios and runway directions. In flight, **F10 → Iron Anvil → Target assistance** provides live coordinates and bearings. **Smoke target (orange)** is an optional visual cue for ground missions: an airborne teammate must be within 15 km, and the team shares a five-minute cooldown. Search missions require recon confirmation first.
+
+Upgrading keeps your saved start preference. Select **Use recommended setup** to switch an existing hot-start setup to the new engines-off default.
 
 Dark/light mode, all 472 catalogued airfields/helipads, nine weather choices, friendly fuel/ammunition and protected tanker/AWACS support remain available. No extra client mods or scripting changes are required.
 

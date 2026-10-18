@@ -5,7 +5,7 @@ local cases = {}
 local function newWorld(configuration)
     IRON_ANVIL = configuration
     Airbase = nil
-    local data = {groups = {}, statics = {}, flags = {}, messages = {}, activated = {}, menus = {}, now = 0, menuEntries={}, marks={}}
+    local data = {groups = {}, statics = {}, flags = {}, messages = {}, activated = {}, menus = {}, now = 0, menuEntries={}, marks={}, smokes={}}
     function data.unit(name, player, point)
         local unit = {name = name, life = 100, player = player, flying = false, point = point or {x=0, y=0, z=0}}
         function unit:isExist() return self.life > 0 end
@@ -45,6 +45,7 @@ local function newWorld(configuration)
         setUserFlag = function(name, value) data.flags[name] = value end,
         markToCoalition = function(id, name, point) data.mark = point; data.marks[id]={name=name,point=point} end,
         removeMark = function() data.removedMark = true end,
+        smoke = function(point,color) data.smokes[#data.smokes+1]={point=point,color=color} end,
     }}
     env = {info = function() end}
     missionCommands = {
@@ -798,6 +799,80 @@ function cases.withdrawal_status_explains_recovery_and_keeps_objective_progress(
     data.menus['Propose withdrawal']();data.menus['Confirm withdrawal']();data.menus['Mission status']()
     local message=data.messages[#data.messages]
     assert(message:find('withdrawal confirmed') and message:find('Recover all survivors') and message:find('Replay seed: 42'))
+end
+
+function cases.target_coordinates_have_cockpit_formats_and_round_without_sixty()
+    local data=newWorld(base('facility'));data.start()
+    coord.LOtoLL=function() return -12.9999999,-179.9999999 end
+    data.menus['Target position / mark']()
+    local message=data.messages[#data.messages]
+    assert(message:find("DDM: S13 00.000' W180 00.000'",1,true))
+    assert(message:find('DMS: S13 00\' 00.0" W180 00\' 00.0"',1,true))
+    assert(message:find('MGRS: 38T MN 00001 00002',1,true))
+end
+
+function cases.navigation_vectors_label_true_and_fallback_grid_bearings()
+    local data=newWorld(base('facility'));local pilot=data.group('players',1,'Wing').all[1]
+    pilot.point={x=0,y=1000,z=0};data.start()
+    coord.LOtoLL=function(point) return 60,point.x==0 and 0 or 1 end
+    data.menus['Target bearing / range']()
+    assert(data.messages[#data.messages]:find('bearing 090 true',1,true))
+    assert(data.messages[#data.messages]:find('From Wing',1,true))
+    coord.LOtoLL=nil
+    data.menus['Target bearing / range']()
+    assert(data.messages[#data.messages]:find('bearing 045 grid',1,true))
+end
+
+function cases.smoke_requires_airborne_nearby_human_and_shares_cooldown()
+    local data=newWorld(base('convoy'));local config=IRON_ANVIL;config.convoy_group='target'
+    local pilot=data.group('players',2,'Team').all[1];local convoy=data.group('target',1).all[1]
+    convoy.point={x=5000,y=500,z=6000};data.start()
+    data.menus['Smoke target (orange)']();assert(#data.smokes==0,'parked clients cannot request smoke')
+    data.takeoff(pilot);pilot.point={x=-20000,y=1000,z=0}
+    data.menus['Smoke target (orange)']();assert(#data.smokes==0,'distant clients cannot request smoke')
+    pilot.point={x=0,y=1000,z=0};pilot.player=nil
+    data.menus['Smoke target (orange)']();assert(#data.smokes==0,'AI aircraft cannot satisfy the request')
+    pilot.player='Team';land.getHeight=function(point) assert(point.x==5000 and point.y==6000);return 123 end
+    data.menus['Smoke target (orange)']()
+    assert(#data.smokes==1 and data.smokes[1].color==3)
+    assert(data.smokes[1].point.y==123,'smoke is on terrain, not unit altitude')
+    data.menus['Smoke target (orange)']();assert(#data.smokes==1,'team-wide cooldown prevents spam')
+    assert(data.messages[#data.messages]:find('300 seconds',1,true))
+    data.now=300;convoy.point={x=8000,y=500,z=9000};land.getHeight=function() return 456 end
+    data.menus['Smoke target (orange)']()
+    assert(#data.smokes==2 and data.smokes[2].point.x==8000 and data.smokes[2].point.z==9000,'refresh tracks live convoy')
+end
+
+function cases.smoke_respects_hidden_intelligence_and_no_cap_option()
+    local data,players=searchWorld()
+    players.all[1].point={x=10000,y=1000,z=10000}
+    data.menus['Smoke target (orange)']();assert(#data.smokes==0)
+    assert(data.messages[#data.messages]:find('recon check-in',1,true))
+    data.advance(10);data.menus['Recon check-in']();data.menus['Smoke target (orange)']()
+    assert(#data.smokes==1 and data.smokes[1].point.x==5000,'only confirmed targets can be smoked')
+    local patrol=newWorld(base('cap'));patrol.start()
+    assert(not patrol.menus['Smoke target (orange)'],'no irrelevant assistance for airborne CAP')
+end
+
+function cases.smoke_api_failure_does_not_spend_cooldown_or_break_runtime()
+    local data=newWorld(base('facility'));local pilot=data.group('players',1,'Pilot').all[1]
+    data.group('target',1);data.start();data.takeoff(pilot)
+    local smoke=trigger.action.smoke;trigger.action.smoke=nil
+    data.menus['Smoke target (orange)']();assert(#data.smokes==0)
+    trigger.action.smoke=function() error('DCS rejected smoke') end
+    data.menus['Smoke target (orange)']();assert(#data.smokes==0)
+    trigger.action.smoke=smoke;local height=land.getHeight;land.getHeight=function() error('no terrain') end
+    data.menus['Smoke target (orange)']();assert(#data.smokes==0)
+    land.getHeight=height;data.menus['Smoke target (orange)']();assert(#data.smokes==1)
+    data.advance();assert(not data.flags.IRON_ANVIL_MISSION_COMPLETE)
+end
+
+function cases.smoke_stops_after_main_objective_completion()
+    local data=newWorld(base('facility'));local pilot=data.group('players',1,'Pilot').all[1]
+    local target=data.group('target',1).all[1];data.start();data.takeoff(pilot)
+    target.life=0;data.advance();assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE)
+    data.menus['Smoke target (orange)']();assert(#data.smokes==0)
+    data.land(pilot,'Home',2);data.menus['Smoke target (orange)']();assert(#data.smokes==0)
 end
 
 local selected = arg[2]
