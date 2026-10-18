@@ -1,5 +1,7 @@
 # Iron Anvil Missions
 
+**Experimental branch — planning stage.** Read the [gameplay ideas, research, and proposed first experiment](docs/experimental/README.md). Experimental gameplay is not implemented yet. The [stable version 1.2.0 release](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0) remains available for normal play.
+
 Make a DCS mission for you and your friends: choose a map, aircraft, mission, and up to four pilots, then click **Generate mission**.
 
 ## Download and open on Windows
