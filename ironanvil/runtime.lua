@@ -204,7 +204,7 @@ do
         local referenceLabel='grid'
         if coord and coord.LOtoLL then
             local ok1,lat1,lon1=pcall(coord.LOtoLL,origin)
-            local ok2,lat2,lon2=pcall(coord.LOtoLL,destination)
+            local ok2,lat2,lon2=pcall(coord.LOtoLL,{x=destination.x,y=destination.y or 0,z=destination.z})
             if ok1 and ok2 and lat1 and lon1 and lat2 and lon2 then
                 lat1,lat2=math.rad(lat1),math.rad(lat2)
                 local delta=math.rad(lon2-lon1)

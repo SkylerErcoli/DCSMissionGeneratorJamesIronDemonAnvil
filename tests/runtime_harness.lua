@@ -812,12 +812,15 @@ function cases.target_coordinates_have_cockpit_formats_and_round_without_sixty()
 end
 
 function cases.navigation_vectors_label_true_and_fallback_grid_bearings()
-    local data=newWorld(base('facility'));local pilot=data.group('players',1,'Wing').all[1]
+    local config=base('facility');config.home={x=8000,z=0}
+    local data=newWorld(config);local pilot=data.group('players',1,'Wing').all[1]
     pilot.point={x=0,y=1000,z=0};data.start()
-    coord.LOtoLL=function(point) return 60,point.x==0 and 0 or 1 end
+    coord.LOtoLL=function(point) assert(point.y~=nil,'DCS requires a complete vec3');return 60,point.x==0 and 0 or 1 end
     data.menus['Target bearing / range']()
     assert(data.messages[#data.messages]:find('bearing 090 true',1,true))
     assert(data.messages[#data.messages]:find('From Wing',1,true))
+    data.menus['Vector home']()
+    assert(data.messages[#data.messages]:find('Home bearing 090 true',1,true),'recovery config stores only x/z; normalize before coordinate conversion')
     coord.LOtoLL=nil
     data.menus['Target bearing / range']()
     assert(data.messages[#data.messages]:find('bearing 045 grid',1,true))
