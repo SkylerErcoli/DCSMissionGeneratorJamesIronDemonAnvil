@@ -1,6 +1,6 @@
 # Original request audit
 
-Reviewed against the supplied [friend/Claude transcript](../claudechatjames.txt), [original single-mission README](../original-README.md), later direct requests, source, and automated tests. Status is for the current experimental source; new portable/geography work still needs its Windows release checks. **Implemented does not mean flown successfully in DCS.**
+Reviewed against the supplied [friend/Claude transcript](../claudechatjames.txt), [original single-mission README](../original-README.md), later direct requests, source, and automated tests. Status is for published experimental 1.4.0; native Windows portable checks and independent public downloads passed. **Implemented does not mean flown successfully in DCS.**
 
 The transcript distinguishes the friend's requests from Claude's descriptions of what it claimed to build. It ends mid-response, and the actual earlier application source/archive was absent. We reconstructed the single-mission scope authorized by the user. This checklist does not adopt historical AI suggestions as new requirements.
 
@@ -22,7 +22,7 @@ The transcript distinguishes the friend's requests from Claude's descriptions of
 | Sandbags and staggered fortified lines | Implemented | Sandbag objects, staggered/jittered units; line tests and AA filtering. |
 | Dark mode, weather choices and simple defaults | Implemented | Theme/UI/restart tests, nine weather choices, cold starts, optional detailed controls. |
 | Broad procedural geographic variation | Implemented in this batch | Previous one-base/fixed-anchor bias removed. Shared seeded planner for all mission types; region-balanced departures, sampled distance bands, full-circle eligible headings and offline terrain screening. Diversity report and constraint tests. |
-| Easy portable distribution and replacing the app without reinstalling | Implemented in this batch, native proof pending | One-file Windows build path; no installer in the normal release. Preferences/missions remain external. Native executable/GUI/read-only-folder/replacement probes are required before publication. |
+| Easy portable distribution and replacing the app without reinstalling | Implemented and verified in this batch | One-file Windows build path; no installer in the normal release. Preferences/missions remain external. Native executable, GUI, read-only-folder and replacement probes passed; reports are attached to the release. |
 | Forward FARPs with working services | Missing | Helicopters use compatible supplied airfields/helipads. Adding a functional FARP needs services, ownership, terrain and recovery validation in DCS. |
 | WWII-specific opposition | Missing | Selecting a WWII aircraft does not substitute all modern ground forces/air defenses. Avoid silently adding a requirement for the paid WWII Assets Pack without establishing what the group owns. |
 | Original era-specific SAM catalogue, EWR and timed CAP waves | Partial | Current smaller SAM selection and bounded CAP groups are implemented. Full era-specific compositions, active EWR integration and the earlier staggered-wave behavior remain gaps. |

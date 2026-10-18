@@ -1,6 +1,6 @@
 # Iron Anvil experimental gameplay
 
-**Status: [the portable geography preview](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.0-experimental.6). Source geography checks passed; final native portable publication is in progress. Real DCS flight testing remains outstanding.**
+**Status: [the portable geography preview](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.0-experimental.6). Native portable Windows checks and independent public downloads are verified. Real DCS flight testing remains outstanding.**
 
 The latest update adds [varied geography, offline relief and portable Windows delivery](GEOGRAPHY.md), building on [Quick setup and in-mission guidance](USABILITY-RESEARCH.md). Detailed choices remain optional; saved settings are retained.
 
