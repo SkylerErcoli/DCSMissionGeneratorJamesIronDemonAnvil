@@ -18,11 +18,11 @@ from dcs import lua
 from .loadouts import apply_loadout, tanker_type
 from .model import MissionOptions, resolve_aircraft, default_output_dir
 from .theatres import get_theatre
-from .airfields import select_airport, select_alternate
+from .geography import plan_scenario, height_at, hostile_air_spawn, support_plan
 from .weather import apply_weather, WEATHER_LABELS
 from .air_support import create_support_flight, create_enemy_cap
 from .compounds import build_facility_complex
-from .operations import build_operation, choose_target, operation_briefing
+from .operations import build_operation, operation_briefing
 from . import APP_DATA_NAME, __version__
 from .planning import search_intelligence, planner_metadata
 
@@ -67,16 +67,14 @@ def _airports(terrain, names):
     return result
 
 
-def _set_airport_ownership(terrain, theatre, home):
-    for airport in _airports(terrain, theatre.red_airports):
-        airport.set_red()
-    for airport in _airports(terrain, theatre.blue_airports) + [home]:
-        airport.set_blue()
-        airport.unlimited_fuel = True
-        airport.unlimited_munitions = True
-        airport.unlimited_aircrafts = True
-        airport.jet_init = airport.gasoline_init = 100
-        airport.operating_level_fuel = airport.operating_level_equipment = 100
+def _set_airport_ownership(terrain, scenario):
+    for airport in terrain.airports.values():
+        if scenario.ownership[airport.id]=='red':airport.set_red()
+        else:
+            airport.set_blue()
+            airport.unlimited_fuel = airport.unlimited_munitions = airport.unlimited_aircrafts = True
+            airport.jet_init = airport.gasoline_init = 100
+            airport.operating_level_fuel = airport.operating_level_equipment = 100
 
 
 def _ground_group(mission, country, name, types, point, rng, level, heading=0):
@@ -191,28 +189,30 @@ def build_mission(options: MissionOptions):
     blue = mission.country("USA")
     red = mission.country("Russia")
     aircraft = resolve_aircraft(options.aircraft)
-    latitude, longitude = ((options.target_lat, options.target_lon)
-                           if options.target_lat is not None else theatre.default_target)
-    target = mapping.Point.from_latlng(mapping.LatLng(latitude, longitude), terrain)
-    home = select_airport(terrain, theatre, target, aircraft, options.clients,
-                          options.start, options.departure_airport)
-    if options.target_lat is None and (options.operation != "classic" or options.pace != "standard"):
-        target = choose_target(home, target, theatre, aircraft, options.pace, rng)
-        coordinates = target.latlng()
-        latitude, longitude = coordinates.lat, coordinates.lng
-    _set_airport_ownership(terrain, theatre, home)
-    alternate = select_alternate(terrain, home, target, aircraft) if options.recovery == "home_or_alternate" else None
+    scenario=plan_scenario(options,theatre,terrain,aircraft,rng)
+    home,target,alternate=scenario.home,scenario.target,scenario.alternate
+    coordinates=target.latlng()
+    latitude,longitude=(options.target_lat,options.target_lon) if options.target_lat is not None else (coordinates.lat,coordinates.lng)
+    _set_airport_ownership(terrain,scenario)
     intelligence = search_intelligence(target, theatre, aircraft, rng) if options.intelligence == "search" else None
     navigation_target = mapping.Point(intelligence["center"]["x"], intelligence["center"]["z"], terrain) if intelligence else target
+    terrain_heights=[]
+    for step in range(25):
+        point=home.position.new_in_same_map(home.position.x+(navigation_target.x-home.position.x)*step/24,
+                                          home.position.y+(navigation_target.y-home.position.y)*step/24)
+        location=point.latlng();terrain_heights.append(height_at(theatre,location.lat,location.lng) or 0)
+    cruise_altitude=500 if aircraft.helicopter else max(4500,round((max(terrain_heights)+1000)/100)*100)
     level = DIFFICULTY[options.difficulty]
     main_task = {"cap": task.CAP, "sead": task.SEAD}.get(options.mission, task.GroundAttack)
     # Assign only a task the module advertises; some helicopters have CAS only.
     if main_task not in aircraft.tasks:
         main_task = aircraft.task_default or next(iter(aircraft.tasks))
     if options.start == "air":
-        altitude = 600 if aircraft.helicopter else 4500
+        spawn=_offset(home.position,home.position.heading_between_point(target),
+                      min(12000,home.position.distance_to_point(target)*.2))
+        loc=spawn.latlng();altitude=(height_at(theatre,loc.lat,loc.lng) or 0)+600 if aircraft.helicopter else cruise_altitude
         flight = mission.flight_group_inflight(blue, PLAYER_GROUP, aircraft,
-                    _offset(home.position, home.position.heading_between_point(target), 12000),
+                    spawn,
                     altitude, 180 if aircraft.helicopter else 650, main_task, options.clients)
     else:
         start = {"cold": StartType.Cold, "hot": StartType.Warm, "runway": StartType.Runway}[options.start]
@@ -221,8 +221,9 @@ def build_mission(options: MissionOptions):
     flight.set_client()
     flight.frequency = 251
     apply_loadout(flight, options.mission, options.loadout)
-    flight.add_waypoint(navigation_target, 500 if aircraft.helicopter else 4500,
+    navigation_waypoint=flight.add_waypoint(navigation_target, cruise_altitude,
                         180 if aircraft.helicopter else 650, name="SEARCH AREA" if intelligence else "TARGET / CAP STATION")
+    if aircraft.helicopter:navigation_waypoint.alt_type='RADIO'
     mission.triggers.add_triggerzone(navigation_target, radius=intelligence["radius"] if intelligence else 1200,
                                     name="IRON ANVIL SEARCH AREA" if intelligence else "IRON ANVIL TARGET")
     approach = target.heading_between_point(home.position)
@@ -236,7 +237,7 @@ def build_mission(options: MissionOptions):
     if options.mission == "facility":
         if options.operation != "classic":
             operation_config, facility_metadata = build_operation(
-                mission, red, target, home, theatre, options, rng, level)
+                mission, red, target, home, theatre, options, rng, level,placements=scenario.sites)
             label = operation_config["title"]
             target_statics = [name for goal in operation_config["objectives"] for name in goal["statics"]]
             if operation_config.get("convoy"):
@@ -259,7 +260,7 @@ def build_mission(options: MissionOptions):
         if options.air_defenses:
             types.append("Ural-375 ZU-23")
         convoy = _ground_group(mission, red, "OBJECTIVE CONVOY", types, target, rng, level)
-        convoy_destination = _ground_offset(target, approach + 90, 12000)
+        convoy_destination = scenario.sites['destination']
         # Runtime holds this preplaced group and replaces its route with roads.
         convoy.add_waypoint(convoy_destination, speed=30)
         target_groups.append(convoy.name)
@@ -270,8 +271,9 @@ def build_mission(options: MissionOptions):
     if operation_config and not intelligence:
         for goal in operation_config["objectives"]:
             if not goal["required"]:
-                flight.add_waypoint(mapping.Point(goal["position"]["x"],goal["position"]["z"],terrain),
-                    500 if aircraft.helicopter else 4500,180 if aircraft.helicopter else 650,name="BONUS - OPTIONAL")
+                waypoint=flight.add_waypoint(mapping.Point(goal["position"]["x"],goal["position"]["z"],terrain),
+                    cruise_altitude,180 if aircraft.helicopter else 650,name="BONUS - OPTIONAL")
+                if aircraft.helicopter:waypoint.alt_type='RADIO'
     if home.runways:
         flight.add_runway_waypoint(home)
     else:
@@ -285,23 +287,23 @@ def build_mission(options: MissionOptions):
         enemy_type = planes.MiG_21Bis if options.map == "germany" else planes.MiG_29A
         for wave in range(1 if level < 3 else 2):
             group = create_enemy_cap(mission, red, f"ENEMY CAP {wave + 1}", enemy_type,
-                        _offset(target, approach + 180, 45000 + wave * 15000), target,
+                        hostile_air_spawn(home,target,theatre,rng,distance=45000+wave*15000), target,
                         group_size=1 if level == 1 else 2,
                         skill=(Skill.Average, Skill.Good, Skill.High, Skill.Excellent)[level - 1])
             cap_groups.append(group.name)
-    support_position = _offset(home.position, home.position.heading_between_point(target),
-                               min(40000, home.position.distance_to_point(target) * .35))
+    support_position,support_heading,awacs_position=(support_plan(home,target,theatre)
+        if options.tanker or options.awacs else (home.position,0,home.position))
     tanker_name = None
     if options.tanker:
         tanker = tanker_type(aircraft)
         if tanker:
             tanker_name = tanker.id
             create_support_flight(mission, blue, "TEXACO", tanker, support_position,
-                                  task.Refueling, 251.5, heading=approach + 90)
+                                  task.Refueling, 251.5, heading=support_heading)
     if options.awacs:
         create_support_flight(mission, blue, "OVERLORD", planes.E_3A,
-                        _offset(support_position, approach + 90, 10000), task.AWACS, 252,
-                        altitude=8000, heading=approach + 90)
+                        awacs_position, task.AWACS, 252,
+                        altitude=8000, heading=support_heading)
     if options.base_detail:
         _ground_group(mission, blue, "Home ground services", ["M 818", "M978 HEMTT Tanker"],
                       _ground_offset(home.position, 90, 700), rng, 1)
@@ -365,7 +367,7 @@ def build_mission(options: MissionOptions):
         for group in red.vehicle_group + red.static_group:
             group.hidden = True
     metadata = {"options": asdict(options), "home_airport": home.name, "home_airport_id": home.id,
-                "intelligence": intelligence,
+                "intelligence": intelligence, "geography":scenario.metadata,
                 "planner": planner_metadata(terrain,home,target,alternate,operation_config,intelligence),
                 "target_lat": latitude, "target_lon": longitude, "runtime": config,
                 "tanker": tanker_name, "compound_style": compound_style,

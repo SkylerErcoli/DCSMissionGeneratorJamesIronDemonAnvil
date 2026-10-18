@@ -22,45 +22,47 @@ PACE_LABELS = {'compact': 'Close to base', 'standard': 'Standard distance', 'ext
 
 
 def _suitable(point, theatre, *, footprint=170):
-    for bearing in range(0, 360, 45):
-        location = point.point_from_heading(bearing, footprint).latlng()
-        if not theatre.contains(location.lat, location.lng) or not theatre.is_land(location.lat, location.lng):
-            return False
-    coordinates = point.latlng()
-    return theatre.contains(coordinates.lat, coordinates.lng) and theatre.is_land(coordinates.lat, coordinates.lng)
+    from .geography import suitable_ground
+    return suitable_ground(point,theatre,footprint=footprint)
 
 
 def choose_target(home, preferred, theatre, aircraft, pace, rng):
-    """Choose a land footprint at an aircraft-appropriate distance, never a time guarantee."""
-    distances = (10000, 22000, 38000) if aircraft.helicopter else (28000, 60000, 100000)
-    distance = distances[('compact', 'standard', 'extended').index(pace)]
-    heading = home.position.heading_between_point(preferred) + rng.uniform(-25, 25)
-    for fraction in (1, .85, .65):
-        for turn in (0, 20, -20, 40, -40, 60, -60, 90, -90, 120, -120, 150, -150, 180):
-            point = home.position.point_from_heading(heading + turn, distance * fraction)
-            if _suitable(point, theatre):
-                return point
-    raise ValueError('No suitable inland target at this distance. Pin a target inland or choose another departure base.')
+    """Compatibility wrapper; scenario planning now chooses the home and target."""
+    from .geography import sample_target
+    target=sample_target(home,theatre,aircraft,pace,rng,list(home._terrain.airports.values()))
+    if target is None:raise ValueError('No suitable target; choose another departure or distance.')
+    return target
 
 
-def _separate_site(point, home, theatre, rng, *, distance):
-    heading = point.heading_between_point(home.position) + rng.uniform(-35, 35)
-    for scale in (1, 1.25, 1.6):
-        for turn in (0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180):
+def _separate_site(point, home, theatre, rng, *, distance, excluded=(),road=False):
+    from .geography import near_road
+    heading = rng.uniform(0,360)
+    dx,dz=point.x-home.position.x,point.y-home.position.y
+    length_squared=dx*dx+dz*dz
+    airports=list(point._terrain.airports.values())
+    for scale in ((1,1.25,1.6,1,1.25,1.6) if road else (1,1.25,1.6)):
+        turns=list(range(0,360,20));rng.shuffle(turns)
+        for turn in turns:
             candidate = point.point_from_heading(heading + turn, distance * scale)
             if candidate.distance_to_point(home.position) < 3000:
                 continue
+            if ((candidate.x-home.position.x)*dx+(candidate.y-home.position.y)*dz)<length_squared*.5:
+                continue
+            if any(candidate.distance_to_point(other)<1500 for other in excluded):continue
+            if any(candidate.distance_to_point(airport.position)<2500 for airport in airports):continue
+            if road and not near_road(candidate,theatre):continue
             if _suitable(candidate, theatre):
                 return candidate
     raise ValueError('This target has no room for separated operation sites. Pin a point farther inland.')
 
 
-def build_operation(mission, country, target, home, theatre, options, rng, level):
+def build_operation(mission, country, target, home, theatre, options, rng, level,placements=None):
+    placements=placements or {}
     relay = options.operation == 'broken_relay'
     rolling = options.operation == 'rolling_thunder'
     primary_kind, bonus_kind = ('fuel', 'command') if relay else ('command' if rolling else 'ammunition', 'fuel')
     separation = {'compact': 2400, 'standard': 3800, 'extended': 6000}[options.pace]
-    secondary = _separate_site(target, home, theatre, rng, distance=separation)
+    secondary = placements.get('secondary') or _separate_site(target, home, theatre, rng, distance=separation)
     sites = [build_facility_site(mission, country, target, rng, level, kind=primary_kind, index=1),
              build_facility_site(mission, country, secondary, rng, level, kind=bonus_kind, index=2)]
     # The real facilities supply the names; no decorative object is mandatory.
@@ -80,7 +82,7 @@ def build_operation(mission, country, target, home, theatre, options, rng, level
         ],
     }
     if rolling:
-        destination = _separate_site(target, home, theatre, rng, distance=7500)
+        destination = placements.get('destination') or _separate_site(target, home, theatre, rng, distance=7500,excluded=(secondary,),road=True)
         types = ['Ural-375', 'Ural ATsP-6', 'Ural-375',
                  'BTR-60' if options.opponent == 'insurgents' else 'BTR-80']
         if options.air_defenses:
@@ -94,7 +96,7 @@ def build_operation(mission, country, target, home, theatre, options, rng, level
         objective['convoy'] = {'group': convoy.name, 'destination': {'x': destination.x, 'z': destination.y},
             'delivery_radius': 350, 'interdiction_points': 150, 'delivery_response_delay': 60}
     if options.enemy_response:
-        staging = _separate_site(target, home, theatre, rng, distance=9000)
+        staging = placements.get('staging') or _separate_site(target, home, theatre, rng, distance=9000,excluded=(secondary,destination) if rolling else (secondary,),road=True)
         types = (['BTR-60', 'Ural-375'] if options.opponent == 'insurgents' else
                  ['BTR-80', 'Ural-375'] if level == 1 else ['BMP-2', 'BTR-80', 'Ural-375'])
         if level >= 3:
@@ -142,7 +144,7 @@ def operation_briefing(operation):
     else:
         lines.append('Ground response is disabled. The optional site still earns a bonus.')
     lines.extend(['After the required objective is disabled, recover at an approved base. You may complete the bonus before recovering.',
-                  'F10 > Iron Anvil > Operation status shows individual goals and the response state.',
+                  'F10 > Iron Anvil > Mission status shows individual goals and the response state.',
                   'Main objective: 300 points; bonus: 100; each surviving client recovered: 25. Score is shared, not a kill contest.',
                   f"Replay seed: {operation['seed']}."])
     return '\n\n'.join(lines)

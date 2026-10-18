@@ -1,0 +1,3 @@
+# Optional developer-only raster rebuild. Not required to run or package the app.
+Pillow==11.3.0
+shapely==2.1.2

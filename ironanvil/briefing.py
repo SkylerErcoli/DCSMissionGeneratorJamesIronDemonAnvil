@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 from html import escape
 from io import BytesIO
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -42,6 +43,7 @@ def mission_help_lines(metadata):
     lines.append('Flight radio: 251 MHz AM.'+(' Tanker: 251.5 MHz / TACAN 11Y.' if metadata['tanker'] else '')+
                  (' AWACS: 252 MHz.' if options['awacs'] else ''))
     if metadata.get('loadout',{}).get('warning'):lines.append(metadata['loadout']['warning'])
+    lines.extend(metadata.get('geography',{}).get('notes',[]))
     return lines
 
 
@@ -189,6 +191,7 @@ def briefing_html(metadata,png):
     rows=''.join('<tr><td>'+escape(point['role'].upper()+': '+point['label'])+'</td><td>'+
         '<br>'.join(escape(label+': '+point['coordinates'][key]) for label,key in
                      (('Decimal','decimal'),('DDM','ddm'),('DMS','dms')))+'</td></tr>' for point in navigation['points'])
+    credits=(Path(__file__).parent/'assets/geography/CREDITS.html').read_text().split('<pre>',1)[1].split('</pre>',1)[0]
     return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{heading} - Iron Anvil Experimental</title><style>
 body{{margin:0;background:#111923;color:#edf3fa;font:17px/1.6 system-ui,sans-serif}}main{{max-width:980px;margin:auto;padding:28px}}
@@ -198,6 +201,7 @@ table{{width:100%;border-collapse:collapse}}td{{padding:12px;border-bottom:1px s
 </style><main><p class="muted">IRON ANVIL EXPERIMENTAL - COOPERATIVE BRIEFING</p><h1>{heading}</h1>
 <h2>Your job</h2><ul>{task}</ul><h2>Navigation and radios</h2><ul>{bases}</ul><table><tbody>{rows}</tbody></table><p class="muted">{escape(navigation['note'])}</p><details><summary>Weapons and stores aboard</summary>{loadout}</details><details><summary>Flight details and full operation briefing</summary><ul>{items}</ul>{detail}</details><h2>Kneeboard and route schematic</h2><p>The mission includes this schematic and a separate navigation/radio kneeboard page.</p>
 <img alt="Mission kneeboard with objectives, communications and route schematic" src="data:image/png;base64,{data}">
+<details><summary>Map and terrain data credits</summary><pre>{credits}</pre></details>
 <p class="muted">Generated locally. No account or online service is required. Check the mission in DCS before flying.</p></main></html>'''
 
 
@@ -234,4 +238,5 @@ def navigation_png(metadata):
             text(label+': '+point['coordinates'][key],small)
         y+=8
     y+=8;text(metadata['navigation']['note'],small,'#695746')
+    text('Terrain: Mapzen, USGS/NOAA and Copernicus EU-DEM. Land/lakes: Natural Earth. Full data credits in Mission briefing and the app.',small,'#695746')
     stream=BytesIO();image.save(stream,format='PNG');return stream.getvalue()

@@ -5,9 +5,11 @@ local cases = {}
 local function newWorld(configuration)
     IRON_ANVIL = configuration
     Airbase = nil
-    local data = {groups = {}, statics = {}, flags = {}, messages = {}, activated = {}, menus = {}, now = 0, menuEntries={}, marks={}, smokes={}}
+    local data = {groups = {}, statics = {}, flags = {}, messages = {}, activated = {}, menus = {}, now = 0, menuEntries={}, marks={}, smokes={},privateMessages={},nextId=1}
     function data.unit(name, player, point)
         local unit = {name = name, life = 100, player = player, flying = false, point = point or {x=0, y=0, z=0}}
+        unit.id=data.nextId;data.nextId=data.nextId+1
+        function unit:getID() return self.id end
         function unit:isExist() return self.life > 0 end
         function unit:getLife() return self.life end
         function unit:getName() return self.name end
@@ -42,6 +44,7 @@ local function newWorld(configuration)
     trigger = {action = {
         activateGroup = function(group) data.activated[group.name] = (data.activated[group.name] or 0) + 1 end,
         outTextForCoalition = function(_, text) data.messages[#data.messages + 1] = text end,
+        outTextForUnit = function(id,text) data.privateMessages[#data.privateMessages+1]={id=id,text=text} end,
         setUserFlag = function(name, value) data.flags[name] = value end,
         markToCoalition = function(id, name, point) data.mark = point; data.marks[id]={name=name,point=point} end,
         removeMark = function() data.removedMark = true end,
@@ -876,6 +879,38 @@ function cases.smoke_stops_after_main_objective_completion()
     target.life=0;data.advance();assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE)
     data.menus['Smoke target (orange)']();assert(#data.smokes==0)
     data.land(pilot,'Home',2);data.menus['Smoke target (orange)']();assert(#data.smokes==0)
+end
+
+function cases.remote_roads_do_not_create_unrealistic_convoy_or_response_detours()
+    local config=base('convoy');config.convoy_group='target';config.convoy_destination={x=15000,z=15000}
+    local data=newWorld(config);local pilot=data.group('players',1,'Pilot').all[1]
+    local convoy=data.group('target',2);data.start()
+    land.getClosestPointOnRoads=function(_,x,z) return x+100000,z+100000 end
+    land.findPathOnRoads=function() error('a remote road must never be requested') end
+    data.takeoff(pilot)
+    for _,point in ipairs(convoy.tasks[1].params.route.points) do assert(point.action=='Off Road') end
+    local responseData,_,response=operationWorld('delay')
+    land.getClosestPointOnRoads=function(_,x,z) return x+100000,z+100000 end
+    responseData.statics.tank1.life=50;responseData.advance(8)
+    assert(response.on==true)
+    for _,point in ipairs(response.tasks[1].params.route.points) do assert(point.action=='Off Road') end
+end
+
+function cases.joining_clients_receive_private_briefing_once_without_search_leaks()
+    local config=base('facility');config.briefing_lines={'Disable two fuel tanks.','Search check-in required.','Recover at Home.'}
+    config.intelligence={mode='search',center={x=10000,z=10000},radius=2500,required_seconds=45}
+    local data=newWorld(config);local players=data.group('players',1,'First')
+    data.group('target',2);data.start()
+    assert(#data.privateMessages==1 and data.privateMessages[1].id==players.all[1].id)
+    assert(data.privateMessages[1].text:find('Disable two fuel tanks',1,true))
+    assert(not data.privateMessages[1].text:find('5000',1,true),'welcome must not reveal hidden locations')
+    data.advance(5);assert(#data.privateMessages==1,'polling must not repeat the briefing')
+    local late=data.unit('Late','Wing');late.owner=players;players.all[#players.all+1]=late
+    data.handler:onEvent({id=15,initiator=late})
+    assert(#data.privateMessages==2 and data.privateMessages[2].id==late.id)
+    local ai=data.unit('AI',nil);ai.owner=players;players.all[#players.all+1]=ai
+    data.handler:onEvent({id=15,initiator=ai});data.advance()
+    assert(#data.privateMessages==2,'AI must not get pilot briefings')
 end
 
 local selected = arg[2]

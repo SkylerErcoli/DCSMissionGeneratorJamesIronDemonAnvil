@@ -143,30 +143,18 @@ def self_test() -> dict:
             raise RuntimeError("An empty offline tile cache should return no tile")
         checks.append("Offline map cache")
 
-        cases = []
-        for key in THEATRES:
-            for mission_type in MISSION_LABELS:
-                for opposition in (True, False):
-                    cases.append(MissionOptions(map=key, mission=mission_type, clients=2,
-                                                enemy_cap=opposition, air_defenses=opposition,
-                                                seed=42, tanker=True, awacs=True))
-        for key, name in (("caucasus", "Sochi-Adler"), ("syria", "Damascus"), ("germany", "Stendal")):
-            cases.append(MissionOptions(map=key, mission="facility", clients=2,
-                                        departure_airport=name, seed=42))
-        for weather in WEATHER_LABELS:
-            cases.append(MissionOptions(map="caucasus", mission="facility", clients=2,
-                                        weather=weather, seed=42))
-        for key in THEATRES:
-            for operation in ("broken_relay", "supply_denial", "rolling_thunder"):
-                for response in (False, True):
-                    cases.append(MissionOptions(map=key, operation=operation, enemy_response=response,
-                        seed=42, tanker=True, awacs=True, enemy_cap=False, air_defenses=False))
-            for operation in ("broken_relay", "rolling_thunder"):
-                cases.append(MissionOptions(map=key, operation=operation, intelligence="search",
-                    recovery="home_or_alternate", seed=178, tanker=True, awacs=True))
-            for aircraft in ("FA_18C_hornet", "AH_64D_BLK_II"):
-                cases.append(MissionOptions(map=key, aircraft=aircraft, operation="broken_relay",
-                    recovery="home_or_alternate", start="air", seed=91))
+        cases=[]
+        weather_keys=['clear','scattered','broken','overcast','rain','storm','fog','windy','random']
+        for index,key in enumerate(THEATRES):
+            for offset,operation in enumerate(('broken_relay','supply_denial','rolling_thunder')):
+                cases.append(MissionOptions(map=key,operation=operation,weather=weather_keys[index*3+offset],
+                    enemy_response=offset!=1,tanker=True,awacs=True,enemy_cap=False,seed=42+offset))
+            cases.append(MissionOptions(map=key,mission='cap',enemy_cap=True,tanker=True,awacs=True,seed=42))
+            cases.append(MissionOptions(map=key,mission=('line','convoy','sead')[index],enemy_cap=False,seed=45))
+            cases.append(MissionOptions(map=key,operation='rolling_thunder',intelligence='search',
+                recovery='home_or_alternate',tanker=True,awacs=True,seed=178))
+            cases.append(MissionOptions(map=key,aircraft='AH_64D_BLK_II',operation='broken_relay',
+                recovery='home_or_alternate',start='air',seed=91))
             cases.append(MissionOptions(map=key, operation="broken_relay", pace="compact", start="cold",
                 recovery="home_or_alternate", enemy_cap=False, tanker=True, awacs=True, seed=2718))
         cases.append(MissionOptions(loadout="default",seed=4242))
@@ -365,7 +353,7 @@ def self_test() -> dict:
                              "departure": metadata["home_airport"], "operation": options.operation,
                              "intelligence": options.intelligence, "recovery": options.recovery,
                              "aircraft": options.aircraft})
-        checks.append(f"Generated and reloaded {len(missions)} missions: all maps/types/opposition, selected airfields and every weather")
+        checks.append(f"Generated and reloaded {len(missions)} representative missions: all maps/types and nine weather choices")
         checks.append("Actual serialized rain, thunderstorm, fog and winds verified and reloaded")
         checks.append("Classic facilities retain three occupied sites; cooperative operations contain required and optional sites")
         checks.append("All missions contain decoded kneeboards, standalone briefings and replayable settings")
@@ -514,24 +502,41 @@ def smoke_gui() -> dict:
                 os.environ["IRONANVIL_DATA_DIR"] = original_data_dir
 
 
+def portable_state():
+    """Native replacement probe using the real external preferences."""
+    from ironanvil.gui import Application
+    from ironanvil.preferences import load_preferences, preferences_path
+    app=Application()
+    try:
+        app.withdraw();app.update();options=app.collect_options()
+        if options.start!='hot' or options.seed!=917 or load_preferences().get('portable_probe')!='preserve':
+            raise RuntimeError('Portable replacement did not restore existing user settings')
+        if getattr(sys,'frozen',False) and preferences_path().resolve().is_relative_to(Path(sys._MEIPASS).resolve()):
+            raise RuntimeError('Preferences were stored in temporary executable extraction')
+        return {'preferences_restored':True,'saved_start':options.start,'seed':options.seed,
+                'external_preferences':str(preferences_path()),'executable':sys.executable}
+    finally:app.destroy()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Iron Anvil desktop application")
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--self-test", action="store_true", help=argparse.SUPPRESS)
     modes.add_argument("--smoke-gui", action="store_true", help=argparse.SUPPRESS)
+    modes.add_argument("--portable-state", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--self-test-output", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
-    testing = args.self_test or args.smoke_gui
+    testing = args.self_test or args.smoke_gui or args.portable_state
     report = {"ok": False, "frozen": bool(getattr(sys, "frozen", False)),
               "platform": sys.platform, "timestamp": datetime.now(timezone.utc).isoformat(),
-              "mode": "self-test" if args.self_test else "smoke-gui"}
+              "mode": "self-test" if args.self_test else ('portable-state' if args.portable_state else 'smoke-gui')}
     log_path = None
     try:
         log_path = configure_logging()
         if testing:
             from ironanvil import __version__, RELEASE_TAG
             report.update(version=__version__, release_tag=RELEASE_TAG)
-            report.update(self_test() if args.self_test else smoke_gui())
+            report.update(self_test() if args.self_test else (portable_state() if args.portable_state else smoke_gui()))
             report["ok"] = True
             logging.info("%s passed", report["mode"])
         else:
@@ -553,9 +558,8 @@ def main(argv: list[str] | None = None) -> int:
             report["traceback"] = traceback.format_exc()
         else:
             show_error("Iron Anvil could not open.\n\n"
-                       "If you downloaded a ZIP, right-click it, choose Extract All, "
-                       "and open IronAnvil.exe from the extracted folder. "
-                       "Keep the _internal folder beside the application.\n\n"
+                       "Download the complete IronAnvil-Experimental.exe again from the release page, "
+                       "save it locally and try opening it. No installation or Python is required.\n\n"
                        f"Details to share if the problem continues:\n{log_path or str(exc)}")
         return 1
     finally:

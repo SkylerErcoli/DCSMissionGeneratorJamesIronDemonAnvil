@@ -87,7 +87,8 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
     local function road(point)
         if land and land.getClosestPointOnRoads then
             local ok, x, z = pcall(land.getClosestPointOnRoads, 'roads', point.x, point.z)
-            if ok and type(x)=='number' and type(z)=='number' then return {x=x, z=z} end
+            if ok and type(x)=='number' and type(z)=='number' and
+                ((point.x-x)^2+(point.z-z)^2)<=2500^2 then return {x=x, z=z} end
         end
     end
     local function waypoint(x, z, onRoad)

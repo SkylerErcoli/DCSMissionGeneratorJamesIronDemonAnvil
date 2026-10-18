@@ -407,6 +407,24 @@ def test_preview_is_async_writes_no_mission_and_matches_generated_plan(app,tmp_p
     assert not app._busy and app._last_output
     with zipfile.ZipFile(app._last_output) as archive:actual=json.loads(archive.read('ironanvil.json'))
     assert actual['planner']==expected
+    assert app.seed_var.get()=='' # A preview does not lock all later Generate clicks.
+    first_seed=actual['options']['seed']
+    app._generate()
+    deadline=time.monotonic()+20
+    while app._busy and time.monotonic()<deadline:app.update();time.sleep(.01)
+    with zipfile.ZipFile(app._last_output) as archive:second=json.loads(archive.read('ironanvil.json'))
+    assert second['options']['seed']!=first_seed and second['planner']!=expected
+
+
+def test_automatic_preview_seed_is_not_saved_as_a_permanent_replay(app):
+    from ironanvil.preferences import load_preferences
+    app._preview()
+    deadline=time.monotonic()+20
+    while app._busy and time.monotonic()<deadline:app.update();time.sleep(.01)
+    app._save_settings()
+    assert app.seed_var.get() and load_preferences()['mission']['seed']==''
+    app.seed_var.set('731');app._save_settings()
+    assert load_preferences()['mission']['seed']=='731' and 'Fixed variation: 731' in app.quick_help_var.get()
 
 
 def test_search_preview_hides_exact_sites_and_changed_settings_clear_it(app):

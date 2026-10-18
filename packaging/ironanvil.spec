@@ -1,9 +1,11 @@
-# Build on Windows x64 using CPython 3.12: tools/build_windows.ps1
-# A one-folder bundle starts without a console, an installer, or user Python.
+# Build Windows x64 with tools/build_experimental_windows.ps1.
+# Experimental uses a self-contained one-file executable; stable keeps its
+# historical one-folder specification and installer build path.
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_data_files, copy_metadata
 
 root = Path(SPECPATH).parent
+experimental='EXPERIMENTAL = True' in (root/'ironanvil/__init__.py').read_text()
 # pydcs selects terrain and aircraft modules dynamically. Collect every module
 # so Caucasus, Syria and Germany all work from the frozen executable.
 dcs_data, dcs_binaries, dcs_imports = collect_all("dcs")
@@ -30,9 +32,10 @@ pyz = PYZ(analysis.pure)
 exe = EXE(
     pyz,
     analysis.scripts,
-    [],
-    exclude_binaries=True,
-    name="IronAnvil",
+    analysis.binaries if experimental else [],
+    analysis.datas if experimental else [],
+    exclude_binaries=not experimental,
+    name="IronAnvil-Experimental" if experimental else "IronAnvil",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -42,11 +45,5 @@ exe = EXE(
     version=str(root / "packaging" / "version_info.txt"),
     icon=str(icon) if icon.is_file() else None,
 )
-collection = COLLECT(
-    exe,
-    analysis.binaries,
-    analysis.datas,
-    strip=False,
-    upx=False,
-    name="IronAnvil",
-)
+if not experimental:
+    collection = COLLECT(exe,analysis.binaries,analysis.datas,strip=False,upx=False,name="IronAnvil")

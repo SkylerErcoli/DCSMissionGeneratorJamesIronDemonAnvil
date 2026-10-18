@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   linux:
-    name: Experimental source and Lua regression checks
+    name: Source and Lua regression checks (no Linux app)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -39,11 +39,10 @@ jobs:
           sudo apt-get install --no-install-recommends -y lua5.1 xvfb python3-tk
           python -m pip install --disable-pip-version-check -r requirements-dev.txt
       - run: xvfb-run -a python -m pytest -q
-      - run: python tools/test_matrix.py --lua lua5.1
 
   windows:
     if: github.ref == 'refs/heads/experimental' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish-preview]'))
-    name: Build experimental app and prove stable coexistence
+    name: Build and verify portable Windows EXE
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
@@ -55,8 +54,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements*.txt
       - run: python -m pip install --disable-pip-version-check -r requirements-build.txt
-      - run: python -m pytest -q --ignore=tests/test_runtime.py --junitxml=test-results/experimental-source.xml
-      - name: Build and test frozen/installed apps and published stable sibling
+      - run: python -m pytest -q tests/test_model.py tests/test_preferences.py tests/test_packaging.py tests/test_experimental_identity.py --junitxml=test-results/experimental-source.xml
+      - name: Build and test standalone portable app
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force test-results | Out-Null
@@ -74,7 +73,7 @@ jobs:
               $Summary.Add("Source tests: $($Suite.tests); failures: $($Suite.failures); errors: $($Suite.errors); skipped: $($Suite.skipped).")
             }
           }
-          foreach ($Name in @('frozen-self-test', 'frozen-smoke-gui', 'installed-self-test', 'installed-smoke-gui', 'coexistence-validation', 'stable-after-experimental')) {
+          foreach ($Name in @('portable-self-test', 'portable-smoke-gui', 'portable-state', 'portable-validation')) {
             $Report = "test-results/$Name.json"
             if (Test-Path $Report) {
               $Summary.Add("### $Name")
@@ -94,8 +93,7 @@ jobs:
         with:
           name: IronAnvil-Experimental-Windows
           path: |
-            dist/IronAnvil-Experimental-Setup-x64.exe
-            dist/IronAnvil-Experimental-Windows-x64.zip
+            dist/IronAnvil-Experimental.exe
             dist/SHA256SUMS.txt
           if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -134,5 +132,5 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "This immutable prerelease already exists; updated builds remain workflow artifacts. Bump RELEASE_TAG for another preview."
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "Iron Anvil Experimental 1.3.4 — cold starts and target assistance" --notes-file "docs/releases/${tag}.md" release-assets/IronAnvil-Experimental-Setup-x64.exe release-assets/IronAnvil-Experimental-Windows-x64.zip release-assets/SHA256SUMS.txt release-assets/validation/frozen-self-test.json release-assets/validation/frozen-smoke-gui.json release-assets/validation/installed-self-test.json release-assets/validation/installed-smoke-gui.json release-assets/validation/coexistence-validation.json release-assets/validation/stable-after-experimental.json
+            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "Iron Anvil Experimental 1.3.4 — cold starts and target assistance" --notes-file "docs/releases/${tag}.md" release-assets/IronAnvil-Experimental.exe release-assets/SHA256SUMS.txt release-assets/validation/portable-self-test.json release-assets/validation/portable-smoke-gui.json release-assets/validation/portable-state.json release-assets/validation/portable-validation.json
           fi

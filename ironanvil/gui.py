@@ -29,7 +29,7 @@ from .quickstart import SCENARIOS, PRESSURES, PRESSURE_HELP, CLASSIC_PRESSURE_HE
 from . import APP_NAME, RELEASE_TAG, __version__
 
 
-AUTOMATIC_AIRFIELD = "Automatic (nearest friendly)"
+AUTOMATIC_AIRFIELD = "Automatic (varied suitable airfield)"
 THEME_PALETTES = {
     "dark": {
         "theme": "dark", "bg": "#161c25", "surface": "#202936", "field": "#111923",
@@ -101,6 +101,7 @@ class Application(tk.Tk):
         self._last_output: Path | None = None
         self._request_signature = None
         self._preview_metadata = None
+        self._automatic_seed = None
         self._catalogue = [item for item in aircraft_catalogue() if item["missions"]]
         if not self._catalogue:
             raise RuntimeError("The aircraft library could not be loaded. Download a fresh copy of Iron Anvil.")
@@ -324,6 +325,7 @@ class Application(tk.Tk):
 
     def _save_settings(self) -> None:
         settings = {name: variable.get() for name, variable in self._settings_variables().items()}
+        if self._automatic_seed is not None and settings['seed']==str(self._automatic_seed):settings['seed']=''
         settings["line_units"] = [key for key, variable in self.line_vars.items() if variable.get()]
         # Re-read to preserve settings saved by other features, including the updater.
         preferences = load_preferences()
@@ -351,7 +353,8 @@ class Application(tk.Tk):
             f"https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/{RELEASE_TAG}"))
         self.update_button.grid(row=0, column=1)
         ttk.Label(tools, textvariable=self.update_status_var, style="Subtitle.TLabel").grid(
-            row=1, column=0, columnspan=2, sticky="e", pady=(4, 0))
+            row=1, column=0, sticky="e", pady=(4, 0))
+        ttk.Button(tools,text='Data credits',command=self._show_data_credits).grid(row=1,column=1,sticky='e',pady=(4,0))
 
         body = ttk.Frame(self, padding=12)
         body.grid(row=1, column=0, sticky="nsew")
@@ -539,6 +542,8 @@ class Application(tk.Tk):
         pinned=bool(self.latitude_var.get().strip() and self.longitude_var.get().strip())
         if chosen:
             self.scenario_var.set(chosen[0]);self.quick_help_var.set(chosen[3]+(' Your map pin sets the target distance.' if pinned else ''))
+            if self.seed_var.get().strip() and self._automatic_seed is None:
+                self.quick_help_var.set(self.quick_help_var.get()+' Fixed variation: '+self.seed_var.get()+'. Use New variation for another layout.')
         self.quick_distance_combo.configure(state='disabled' if pinned else 'readonly')
         settings={name:getattr(self,name+"_var").get() for name in PRESSURES['Balanced']}
         pressure=pressure_name(settings,mission)
@@ -552,6 +557,8 @@ class Application(tk.Tk):
     def _new_variation(self):
         if self._busy or self._updating:return
         self.seed_var.set(str(secrets.randbelow(2**31)))
+        self._automatic_seed=int(self.seed_var.get())
+        self._sync_quick_controls()
         self._preview()
 
     @staticmethod
@@ -739,7 +746,7 @@ class Application(tk.Tk):
             parking = airport.get("parking", 0)
             self.departure_help_var.set(f"{runway} · {parking} parking spots. This airfield becomes friendly, with fuel and weapons.")
         else:
-            self.departure_help_var.set(f"All {len(self._departures)} airfields are listed, including helipads. Choose a runway for fixed-wing aircraft. Automatic picks a suitable friendly base.")
+            self.departure_help_var.set(f"All {len(self._departures)} airfields are listed, including helipads. Automatic varies suitable departures across the map and makes your home friendly.")
 
     def _aircraft_changed(self, _event=None) -> None:
         pressure=pressure_name({name:getattr(self,name+'_var').get() for name in PRESSURES['Balanced']},
@@ -933,6 +940,7 @@ class Application(tk.Tk):
     def _settings_changed(self,*_):
         if getattr(self,"_closed",False):
             return
+        if self._automatic_seed is not None and self.seed_var.get()!=str(self._automatic_seed):self._automatic_seed=None
         self._preview_metadata=None
         if hasattr(self,"map_view"):
             self.map_view.set_plan(None)
@@ -949,6 +957,8 @@ class Application(tk.Tk):
         # A preview selects a variation so the following Generate uses this plan.
         if not self.seed_var.get().strip():
             self.seed_var.set(str(options.seed))
+            self._automatic_seed=options.seed
+            self._sync_quick_controls()
         self._request_signature=self._input_signature()
         self._save_settings()
         self._busy=True
@@ -1120,12 +1130,19 @@ class Application(tk.Tk):
                 try:
                     with zipfile.ZipFile(result) as archive:
                         metadata=json.loads(archive.read("ironanvil.json"))
+                    if (self._automatic_seed is not None and metadata['options']['seed']==self._automatic_seed
+                            and self._request_signature==self._input_signature()):
+                        self.seed_var.set('')
+                        self._request_signature=self._input_signature()
+                        self._save_settings()
                     self._display_plan(metadata)
                 except (OSError,ValueError,KeyError,zipfile.BadZipFile):
                     logging.warning("Could not display the generated mission plan",exc_info=True)
                 self.status_var.set(f"Mission ready: {result.name}")
                 self.output_status_var.set(str(result))
                 self.next_step_var.set("In DCS: Mission > My Missions to fly solo, or Multiplayer > New server to host for friends. Add the saved mission.")
+                if not self.seed_var.get().strip():
+                    self.next_step_var.set('Next Generate makes a fresh variation. '+self.next_step_var.get())
                 if metadata.get('loadout',{}).get('warning'):
                     self.next_step_var.set(metadata['loadout']['warning']+' '+self.next_step_var.get())
             else:
@@ -1158,6 +1175,7 @@ class Application(tk.Tk):
 
     def _apply_options(self, options):
         """Import plain validated settings while retaining this computer's output folder."""
+        self._automatic_seed=None # Loading a recipe explicitly requests its replay seed.
         options.validate()
         output = self.output_var.get()
         self.operation_var.set(OPERATION_LABELS["classic"])
@@ -1278,6 +1296,9 @@ class Application(tk.Tk):
             webbrowser.open(path.resolve().as_uri())
         except (OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
             messagebox.showerror("Mission briefing", str(error), parent=self)
+
+    def _show_data_credits(self):
+        webbrowser.open((Path(__file__).parent/'assets/geography/CREDITS.html').resolve().as_uri())
 
     def _open_output(self) -> None:
         folder = self._last_output.parent if self._last_output else Path(self.output_var.get()).expanduser()

@@ -1,0 +1,20 @@
+{
+  "bounds": [
+    6.3,
+    49.0,
+    17.0,
+    56.0
+  ],
+  "land": {
+    "zoom": 10,
+    "left": 135659,
+    "top": 81629
+  },
+  "height": {
+    "zoom": 8,
+    "left": 33792,
+    "top": 20224,
+    "offset": 32768
+  },
+  "note": "Approximate public terrain, not DCS elevation. Land pixels ~80\u2013130 m; heights ~340\u2013520 m depending on latitude."
+}

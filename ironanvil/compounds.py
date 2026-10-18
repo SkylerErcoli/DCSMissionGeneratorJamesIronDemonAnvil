@@ -53,10 +53,11 @@ def _land_offset(point, dx, dz):
 
 
 def _has_room(point):
-    return _on_land(point) and all(
-        _on_land(point.point_from_heading(bearing, 155))
-        for bearing in range(0, 360, 45)
-    )
+    from .geography import suitable_ground
+    from .theatres import THEATRES
+    theatre=THEATRES[type(point._terrain).__name__.lower()]
+    return (_on_land(point) and all(_on_land(point.point_from_heading(bearing,170)) for bearing in range(0,360,45))
+            and suitable_ground(point,theatre,footprint=170))
 
 
 def _site_positions(point, count, rng):
@@ -195,11 +196,16 @@ def _container_perimeter(site):
 
 
 def _protective_screens(site):
+    layout=site.rng.choice(('HESCO','concrete blast screens','mixed screens'))
     for index, (x, z, angle) in enumerate(((-94, 60, 0), (94, 60, 0),
                                          (-94, -38, 90), (94, -38, 90)), 1):
-        site.static(f"protective screen {index}", statics.Fortification.HESCO_wallperimeter_1,
+        kind=(statics.Fortification.Twall_x6_3mts if layout=='concrete blast screens' or
+              layout=='mixed screens' and index%2 else statics.Fortification.HESCO_wallperimeter_1)
+        site.static(f"protective screen {index}", kind,
                     x, z, angle=angle)
-    site.perimeter = {"kind": "partial HESCO protective screens", "closed": False,
+    if site.rng.random()<.65:
+        site.static('watchtower',statics.Fortification.HESCO_watchtower_1,90,85,angle=180)
+    site.perimeter = {"kind": 'partial '+layout, "closed": False,
                       "note": "Mesh lengths are not calibrated; these are separated screens."}
 
 
@@ -300,7 +306,7 @@ def build_facility_site(mission, country, point, rng, level, *, kind, index):
     """Build one occupied site with an explicit role and globally unique index."""
     if kind not in _BUILDERS:
         raise ValueError(f"Unknown site role: {kind}")
-    heading = (rng.choice((0, 90, 180, 270)) + rng.uniform(-12, 12)) % 360
+    heading = rng.uniform(0,360)
     site = _Site(mission, country, point, index, kind, heading, rng, level)
     _BUILDERS[kind](site)
     site.occupy()

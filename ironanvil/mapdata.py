@@ -247,7 +247,11 @@ def point_in_polygon(lon, lat, polygon):
 
 
 def is_land(lat, lon):
-    """Coarse Natural Earth land test for the supported theatres; ignores small lakes."""
+    """Offline detailed land/lakes on supported maps; coarse fallback elsewhere."""
+    from .theatres import THEATRES
+    from .geography import public_land
+    for theatre in THEATRES.values():
+        if theatre.contains(lat,lon):return public_land(theatre,lat,lon)
     return any(point_in_polygon(lon, lat, polygon) for _, polygon in COUNTRY_POLYGONS)
 
 

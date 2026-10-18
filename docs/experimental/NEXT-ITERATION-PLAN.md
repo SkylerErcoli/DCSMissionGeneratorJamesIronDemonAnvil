@@ -1,6 +1,6 @@
-# Next iteration plan — awaiting the user's start command
+# Next iteration plan — implementation authorized
 
-Prepared 2026-10-18. **Planning only. Do not begin implementation or builds until the user says their usage has reset and asks to start.** Current preview 5 and stable 1.2 remain untouched.
+Prepared 2026-10-18. **The user reset their usage limits and explicitly authorized implementation.** Current preview 5 and stable 1.2 remain untouched.
 
 ## User priorities
 
@@ -69,4 +69,4 @@ First implementation checkpoint should turn this preliminary audit into a concis
 
 Prioritize confirmed gaps relevant to the group's aircraft: plausible facilities/enclosures and weapons, appropriate era/opposition, clear objective assistance. Keep FARPs and campaign mechanics separate from the geography fix; do not add frameworks or settings just to match an old AI feature list.
 
-Publish one coherent portable preview with a short changelog, source checkpoints, checksums and a small honest validation report. Keep `main`, stable 1.2 and all published previews immutable. Record any remaining gaps. **Stop here for now; wait for the user's explicit start command.**
+Publish one coherent portable preview with a short changelog, source checkpoints, checksums and a small honest validation report. Keep `main`, stable 1.2 and all published previews immutable. Record any remaining gaps. Implementation is authorized; save progress and validation in PROGRESS.md.

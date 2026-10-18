@@ -52,9 +52,10 @@ class MapGeometryTests(unittest.TestCase):
                 validate_bounds(bounds)
 
     def test_real_geographic_land_and_sea_samples(self):
-        for point in ((42.1, 42.35), (35.2, 37), (52.55, 11.4), (52.52, 13.4)):
+        for point in ((42.1, 42.35), (35.2, 37), (52.55, 11.4), (52.52, 13.4), (35,34)):
             self.assertTrue(is_land(*point), point)
-        for point in ((43, 36), (34, 33), (35, 34), (55, 7)):
+        # 35 N, 34 E is inland near Ayia Napa; the old coarse mask missed it.
+        for point in ((43, 36), (34, 33), (34.85, 34.2), (55, 7)):
             self.assertFalse(is_land(*point), point)
 
 

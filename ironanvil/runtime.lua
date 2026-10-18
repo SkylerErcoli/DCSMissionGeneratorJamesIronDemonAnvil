@@ -8,6 +8,7 @@ do
     local config = IRON_ANVIL or {}
     local blue = coalition and coalition.side and coalition.side.BLUE or 2
     local operation
+    local welcomePlayer
     local intelligence=config.intelligence
     local intelRevealed=not intelligence or intelligence.mode~="search"
     local state = {
@@ -126,6 +127,7 @@ do
             and (method(record.unit, "isExist") == false or (id and record.id and id ~= record.id))) then
             record = {unit = unit, id = id, tookOff = false, recovered = false, dead = false, lastInAir = false}
             state.roster[key] = record
+            if welcomePlayer then welcomePlayer(unit) end
         end
         record.unit = unit
         return record
@@ -296,6 +298,25 @@ do
         end
         announce(table.concat(lines,'\n'),40)
     end
+    welcomePlayer=function(unit)
+        local lines=config.briefing_lines
+        if not lines or #lines==0 then lines={
+            'Complete the briefed objective, then recover at ' .. tostring(config.recovery_label or config.base_name) .. '.',
+            'F10 > Iron Anvil > Briefing / help repeats your job and recovery instructions.'} end
+        local text='IRON ANVIL: Welcome aboard, ' .. tostring(method(unit,'getPlayerName') or 'pilot') .. '.\n' .. table.concat(lines,'\n')
+        local id=method(unit,'getID')
+        if id and trigger and trigger.action and trigger.action.outTextForUnit then
+            local ok=pcall(trigger.action.outTextForUnit,id,text,40)
+            if ok then return end
+        end
+        local groupId=method(method(unit,'getGroup'),'getID')
+        if groupId and trigger and trigger.action and trigger.action.outTextForGroup then
+            local ok=pcall(trigger.action.outTextForGroup,groupId,text,40)
+            if ok then return end
+        end
+        -- Older DCS versions retain the callable help if private text is absent.
+        log('Client joined; private briefing API unavailable. F10 Briefing / help remains available.')
+    end
     local function clientInSearchArea()
         if intelRevealed then return false end
         for _, unit in ipairs(playerUnits()) do
@@ -412,7 +433,8 @@ do
     local function nearestRoad(point)
         if land and land.getClosestPointOnRoads then
             local ok, x, z = pcall(land.getClosestPointOnRoads, "roads", point.x, point.z)
-            if ok and type(x) == "number" and type(z) == "number" then return {x = x, z = z} end
+            if ok and type(x) == "number" and type(z) == "number" and
+                horizontalDistance(point,{x=x,z=z})<=2500 then return {x = x, z = z} end
         end
         return nil
     end

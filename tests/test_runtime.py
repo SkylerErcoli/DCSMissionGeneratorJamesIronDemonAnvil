@@ -58,6 +58,8 @@ CASES = (
     "smoke_respects_hidden_intelligence_and_no_cap_option",
     "smoke_api_failure_does_not_spend_cooldown_or_break_runtime",
     "smoke_stops_after_main_objective_completion",
+    "remote_roads_do_not_create_unrealistic_convoy_or_response_detours",
+    "joining_clients_receive_private_briefing_once_without_search_leaks",
 )
 
 

@@ -69,8 +69,8 @@ def test_nontechnical_startup_error_shows_recovery_and_log(entrypoint, tmp_path,
     monkeypatch.setattr(entrypoint, "show_error", shown.append)
     assert entrypoint.main([]) == 1
     assert len(shown) == 1
-    assert "Extract All" in shown[0]
-    assert "_internal" in shown[0]
+    assert "IronAnvil-Experimental.exe" in shown[0]
+    assert "No installation or Python" in shown[0]
     assert "Cannot open data directory" in shown[0]
 
 

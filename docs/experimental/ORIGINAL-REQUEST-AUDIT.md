@@ -1,0 +1,34 @@
+# Original request audit
+
+Reviewed against the supplied [friend/Claude transcript](../claudechatjames.txt), [original single-mission README](../original-README.md), later direct requests, source, and automated tests. Status is for the current experimental source; new portable/geography work still needs its Windows release checks. **Implemented does not mean flown successfully in DCS.**
+
+The transcript distinguishes the friend's requests from Claude's descriptions of what it claimed to build. It ends mid-response, and the actual earlier application source/archive was absent. We reconstructed the single-mission scope authorized by the user. This checklist does not adopt historical AI suggestions as new requirements.
+
+| Request / capability | Status | Evidence or remaining gap |
+| --- | --- | --- |
+| Hornet missions for friends, GUI, 1–4 co-op slots | Implemented | Actual mission/client/payload tests; Quick setup and native desktop smoke. |
+| Varied, decorated compounds; limit Sndbx bunkers | Implemented | Five facility themes, occupied supporting sites and static scenery; actual archive tests exclude bunker/Sandbox spam and repeated factories. Broken Relay intentionally remains a fuel-strike scenario; choose Facility strike for randomized facility types. |
+| Hornet targeting pod for ground attacks | Implemented | Curated ATFLIR on station 4; tests check all supported Hornet ground missions and serialized stores. |
+| HESCO and walls forming many calibrated enclosure styles | Partial | HESCO, concrete blast-screen and mixed-screen variants, optional watchtowers and container boundaries exist. Full measured HESCO/T-wall calibration and original catalogue/layout breadth are missing. Do not represent nominal mesh dimensions as measured. |
+| Pod selector / named laser-strike payload | Missing as a dedicated choice | Mentioned in Claude's unfinished implementation narration. Existing recommended Hornet payloads have a pod; a separate selector/preset has not been reconstructed. |
+| Mission status, target vectors/smoke, recovery | Implemented with different rules | Team F10 help, live convoy coordinates, true/grid vectors, orange smoke with team cooldown, all-survivor recovery. Earlier three-smokes-per-flight and magnetic/nearest-target semantics are not identical. |
+| Per-player kill debrief and automatic briefing on joining | Partial | Shared operation goals/recovery debrief, callable help and private once-per-joined-client welcome briefings exist. Original per-player kill export remains absent. |
+| Map selection/zoom and readable target placement | Implemented with imagery limit | Zoom/pan, public basemap, preview and optional imported georeferenced chart. Actual DCS map imagery is not bundled. |
+| All airfields on Caucasus, Syria and Cold War Germany | Implemented | All 472 catalogue entries. Aircraft/runway/parking compatibility still applies; explicit invalid choices are explained. |
+| CAP and AA switches for every mission | Implemented | Archive/runtime checks; actual CAP activation and encounters require DCS flight feedback. |
+| Tanker/AWACS orbits and enemy protection | Implemented | Immediate roles, complete racetracks, AI invisibility/immortality; serialized tests. New geography keeps support on the friendly side and inside planner bounds. |
+| Supplied friendly departure and alternate | Implemented | BLUE ownership, ammunition/fuel, alternate recovery and warehouse checks. |
+| Sandbags and staggered fortified lines | Implemented | Sandbag objects, staggered/jittered units; line tests and AA filtering. |
+| Dark mode, weather choices and simple defaults | Implemented | Theme/UI/restart tests, nine weather choices, cold starts, optional detailed controls. |
+| Broad procedural geographic variation | Implemented in this batch | Previous one-base/fixed-anchor bias removed. Shared seeded planner for all mission types; region-balanced departures, sampled distance bands, full-circle eligible headings and offline terrain screening. Diversity report and constraint tests. |
+| Easy portable distribution and replacing the app without reinstalling | Implemented in this batch, native proof pending | One-file Windows build path; no installer in the normal release. Preferences/missions remain external. Native executable/GUI/read-only-folder/replacement probes are required before publication. |
+| Forward FARPs with working services | Missing | Helicopters use compatible supplied airfields/helipads. Adding a functional FARP needs services, ownership, terrain and recovery validation in DCS. |
+| WWII-specific opposition | Missing | Selecting a WWII aircraft does not substitute all modern ground forces/air defenses. Avoid silently adding a requirement for the paid WWII Assets Pack without establishing what the group owns. |
+| Original era-specific SAM catalogue, EWR and timed CAP waves | Partial | Current smaller SAM selection and bounded CAP groups are implemented. Full era-specific compositions, active EWR integration and the earlier staggered-wave behavior remain gaps. |
+| Campaign persistence/captured bases/economy/debrief import/autoresolve | Historical, outside current scope | Early conversation covered a campaign; later supplied README explicitly says single missions, no turns. These are absent and not prerequisites for this single-mission repair. |
+
+## Follow-up priorities
+
+Ship the geography/portable repair first, without another layer of mission settings. Preserve the shared aircraft, familiar co-op workflow, existing threats and recovery rules. Use a few DCS flights across distinct regions to tune slope screening, roads, support and mission pacing.
+
+Next original gaps to evaluate are useful enclosure variations, payload choices and appropriate force eras. FARPs need a separate flight-tested slice. Campaign management and external scripting frameworks remain deferred. The exact original program cannot be claimed feature-complete from the supplied files.
