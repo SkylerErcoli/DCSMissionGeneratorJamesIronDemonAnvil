@@ -46,12 +46,15 @@ def _offset(point, heading, distance):
     return point.point_from_heading(heading % 360, distance)
 
 
-def _ground_offset(point, heading, distance):
+def _ground_offset(point, heading, distance, *, screen_woodland=True):
     from .mapdata import is_land
+    from .geography import woodland_clear
+    from .theatres import THEATRES
+    theatre=THEATRES[type(point._terrain).__name__.lower()]
     for fraction in (1, .75, .5, .25, 0):
         location = _offset(point, heading, distance * fraction)
         coordinates = location.latlng()
-        if is_land(coordinates.lat, coordinates.lng):
+        if is_land(coordinates.lat, coordinates.lng) and (not screen_woodland or woodland_clear(location,theatre,footprint=100)):
             return location
     return point
 
@@ -311,7 +314,7 @@ def build_mission(options: MissionOptions):
                         altitude=8000, heading=support_heading)
     if options.base_detail:
         _ground_group(mission, blue, "Home ground services", ["M 818", "M978 HEMTT Tanker"],
-                      _ground_offset(home.position, 90, 700), rng, 1)
+                      _ground_offset(home.position, 90, 700, screen_woodland=False), rng, 1)
     hour = {"day": 12, "dawn": 6, "dusk": 18, "night": 0}.get(options.time_of_day, rng.randrange(24))
     mission.start_time = datetime(1985 if options.map == "germany" else 2020, 6, 15, hour, 0, 0)
     resolved_weather = apply_weather(mission, options.weather, rng)

@@ -1,6 +1,6 @@
 # Iron Anvil experimental gameplay
 
-**Status: [native enemy CAP launch and confirmation](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.2-experimental.8). Native DCS triggers launch the fighters; the controller checks actual active units and reports CAP status in every mission type. Earlier waypoint time locks are retained. Simulator flight confirmation remains outstanding.**
+**Status: [automatic woodland screening](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.3-experimental.9). Offline public tree-cover masks screen automatic ground sites, full footprints and nearby defenses. No new settings or runtime downloads. Manual pins remain explicit overrides. Native CAP launch and the waypoint timing fixes are retained. Actual DCS trees can differ from the public data.**
 
 The latest update adds [varied geography, offline relief and portable Windows delivery](GEOGRAPHY.md), building on [Quick setup and in-mission guidance](USABILITY-RESEARCH.md). Detailed choices remain optional; saved settings are retained.
 

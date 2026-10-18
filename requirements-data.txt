@@ -2,3 +2,4 @@
 Pillow==11.3.0
 shapely==2.1.2
 numpy==2.5.4
+rasterio==1.4.3

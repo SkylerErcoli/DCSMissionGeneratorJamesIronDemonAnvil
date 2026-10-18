@@ -52,15 +52,21 @@ def _land_offset(point, dx, dz):
     raise ValueError("Facility target is in water; select a point farther inland")
 
 
-def _has_room(point):
+def _has_room(point,*,screen_woodland=True):
     from .geography import suitable_ground
     from .theatres import THEATRES
     theatre=THEATRES[type(point._terrain).__name__.lower()]
     return (_on_land(point) and all(_on_land(point.point_from_heading(bearing,170)) for bearing in range(0,360,45))
-            and suitable_ground(point,theatre,footprint=170))
+            and suitable_ground(point,theatre,footprint=170,screen_woodland=screen_woodland))
 
 
 def _site_positions(point, count, rng):
+    from .geography import woodland_clear
+    from .theatres import THEATRES
+    theatre=THEATRES[type(point._terrain).__name__.lower()]
+    # An unsafe, explicitly forced primary keeps its historical override.
+    # Automatically planned primaries already have a larger clear footprint.
+    screen_woodland=woodland_clear(point,theatre,footprint=170)
     if not _on_land(point):
         raise ValueError("Facility target is in water; select a point farther inland")
     positions = [point]
@@ -79,10 +85,11 @@ def _site_positions(point, count, rng):
                     candidate = point.point_from_heading(preferred + turn, distance)
                     if any(candidate.distance_to_point(existing) < 300 for existing in positions):
                         continue
-                    if (_has_room(candidate) if require_room else _on_land(candidate)):
+                    if (_has_room(candidate,screen_woodland=screen_woodland) if require_room else
+                            _on_land(candidate) and (not screen_woodland or woodland_clear(candidate,theatre,footprint=170))):
                         selected = candidate
                         if distance > 650 or not require_room:
-                            notes.append(f"Site {index + 1} moved inland or compacted to avoid coastal water.")
+                            notes.append(f"Site {index + 1} moved inland or compacted to avoid coastal water or woodland.")
                         break
                 if selected is not None:
                     break

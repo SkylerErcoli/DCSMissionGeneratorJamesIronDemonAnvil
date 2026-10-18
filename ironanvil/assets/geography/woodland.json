@@ -1,0 +1,309 @@
+{
+  "citation": "Zanaga et al. (2022), ESA WorldCover 10 m 2021 v200, doi:10.5281/zenodo.7254221",
+  "clearance_m": 60,
+  "format": 1,
+  "license": "CC BY 4.0",
+  "maps": {
+    "caucasus": {
+      "bounds": [
+        36.0,
+        40.0,
+        46.0,
+        46.0
+      ],
+      "mask_sha256": "039ea41f35c6d961b191f428621ff6ee77a29dd506de3aa5b4a6e5c00c32edbb",
+      "size": [
+        10000,
+        6000
+      ],
+      "step_degrees": 0.001
+    },
+    "germany": {
+      "bounds": [
+        6.3,
+        49.0,
+        17.0,
+        56.0
+      ],
+      "mask_sha256": "be0cf2659b7b490bdbc70782c202d08246fbad61ad55a2642f9353939fa47d5a",
+      "size": [
+        10700,
+        7000
+      ],
+      "step_degrees": 0.001
+    },
+    "syria": {
+      "bounds": [
+        32.0,
+        31.0,
+        42.0,
+        38.2
+      ],
+      "mask_sha256": "fb356c6439551d4d3a877db749d21f7407eb417b5f064a1e10b4de9cd3df431a",
+      "size": [
+        10000,
+        7200
+      ],
+      "step_degrees": 0.001
+    }
+  },
+  "nodata": "Uncovered/zero-valued samples are blocked.",
+  "note": "Approximate real-world tree cover; does not certify DCS tree placement, especially historical terrain.",
+  "sampling": "Nearest categorical overview samples on a 0.001-degree grid; not native 10 m detail.",
+  "source": "ESA WorldCover 2021 v200, tree-cover class 10",
+  "source_url": "https://esa-worldcover.org/en/data-access",
+  "sources": {
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N30E030_Map.tif": {
+      "sample_sha256": "d1fa22e3adde30befd8a4cbfc28d7e38da394dea1cabd10ecb8aa37128670076",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N30E033_Map.tif": {
+      "sample_sha256": "3511419c468a39010c61d7ba192fc099aaeb68698109e28cad50f85a2054826e",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N30E036_Map.tif": {
+      "sample_sha256": "6b0784daa14e30f8b8a9e3b3147829a773211acade689d4c9ebeadd756fb0dcd",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N30E039_Map.tif": {
+      "sample_sha256": "e115db4ae8e6151ef310f41f2f12e6e438d93314c5af6ac7d03df2e984319404",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N33E030_Map.tif": {
+      "sample_sha256": "2f46f468086d43bf68708453cf94167036167719d2b0710c15886ed83ff8310d",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N33E033_Map.tif": {
+      "sample_sha256": "a3ec5f91cc72b976c9d5f9dc04f474c8ebadfa9075de7ce1e702d4e387d003f9",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N33E036_Map.tif": {
+      "sample_sha256": "a74cca42ff6c12d06698b1a926215036589abe1fb58b3a01ccde60e95bdc7220",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N33E039_Map.tif": {
+      "sample_sha256": "749e29de626cf25225fdc3d37f70801ec48a9200fe71c83bc79ef651524cc442",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N36E030_Map.tif": {
+      "sample_sha256": "b5b5cf7fbfb14ad62deff9f2d9d39ddf3b53faf4a052ea02b2542327dd68a83a",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N36E033_Map.tif": {
+      "sample_sha256": "a1ec5c5e7fe167f94de45d02c4865c3b7cf9fb08e22fca89c7605dd8699bcfb6",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N36E036_Map.tif": {
+      "sample_sha256": "b0870e859812c0aa4a88220fb5aa84a033ea70a092b9bf333ec3ec9cedb22a88",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N36E039_Map.tif": {
+      "sample_sha256": "35d94c5bcc25f8e801f2d7ad2ae443320ef6b76545c64ab3d13ba82e0f5d9a55",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N39E036_Map.tif": {
+      "sample_sha256": "579fe3ec6e483b4c2a33248a11888dac58e572664988d0aa659f0f0859c9e9d3",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N39E039_Map.tif": {
+      "sample_sha256": "67ed11f1897d4c34beb419413f03acf8768dbde41970bcbcf9ec21306152b7c8",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N39E042_Map.tif": {
+      "sample_sha256": "758d5c555f03104342e2a107dfb311c155d26174eb02d831affd7fb987a8b76f",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N39E045_Map.tif": {
+      "sample_sha256": "0249c228c61e8b62541eccfdfaf2b800eef20e941d1c95d3c6aeb84c9a497732",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N42E036_Map.tif": {
+      "sample_sha256": "d023832fff82557cc07ff18f8267c1a252f7e6de7e8bbcbd6f7eeff9b7de1e55",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N42E039_Map.tif": {
+      "sample_sha256": "b99a4030771f9fc51209484684b104ef9b27522cc77d339f5a5adea26a464873",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N42E042_Map.tif": {
+      "sample_sha256": "20e3a41ead85547c126a2ab06a4457e3ea484924ac328c6ab39aa9c7def1eb05",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N42E045_Map.tif": {
+      "sample_sha256": "e229f21ed5e98727359c9e358080606a78d9bc1f28e651dc6aa0aa5b6fb9b638",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N45E036_Map.tif": {
+      "sample_sha256": "66d0380d638702a7d837d1c19359597f4257f5005cbf620f95d7ec6a7701ee16",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N45E039_Map.tif": {
+      "sample_sha256": "cef43bc3fcbf49b7029b98a5f4a8e47e32b7b81477fdc7ca6e2a1e03f4be0e2c",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N45E042_Map.tif": {
+      "sample_sha256": "7dd8686b0f24f769a69ea733ad040e9139d71fbdd78665b6c3e86caaed69b0d5",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N45E045_Map.tif": {
+      "sample_sha256": "b293868ce0e63979c344bc84c3d9f5be64ac09555d8b9f7075bf3883976ab824",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N48E006_Map.tif": {
+      "sample_sha256": "9186579b328c952d6f7ab7eca2250f4742a65fd191bc1ce444fd1346e3142caf",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N48E009_Map.tif": {
+      "sample_sha256": "2ae628deffaa164431ba9ea07de7cfbf751968c7661ec353b2a8b99091a8fdc5",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N48E012_Map.tif": {
+      "sample_sha256": "640ae242c4ec10da0b3813c1ef050c6b7729e4080c1147601918b9dce0d9c859",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N48E015_Map.tif": {
+      "sample_sha256": "4273d27a368d01b59ba5a245ce4f9022f844cc69159c8e2a9711808d66babac4",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N51E006_Map.tif": {
+      "sample_sha256": "3e61c44ce5c8ef53b33ccaac9a73743b43da86a5a4a30e3043fe254d47358bcb",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N51E009_Map.tif": {
+      "sample_sha256": "f1e85b8246f6d0a9a2f12aeead4970a78ce3ce59c41405e12577b9a348fafd9c",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N51E012_Map.tif": {
+      "sample_sha256": "b4fd552b345eb63bb144856062c5576c07fc67105c6060b2b9f3faab435853ad",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N51E015_Map.tif": {
+      "sample_sha256": "fd8669beb55bdd5dca010066e5f297b68b34aced697fd0eef1af1dae422b8991",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N54E006_Map.tif": {
+      "sample_sha256": "4d82bff3b95116867a65e2cf8237096e9ca54e294b0db55255f5d23ce4564c2e",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N54E009_Map.tif": {
+      "sample_sha256": "cea2850a319cac383ba094d44e5f59e07d08dfcd244115aef5a1533cf0c027de",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N54E012_Map.tif": {
+      "sample_sha256": "8376191022081170d2fdc86da35d330929d03f1a73afc96bc63b572b3fefec05",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    },
+    "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_N54E015_Map.tif": {
+      "sample_sha256": "09c62dde6be8438a5e9da7df5671206155739d7c57076f75438f6da9fa4063b6",
+      "sample_shape": [
+        3000,
+        3000
+      ]
+    }
+  }
+}

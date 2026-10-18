@@ -158,7 +158,7 @@ def self_test() -> dict:
     from io import BytesIO
     from math import hypot
     import zipfile
-    from dcs import Mission, lua
+    from dcs import Mission, lua, mapping
     from PIL import Image
     import pyproj
     from ironanvil.airfields import airport_catalogue
@@ -167,6 +167,7 @@ def self_test() -> dict:
     from ironanvil.model import MISSION_LABELS, MissionOptions, aircraft_catalogue, default_output_dir
     from ironanvil.theatres import THEATRES, get_theatre
     from ironanvil.weather import WEATHER_LABELS
+    from ironanvil.geography import DATA, woodland_data, woodland_clear
 
     checks = []
     catalogue = aircraft_catalogue()
@@ -183,6 +184,12 @@ def self_test() -> dict:
     if abs(x - 1113194.9079) > 1 or abs(y - 6446275.8410) > 1:
         raise RuntimeError("Bundled geographic projection data failed")
     checks.append("Native PROJ projection and database")
+    import hashlib
+    for key in THEATRES:
+        info,mask,_=woodland_data(key)
+        if hashlib.sha256((DATA/f'{key}-forest.png').read_bytes()).hexdigest()!=info['mask_sha256']:
+            raise RuntimeError(f"Bundled woodland mask checksum failed: {key}")
+    checks.append("All three offline ESA WorldCover woodland masks decoded and checksum-verified")
 
     with tempfile.TemporaryDirectory(prefix="IronAnvil-self-test-") as temporary:
         directory = Path(temporary)
@@ -243,6 +250,8 @@ def self_test() -> dict:
         air_routes_checked = 0
         cap_launch_checks = 0
         cap_launch_triggers_checked = 0
+        woodland_checks = 0
+        woodland_units_checked = 0
         for index, options in enumerate(cases):
             path = generate(options, directory / f"mission-{index}.miz")
             with zipfile.ZipFile(path) as archive:
@@ -307,6 +316,17 @@ def self_test() -> dict:
                 air_route_timing_checks += 1
                 cap_launch_triggers_checked += _check_native_cap_launch(saved, metadata["runtime"])
                 cap_launch_checks += 1
+                if options.target_lat is None:
+                    theatre=get_theatre(options.map);terrain=theatre.terrain()
+                    for country in saved['coalition']['red']['country'].values():
+                        for category in ('vehicle','static'):
+                            for group in country.get(category,{}).get('group',{}).values():
+                                for unit in group['units'].values():
+                                    point=mapping.Point(unit['x'],unit['y'],terrain)
+                                    if not woodland_clear(point,theatre):
+                                        raise RuntimeError(f"Automatic ground unit overlaps mapped woodland: {unit['name']} ({path.name})")
+                                    woodland_units_checked+=1
+                    woodland_checks+=1
                 if options.intelligence == "search":
                     for country in saved["coalition"]["red"]["country"].values():
                         for category in ("vehicle", "static"):
@@ -445,6 +465,7 @@ def self_test() -> dict:
         checks.append("Support aircraft have immediate roles/protection and complete three-point racetrack routes")
         checks.append(f"DCS time locks verified on {air_routes_checked} saved aircraft routes, including first-point locks for late activation")
         checks.append(f"Native CAP launch configuration verified in {cap_launch_checks} missions; {cap_launch_triggers_checked} client triggers reference actual aircraft IDs")
+        checks.append(f"Woodland screening verified on {woodland_units_checked} saved ground units/objects in {woodland_checks} automatic missions")
         checks.append("Every mission's F10 help describes recovery and its store manifest matches every client aircraft")
         checks.append("Recommended cold-start cooperative settings serialize and reload on all maps; local-preset reporting is exercised")
         checks.append("Every mission includes a second navigation kneeboard and public-only cockpit coordinates")
@@ -462,6 +483,7 @@ def self_test() -> dict:
             "geography_checks":geography_checks,
             "air_route_timing_checks": air_route_timing_checks, "air_routes_checked": air_routes_checked,
             "cap_launch_checks": cap_launch_checks, "cap_launch_triggers_checked": cap_launch_triggers_checked,
+            "woodland_checks": woodland_checks, "woodland_units_checked": woodland_units_checked,
             "quick_setup_checks": quick_setup_checks, "local_preset_checks": local_preset_checks,
             "airport_counts": airport_counts, "weather_checks": weather_checks,
             "facility_checks": facility_checks, "support_checks": support_checks,

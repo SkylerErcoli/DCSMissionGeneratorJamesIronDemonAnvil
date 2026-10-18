@@ -1,7 +1,7 @@
 """Seeded scenario planning and offline public terrain screening.
 
-The data rejects obvious water and steep terrain; it cannot certify the finer
-DCS mesh, buildings, trees or native road network. Explicit pins remain exact.
+The data rejects obvious water, woodland and steep terrain; it cannot certify
+the finer DCS mesh, buildings, trees or roads. Explicit pins remain exact.
 """
 from __future__ import annotations
 
@@ -66,7 +66,39 @@ def near_road(point,theatre):
     return 0<=x<image.width and 0<=y<image.height and bool(image.getpixel((x,y)))
 
 
-def suitable_ground(point,theatre,*,footprint=220,airports=()):
+@lru_cache(maxsize=1)
+def woodland_data(key):
+    metadata=json.loads((DATA/'woodland.json').read_text())
+    info=metadata['maps'][key]
+    with Image.open(DATA/f'{key}-forest.png') as image:
+        image.load();mask=image.copy()
+    if mask.mode!='1' or list(mask.size)!=info['size']:
+        raise ValueError('The bundled woodland data is invalid. Download a fresh copy of Iron Anvil.')
+    return info,mask,metadata['clearance_m']
+
+
+def woodland_clear(point,theatre,*,footprint=0):
+    """Reject any mapped trees across a site's bounding box plus clearance.
+
+    Scan all cells, not just the centre/perimeter: a wooded patch can sit
+    between sample points. Unknown/out-of-bounds cells fail closed. Fixed DCS
+    airfield spawns and routes through forests are not relocation candidates.
+    """
+    location=point.latlng()
+    info,mask,margin=woodland_data(theatre.key)
+    west,south,east,north=info['bounds'];step=info['step_degrees']
+    radius=max(0,footprint)+margin
+    dy=radius/110574
+    dx=radius/(111320*math.cos(math.radians(location.lat)))
+    left=(location.lng-dx-west)/step;right=(location.lng+dx-west)/step
+    top=(north-location.lat-dy)/step;bottom=(north-location.lat+dy)/step
+    if left<0 or top<0 or right>=mask.width or bottom>=mask.height:return False
+    rectangle=(math.floor(left),math.floor(top),math.floor(right)+1,math.floor(bottom)+1)
+    return mask.crop(rectangle).getbbox() is None
+
+
+def suitable_ground(point,theatre,*,footprint=220,airports=(),screen_woodland=True):
+    if screen_woodland and not woodland_clear(point,theatre,footprint=footprint):return False
     heights=[]
     for bearing,distance in [(0,0)]+[(bearing,footprint) for bearing in range(0,360,45)]:
         location=point.point_from_heading(bearing,distance).latlng()
@@ -99,8 +131,9 @@ def region_order(airports,rng):
             if not cells[key]:keys.remove(key)
 
 
-def sample_target(home,theatre,aircraft,pace,rng,airports,*,ground=True,accept=None,footprint=220,road=False):
+def sample_target(home,theatre,aircraft,pace,rng,airports,*,ground=True,accept=None,footprint=220,road=False,distance_scale=1):
     low,high=distance_band(aircraft,pace)
+    low*=distance_scale;high*=distance_scale
     # Stratified directions plus independent angles; no ordered compass fallback.
     sectors=list(range(24));rng.shuffle(sectors)
     for _ in range(6):
@@ -158,15 +191,15 @@ def plan_scenario(options,theatre,terrain,aircraft,rng):
             from .operations import _separate_site
             try:
                 if options.operation=='classic':
-                    destination=_separate_site(point,home,theatre,rng,distance=12000,road=True)
+                    destination=_separate_site(point,home,theatre,rng,distance=12000,road=True,screen_woodland=not pinned)
                     sites.clear();sites['destination']=destination;return True
                 separation={'compact':2400,'standard':3800,'extended':6000}[options.pace]
-                secondary=_separate_site(point,home,theatre,rng,distance=separation)
+                secondary=_separate_site(point,home,theatre,rng,distance=separation,screen_woodland=not pinned)
                 planned={'secondary':secondary}
                 if options.operation=='rolling_thunder':
-                    planned['destination']=_separate_site(point,home,theatre,rng,distance=7500,excluded=(secondary,),road=True)
+                    planned['destination']=_separate_site(point,home,theatre,rng,distance=7500,excluded=(secondary,),road=True,screen_woodland=not pinned)
                 if options.enemy_response:
-                    planned['staging']=_separate_site(point,home,theatre,rng,distance=9000,excluded=tuple(planned.values()),road=True)
+                    planned['staging']=_separate_site(point,home,theatre,rng,distance=9000,excluded=tuple(planned.values()),road=True,screen_woodland=not pinned)
                 sites.clear();sites.update(planned)
                 return True
             except ValueError:return False
@@ -176,9 +209,19 @@ def plan_scenario(options,theatre,terrain,aircraft,rng):
                 raise ValueError('The pinned target/departure cannot fit the operation and a safe alternate. Try home-only recovery, another pin or a classic mission.')
             chosen=target
         else:
-            chosen=sample_target(home,theatre,aircraft,options.pace,rng,airports,ground=options.mission!='cap',
+            chosen=sample_target(home,theatre,aircraft,options.pace,rng,airports,ground=options.mission!='cap' or options.air_defenses,
                                  accept=related,footprint=450 if options.mission=='line' else 220,
                                  road=options.mission=='convoy' or options.operation=='rolling_thunder')
+            # Honor an explicitly chosen coastal/wooded departure without
+            # weakening screening. Automatic departures retain their distance
+            # band and can try another airport instead.
+            if chosen is None and options.departure_airport:
+                for scale in (1.5,2,3):
+                    chosen=sample_target(home,theatre,aircraft,options.pace,rng,airports,
+                        ground=options.mission!='cap' or options.air_defenses,accept=related,
+                        footprint=450 if options.mission=='line' else 220,
+                        road=options.mission=='convoy' or options.operation=='rolling_thunder',distance_scale=scale)
+                    if chosen is not None:break
         if chosen is not None:selected=(home,chosen);break
     if selected is None:
         raise ValueError('No suitable target for this departure and distance. Try another airfield or distance, or pin a target.')
@@ -200,14 +243,16 @@ def plan_scenario(options,theatre,terrain,aircraft,rng):
     ownership[home.id]='blue'
     location=target.latlng()
     notes=[]
+    if not pinned and length>distance_band(aircraft,options.pace)[1]:
+        notes.append(f'Woodland/terrain screening needs a longer sortie from {home.name}: {length/1000:.0f} km to the target. Choose another departure for a closer target.')
     if alternate and home.position.distance_to_point(alternate.position)>120000:
         notes.append(f'This selected departure needs a longer friendly alternate: {alternate.name}, '
                      f'{home.position.distance_to_point(alternate.position)/1000:.0f} km from home. Choose home-only recovery or another departure for a closer recovery plan.')
-    if pinned and options.mission!='cap' and not suitable_ground(target,theatre,airports=airports):
-        notes.append('Pinned target retained exactly; public terrain screening flags nearby water, elevation, slope or an airfield. Check placement in DCS.')
-    info={'algorithm':2,'selection':'pinned' if pinned else 'automatic','heading_grid':round(home.position.heading_between_point(target),1),
+    if pinned and (options.mission!='cap' or options.air_defenses) and not suitable_ground(target,theatre,airports=airports):
+        notes.append('Pinned target retained exactly; public terrain screening flags nearby woodland, water, elevation, slope or an airfield. Move the pin or use automatic placement for screened ground sites.')
+    info={'algorithm':3,'selection':'pinned' if pinned else 'automatic','heading_grid':round(home.position.heading_between_point(target),1),
           'distance_km':round(length/1000,2),'target_height_m':round(height_at(theatre,location.lat,location.lng) or 0),
-          'terrain':'Offline Natural Earth land/lakes/main-road corridors and public elevation screening; DCS terrain/roads remain authoritative.',
+          'terrain':'Offline land/lakes/roads, elevation and ESA WorldCover woodland screening; DCS terrain, trees and roads remain authoritative.',
           'notes':notes}
     return Scenario(home,target,alternate,ownership,info,sites)
 

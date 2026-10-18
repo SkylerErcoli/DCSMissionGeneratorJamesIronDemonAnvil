@@ -21,9 +21,9 @@ OPERATION_HELP = {
 PACE_LABELS = {'compact': 'Close to base', 'standard': 'Standard distance', 'extended': 'Longer sortie'}
 
 
-def _suitable(point, theatre, *, footprint=170):
+def _suitable(point, theatre, *, footprint=170,screen_woodland=True):
     from .geography import suitable_ground
-    return suitable_ground(point,theatre,footprint=footprint)
+    return suitable_ground(point,theatre,footprint=footprint,screen_woodland=screen_woodland)
 
 
 def choose_target(home, preferred, theatre, aircraft, pace, rng):
@@ -34,7 +34,7 @@ def choose_target(home, preferred, theatre, aircraft, pace, rng):
     return target
 
 
-def _separate_site(point, home, theatre, rng, *, distance, excluded=(),road=False):
+def _separate_site(point, home, theatre, rng, *, distance, excluded=(),road=False,screen_woodland=True):
     from .geography import near_road
     heading = rng.uniform(0,360)
     dx,dz=point.x-home.position.x,point.y-home.position.y
@@ -51,7 +51,7 @@ def _separate_site(point, home, theatre, rng, *, distance, excluded=(),road=Fals
             if any(candidate.distance_to_point(other)<1500 for other in excluded):continue
             if any(candidate.distance_to_point(airport.position)<2500 for airport in airports):continue
             if road and not near_road(candidate,theatre):continue
-            if _suitable(candidate, theatre):
+            if _suitable(candidate, theatre,screen_woodland=screen_woodland):
                 return candidate
     raise ValueError('This target has no room for separated operation sites. Pin a point farther inland.')
 
