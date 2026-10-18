@@ -1,6 +1,6 @@
 # Iron Anvil experimental gameplay
 
-**Status: [the convoy, recovery and intelligence preview](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.4-experimental.5). Windows packaging/coexistence and automated mission checks passed. Real DCS flight testing remains outstanding.**
+**Status: [the cold-start and target-assistance preview](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.4-experimental.5). Windows packaging/coexistence and automated mission checks passed. Real DCS flight testing remains outstanding.**
 
 The latest update adds [cold starts, target assistance and navigation cards](NAVIGATION-RESEARCH.md), building on [Quick setup and in-mission guidance](USABILITY-RESEARCH.md). Detailed choices remain optional; saved settings are retained.
 
