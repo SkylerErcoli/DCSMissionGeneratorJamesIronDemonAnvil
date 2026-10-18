@@ -136,9 +136,9 @@ def test_windows_output_uses_the_saved_games_known_folder_and_existing_profile(m
     (saved_games / "DCS.openbeta").mkdir(parents=True)
     monkeypatch.setattr(model.sys, "platform", "win32")
     monkeypatch.setattr(model, "_windows_saved_games_dir", lambda: saved_games)
-    assert model.default_output_dir() == saved_games / "DCS.openbeta" / "Missions" / "IronAnvil"
+    assert model.default_output_dir() == saved_games / "DCS.openbeta" / "Missions" / "IronAnvilExperimental"
     (saved_games / "DCS").mkdir()
-    assert model.default_output_dir() == saved_games / "DCS" / "Missions" / "IronAnvil"
+    assert model.default_output_dir() == saved_games / "DCS" / "Missions" / "IronAnvilExperimental"
 
 
 def test_windows_known_folder_api_returns_relocated_saved_games(monkeypatch, tmp_path):

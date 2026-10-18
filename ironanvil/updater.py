@@ -20,7 +20,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from . import __version__
+from . import __version__, EXPERIMENTAL, RELEASE_TAG
 from .diagnostics import log_path
 
 
@@ -110,9 +110,11 @@ def _validate_info(info: UpdateInfo) -> None:
         raise UpdateError("The update is missing a valid SHA-256 checksum.")
 
 
-def check_for_update(current_version: str = __version__) -> UpdateInfo | None:
+def check_for_update(current_version: str | None = None) -> UpdateInfo | None:
     """Return a verified description of a newer stable release, if available."""
-    current = _version_parts(current_version)
+    if current_version is None and EXPERIMENTAL:
+        raise UpdateError(f"Experimental builds use their own downloads page: {REPOSITORY_URL}/releases/tag/{RELEASE_TAG}")
+    current = _version_parts(current_version or __version__)
     try:
         with _open_release(MANIFEST_URL) as response:
             raw = response.read(MAX_MANIFEST_BYTES + 1)

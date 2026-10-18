@@ -4,6 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 import math
 import sys
+from . import APP_DATA_NAME
 
 
 def _windows_saved_games_dir() -> Path:
@@ -48,8 +49,8 @@ def default_output_dir():
         dcs = base / "DCS"
         if not dcs.exists() and (base / "DCS.openbeta").exists():
             dcs = base / "DCS.openbeta"
-        return dcs / "Missions" / "IronAnvil"
-    return Path.home() / "IronAnvil" / "Missions"
+        return dcs / "Missions" / APP_DATA_NAME
+    return Path.home() / APP_DATA_NAME / "Missions"
 
 
 @lru_cache(maxsize=1)

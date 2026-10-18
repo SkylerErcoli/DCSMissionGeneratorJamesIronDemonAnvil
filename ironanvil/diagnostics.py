@@ -3,6 +3,7 @@ from logging.handlers import RotatingFileHandler
 import logging
 import os
 from pathlib import Path
+from . import APP_DATA_NAME
 
 
 def log_path() -> Path:
@@ -11,9 +12,9 @@ def log_path() -> Path:
     if override:
         base = Path(override)
     elif os.name == "nt":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "IronAnvil"
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / APP_DATA_NAME
     else:
-        base = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "IronAnvil"
+        base = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / APP_DATA_NAME
     return base / "logs" / "ironanvil.log"
 
 

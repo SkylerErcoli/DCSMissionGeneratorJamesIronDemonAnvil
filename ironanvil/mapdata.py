@@ -96,7 +96,8 @@ def cache_directory() -> Path:
         root = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local"))
     else:
         root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return root / "IronAnvil" / "maps"
+    from . import APP_DATA_NAME
+    return root / APP_DATA_NAME / "maps"
 
 
 @dataclass(frozen=True)

@@ -8,16 +8,16 @@
 
 [Setup]
 ; Keep this ID stable so future versions update the same installation.
-AppId={{2C791DDC-1A55-4FAE-BAB3-30819BF2869D}
-AppName=Iron Anvil
+AppId={{F698B14E-6D10-4A68-BB62-A75C5DCC04F2}
+AppName=Iron Anvil Experimental
 AppVersion={#AppVersion}
 AppPublisher=Iron Anvil contributors
 AppSupportURL=https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/issues
-AppUpdatesURL=https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/latest
-DefaultDirName={localappdata}\Programs\IronAnvil
+AppUpdatesURL=https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.0-experimental.1
+DefaultDirName={localappdata}\Programs\IronAnvilExperimental
 UsePreviousAppDir=yes
 UsePreviousTasks=yes
-DefaultGroupName=Iron Anvil
+DefaultGroupName=Iron Anvil Experimental
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -25,16 +25,16 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 SetupIconFile={#SourceRoot}\ironanvil\assets\ironanvil.ico
 UninstallDisplayIcon={app}\IronAnvil.exe
-UninstallDisplayName=Iron Anvil
+UninstallDisplayName=Iron Anvil Experimental
 WizardStyle=modern
 DisableWelcomePage=no
 Compression=lzma2
 SolidCompression=yes
 OutputDir={#SourceRoot}\dist
-OutputBaseFilename=IronAnvil-Setup-x64
+OutputBaseFilename=IronAnvil-Experimental-Setup-x64
 VersionInfoVersion={#AppVersion}
-VersionInfoDescription=Iron Anvil Setup
-VersionInfoProductName=Iron Anvil
+VersionInfoDescription=Iron Anvil Experimental Setup
+VersionInfoProductName=Iron Anvil Experimental
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"
@@ -44,8 +44,8 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 Source: "{#SourceRoot}\dist\IronAnvil\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{userprograms}\Iron Anvil"; Filename: "{app}\IronAnvil.exe"; WorkingDir: "{app}"
-Name: "{userdesktop}\Iron Anvil"; Filename: "{app}\IronAnvil.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{userprograms}\Iron Anvil Experimental"; Filename: "{app}\IronAnvil.exe"; WorkingDir: "{app}"
+Name: "{userdesktop}\Iron Anvil Experimental"; Filename: "{app}\IronAnvil.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\IronAnvil.exe"; Description: "Launch Iron Anvil"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\IronAnvil.exe"; Description: "Launch Iron Anvil Experimental"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
