@@ -3,7 +3,38 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 import math
-import os
+import sys
+
+
+def _windows_saved_games_dir() -> Path:
+    """Ask Windows for Saved Games, including folders moved to another drive."""
+    import ctypes
+    from ctypes import wintypes
+    import uuid
+
+    result = ctypes.c_wchar_p()
+    try:
+        shell32 = ctypes.windll.shell32
+        ole32 = ctypes.windll.ole32
+        shell32.SHGetKnownFolderPath.argtypes = [
+            ctypes.c_void_p, wintypes.DWORD, wintypes.HANDLE,
+            ctypes.POINTER(ctypes.c_wchar_p),
+        ]
+        shell32.SHGetKnownFolderPath.restype = ctypes.c_long
+        ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+        ole32.CoTaskMemFree.restype = None
+        folder_id = ctypes.create_string_buffer(
+            uuid.UUID("4c5c32ff-bb9d-43b0-bf9d-4f7f05b8b17d").bytes_le
+        )
+        status = shell32.SHGetKnownFolderPath(folder_id, 0, None, ctypes.byref(result))
+        if status == 0 and result.value:
+            return Path(result.value)
+    except (AttributeError, OSError):
+        pass
+    finally:
+        if result:
+            ole32.CoTaskMemFree(ctypes.cast(result, ctypes.c_void_p))
+    return Path.home() / "Saved Games"
 
 MISSION_LABELS = {"facility": "Strike — facility", "line": "Strike — fortified line",
                   "convoy": "Strike — moving convoy", "sead": "SEAD / DEAD", "cap": "CAP"}
@@ -11,10 +42,9 @@ LINE_UNITS = ("mbt", "ifv", "apc", "atgm", "infantry", "manpads", "aaa", "artill
 
 
 def default_output_dir():
-    # No writes to a guessed DCS installation. A standard Saved Games path is safe
-    # on Windows and a normal documents-style output directory on other systems.
-    if os.name == "nt":
-        base = Path.home() / "Saved Games"
+    # DCS reads personal missions from its Saved Games profile, not its install.
+    if sys.platform == "win32":
+        base = _windows_saved_games_dir()
         dcs = base / "DCS"
         if not dcs.exists() and (base / "DCS.openbeta").exists():
             dcs = base / "DCS.openbeta"

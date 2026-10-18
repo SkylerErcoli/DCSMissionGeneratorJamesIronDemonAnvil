@@ -127,3 +127,38 @@ def test_catalogue_has_unique_flyable_entries_and_helicopters():
         aircraft = resolve_aircraft(item["id"])
         assert aircraft.flyable
         assert item["missions"] == missions_for_aircraft(aircraft)
+
+
+def test_windows_output_uses_the_saved_games_known_folder_and_existing_profile(monkeypatch, tmp_path):
+    from ironanvil import model
+
+    saved_games = tmp_path / "Relocated Saved Games"
+    (saved_games / "DCS.openbeta").mkdir(parents=True)
+    monkeypatch.setattr(model.sys, "platform", "win32")
+    monkeypatch.setattr(model, "_windows_saved_games_dir", lambda: saved_games)
+    assert model.default_output_dir() == saved_games / "DCS.openbeta" / "Missions" / "IronAnvil"
+    (saved_games / "DCS").mkdir()
+    assert model.default_output_dir() == saved_games / "DCS" / "Missions" / "IronAnvil"
+
+
+def test_windows_known_folder_api_returns_relocated_saved_games(monkeypatch, tmp_path):
+    import ctypes
+    from types import SimpleNamespace
+    from ironanvil.model import _windows_saved_games_dir
+
+    saved_games = str(tmp_path / "User games")
+    freed = []
+
+    def get_known_folder(_folder, _flags, _token, result):
+        result._obj.value = saved_games
+        return 0
+
+    def free_result(pointer):
+        freed.append(pointer)
+
+    monkeypatch.setattr(ctypes, "windll", SimpleNamespace(
+        shell32=SimpleNamespace(SHGetKnownFolderPath=get_known_folder),
+        ole32=SimpleNamespace(CoTaskMemFree=free_result),
+    ), raising=False)
+    assert _windows_saved_games_dir() == tmp_path / "User games"
+    assert len(freed) == 1

@@ -2,6 +2,8 @@
 
 import os
 import sys
+import time
+import gc
 
 import pytest
 
@@ -16,6 +18,9 @@ pytestmark = pytest.mark.skipif(
 def app(tmp_path):
     from ironanvil.gui import Application
 
+    # Tk objects from a previous destroyed test window must be collected on the
+    # UI thread, before a later test starts a mission-generation worker.
+    gc.collect()
     window = Application()
     window.withdraw()
     window.output_var.set(str(tmp_path))
@@ -92,3 +97,58 @@ def test_air_defenses_off_rejects_a_line_with_only_air_defenses(app):
         variable.set(key in {"aaa", "manpads"})
     with pytest.raises(ValueError, match="ground-combat unit"):
         app.collect_options()
+
+
+def test_first_run_has_two_pilots_and_each_click_chooses_a_fresh_mission(app, monkeypatch):
+    from ironanvil import gui
+
+    seeds = iter((123, 456))
+    monkeypatch.setattr(gui.secrets, "randbelow", lambda _limit: next(seeds))
+    assert app.collect_options().clients == 2
+    assert app.collect_options().seed == 456
+    assert app.seed_var.get() == ""
+
+
+def test_generate_button_creates_a_mission_in_the_background(app, monkeypatch):
+    from ironanvil import gui
+    from zipfile import ZipFile
+
+    errors = []
+    monkeypatch.setattr(gui.messagebox, "showerror", lambda *args, **kwargs: errors.append(args))
+    app.seed_var.set("42")
+    responsive = []
+    app.after(1, lambda: responsive.append(True))
+    app._generate()
+    assert app._busy
+    assert str(app.generate_button["state"]) == "disabled"
+    deadline = time.monotonic() + 30
+    while app._busy and time.monotonic() < deadline:
+        app.update()
+        time.sleep(0.01)
+    assert responsive
+    assert not errors
+    assert not app._busy
+    assert app._last_output.is_file()
+    with ZipFile(app._last_output) as archive:
+        assert archive.testzip() is None
+        assert "mission" in archive.namelist()
+    assert "DCS" in app.next_step_var.get()
+    assert "Multiplayer" in app.next_step_var.get()
+
+
+def test_generation_error_explains_how_to_fix_output_permissions(app, monkeypatch, tmp_path):
+    from ironanvil import diagnostics, generator, gui
+
+    def cannot_save(_options):
+        raise PermissionError("[WinError 5] Access is denied")
+
+    errors = []
+    monkeypatch.setattr(generator, "generate", cannot_save)
+    monkeypatch.setattr(gui.messagebox, "showerror", lambda *args, **kwargs: errors.append(args))
+    monkeypatch.setenv("IRONANVIL_DATA_DIR", str(tmp_path / "Application data"))
+    app._generate_worker(app.collect_options(), app._results)
+    app._poll_generation()
+    assert len(errors) == 1
+    assert "Choose another mission folder" in errors[0][1]
+    assert str(diagnostics.log_path()) in errors[0][1]
+    assert "WinError" not in errors[0][1]

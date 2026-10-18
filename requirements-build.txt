@@ -1,0 +1,4 @@
+-r requirements-dev.txt
+# Windows x64 builds use CPython 3.12. Build with: tools/build_windows.ps1
+PyInstaller==6.16.0
+pyinstaller-hooks-contrib==2025.9

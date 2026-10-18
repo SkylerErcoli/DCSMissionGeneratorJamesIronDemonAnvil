@@ -51,17 +51,25 @@ class Application(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Iron Anvil · DCS Mission Generator")
-        self.geometry("1240x820")
-        self.minsize(1060, 760)
+        width = min(1240, self.winfo_screenwidth() - 50)
+        height = min(820, self.winfo_screenheight() - 80)
+        self.geometry(f"{width}x{height}")
+        self.minsize(min(960, width), min(640, height))
         self.configure(background="#e9edf2")
+        icon = Path(__file__).parent / "assets" / "ironanvil.ico"
+        if sys.platform == "win32" and icon.is_file():
+            try:
+                self.iconbitmap(default=str(icon))
+            except tk.TclError:
+                logging.warning("The application icon could not be loaded")
         self._results: queue.Queue = queue.Queue()
         self._busy = False
         self._last_output: Path | None = None
         self._catalogue = [item for item in aircraft_catalogue() if item["missions"]]
         if not self._catalogue:
-            raise RuntimeError("No flyable aircraft were found. Run python -m ironanvil doctor.")
+            raise RuntimeError("The aircraft library could not be loaded. Download a fresh copy of Iron Anvil.")
         self._aircraft_by_label = {
-            f"{item['name']}  [{item['id']}]": item for item in self._catalogue
+            item["name"].replace("_", " "): item for item in self._catalogue
         }
         self._map_by_label = {theatre.label: key for key, theatre in THEATRES.items()}
         self._mission_by_label = {label: key for key, label in MISSION_LABELS.items()}
@@ -70,7 +78,7 @@ class Application(tk.Tk):
         self._build()
         self._aircraft_changed()
         self._theatre_changed()
-        self.after(100, self._poll_generation)
+        self._poll_timer = self.after(100, self._poll_generation)
 
     def _variables(self) -> None:
         default_aircraft = next(
@@ -82,7 +90,7 @@ class Application(tk.Tk):
         self.theatre_var = tk.StringVar(value=THEATRES[first_map].label)
         self.aircraft_var = tk.StringVar(value=default_aircraft)
         self.mission_var = tk.StringVar(value=MISSION_LABELS["facility"])
-        self.clients_var = tk.StringVar(value="1")
+        self.clients_var = tk.StringVar(value="2")
         self.difficulty_var = tk.StringVar(value="normal")
         self.enemy_cap_var = tk.BooleanVar(value=True)
         self.air_defenses_var = tk.BooleanVar(value=True)
@@ -99,8 +107,9 @@ class Application(tk.Tk):
         self.latitude_var = tk.StringVar(value="")
         self.longitude_var = tk.StringVar(value="")
         self.target_var = tk.StringVar(value="Automatic target selection")
-        self.status_var = tk.StringVar(value="Ready to build a mission.")
-        self.output_status_var = tk.StringVar(value="One mission, 1-4 client pilots, ready for DCS.")
+        self.status_var = tk.StringVar(value="Ready to create your mission.")
+        self.output_status_var = tk.StringVar(value="Choose your map and aircraft, then click Generate mission.")
+        self.next_step_var = tk.StringVar(value="Target selection is optional. The other tabs let you customize your flight.")
         self.mission_help_var = tk.StringVar()
         self.opposition_help_var = tk.StringVar()
         self.line_vars = {
@@ -137,7 +146,7 @@ class Application(tk.Tk):
         header = ttk.Frame(self, style="Header.TFrame", padding=(22, 14))
         header.grid(row=0, column=0, sticky="ew")
         ttk.Label(header, text="IRON ANVIL", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(header, text="DCS World  /  Single-mission generator",
+        ttk.Label(header, text="Choose your flight. Create a mission. Fly together in DCS World.",
                   style="Subtitle.TLabel").pack(anchor="w", pady=(2, 0))
 
         body = ttk.Frame(self, padding=12)
@@ -151,19 +160,16 @@ class Application(tk.Tk):
         sidebar.rowconfigure(0, weight=1)
         notebook = ttk.Notebook(sidebar)
         notebook.grid(row=0, column=0, sticky="nsew")
-        flight = ttk.Frame(notebook, padding=12)
-        mission = ttk.Frame(notebook, padding=12)
-        conditions = ttk.Frame(notebook, padding=12)
-        notebook.add(flight, text="Flight")
-        notebook.add(mission, text="Mission")
-        notebook.add(conditions, text="Conditions")
+        flight = self._settings_tab(notebook, "Flight")
+        mission = self._settings_tab(notebook, "Mission")
+        conditions = self._settings_tab(notebook, "Conditions")
         self._flight_tab(flight)
         self._mission_tab(mission)
         self._conditions_tab(conditions)
 
         opposition = ttk.LabelFrame(sidebar, text="Enemy forces · all mission types", padding=10)
         opposition.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-        ttk.Checkbutton(opposition, text="Enemy CAP flights", variable=self.enemy_cap_var,
+        ttk.Checkbutton(opposition, text="Enemy fighter patrols (CAP)", variable=self.enemy_cap_var,
                         command=self._opposition_changed).grid(row=0, column=0, sticky="w")
         ttk.Checkbutton(opposition, text="Enemy air defenses", variable=self.air_defenses_var,
                         command=self._opposition_changed).grid(row=1, column=0, sticky="w")
@@ -201,13 +207,60 @@ class Application(tk.Tk):
             row=0, column=0, sticky="w")
         ttk.Label(footer, textvariable=self.output_status_var, style="Help.TLabel",
                   wraplength=600).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(footer, textvariable=self.next_step_var, style="Help.TLabel",
+                  wraplength=600).grid(row=2, column=0, sticky="w", pady=(4, 0))
         self.progress = ttk.Progressbar(footer, mode="indeterminate", length=180)
-        self.progress.grid(row=2, column=0, sticky="w", pady=(6, 0))
+        self.progress.grid(row=3, column=0, sticky="w", pady=(6, 0))
         self.open_button = ttk.Button(footer, text="Open mission folder", command=self._open_output)
         self.open_button.grid(row=0, column=1, rowspan=2, padx=(10, 8))
         self.generate_button = ttk.Button(footer, text="Generate mission", style="Primary.TButton",
                                          command=self._generate)
         self.generate_button.grid(row=0, column=2, rowspan=2)
+
+    def _settings_tab(self, notebook, label):
+        """Keep every setting reachable on small screens and at larger DPI."""
+        container = ttk.Frame(notebook)
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(0, weight=1)
+        canvas = tk.Canvas(container, background="#f5f7fa", highlightthickness=0,
+                           width=340, height=430)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        content = ttk.Frame(canvas, padding=12)
+        window = canvas.create_window((0, 0), window=content, anchor="nw")
+
+        def resized(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            if content.winfo_reqheight() > canvas.winfo_height():
+                scrollbar.grid()
+            else:
+                scrollbar.grid_remove()
+
+        def viewport_changed(event):
+            canvas.itemconfigure(window, width=event.width)
+            resized()
+
+        def scroll(event):
+            if content.winfo_reqheight() <= canvas.winfo_height():
+                return None
+            direction = -1 if getattr(event, "num", None) == 4 or event.delta > 0 else 1
+            canvas.yview_scroll(direction, "units")
+            return "break"
+
+        def bind_scrolling(widget):
+            widget.bind("<MouseWheel>", scroll, add="+")
+            widget.bind("<Button-4>", scroll, add="+")
+            widget.bind("<Button-5>", scroll, add="+")
+            for child in widget.winfo_children():
+                bind_scrolling(child)
+
+        content.bind("<Configure>", resized)
+        canvas.bind("<Configure>", viewport_changed)
+        self.after_idle(lambda: bind_scrolling(content))
+        notebook.add(container, text=label)
+        return content
 
     @staticmethod
     def _combo(parent, row, label, variable, values, width=34):
@@ -218,9 +271,9 @@ class Application(tk.Tk):
 
     def _flight_tab(self, parent) -> None:
         parent.columnconfigure(0, weight=1)
-        map_combo = self._combo(parent, 0, "Theater", self.theatre_var, list(self._map_by_label))
+        map_combo = self._combo(parent, 0, "DCS map", self.theatre_var, list(self._map_by_label))
         map_combo.bind("<<ComboboxSelected>>", self._theatre_changed)
-        aircraft_combo = self._combo(parent, 2, "Client aircraft", self.aircraft_var,
+        aircraft_combo = self._combo(parent, 2, "Your aircraft", self.aircraft_var,
                                      list(self._aircraft_by_label))
         aircraft_combo.bind("<<ComboboxSelected>>", self._aircraft_changed)
         flight_row = ttk.Frame(parent)
@@ -233,7 +286,7 @@ class Application(tk.Tk):
         loadout_frame = ttk.Frame(flight_row, padding=(6, 0, 0, 0))
         loadout_frame.grid(row=0, column=1, sticky="ew")
         loadout_frame.columnconfigure(0, weight=1)
-        self._combo(clients_frame, 0, "Client pilots", self.clients_var, ["1", "2", "3", "4"], width=15)
+        self._combo(clients_frame, 0, "Number of pilots", self.clients_var, ["1", "2", "3", "4"], width=15)
         self._combo(loadout_frame, 0, "Loadout", self.loadout_var, ["auto", "default"], width=15)
         ttk.Label(parent, text="Auto builds a role-appropriate starting payload. You can adjust it in DCS.",
                   style="Help.TLabel", wraplength=315).grid(row=5, column=0, sticky="w", pady=(7, 10))
@@ -244,7 +297,7 @@ class Application(tk.Tk):
         ttk.Checkbutton(parent, text="Airbase detail", variable=self.base_detail_var).grid(
             row=8, column=0, sticky="w", pady=3)
         ttk.Separator(parent).grid(row=9, column=0, sticky="ew", pady=9)
-        ttk.Label(parent, text="Client airbases are friendly, with fuel and weapons available for rearming and refueling.",
+        ttk.Label(parent, text="Your airbase is friendly, with fuel and weapons available for rearming and refueling.",
                   style="Help.TLabel", wraplength=315).grid(row=10, column=0, sticky="w")
 
     def _mission_tab(self, parent) -> None:
@@ -291,20 +344,20 @@ class Application(tk.Tk):
         self._combo(time_frame, 0, "Time of day", self.time_var,
                     ["day", "dawn", "dusk", "night", "random"], width=15)
         self._combo(weather_frame, 0, "Weather", self.weather_var, ["clear", "cloudy"], width=15)
-        ttk.Label(parent, text="Seed").grid(row=3, column=0, sticky="w", pady=(10, 3))
+        ttk.Label(parent, text="Mission variation number (optional)").grid(row=3, column=0, sticky="w", pady=(10, 3))
         seed_row = ttk.Frame(parent)
         seed_row.grid(row=4, column=0, sticky="ew")
         seed_row.columnconfigure(0, weight=1)
         ttk.Entry(seed_row, textvariable=self.seed_var).grid(row=0, column=0, sticky="ew")
         ttk.Button(seed_row, text="New", command=lambda: self.seed_var.set(str(secrets.randbelow(2**31)))).grid(
             row=0, column=1, padx=(6, 0))
-        ttk.Label(parent, text="Blank chooses a seed when generating. Reuse it to reproduce the mission.",
+        ttk.Label(parent, text="Leave blank for a fresh mission each time. Reuse a number to repeat a layout.",
                   style="Help.TLabel", wraplength=315).grid(row=5, column=0, sticky="w", pady=(6, 10))
         ttk.Label(parent, text="Mission output folder").grid(row=6, column=0, sticky="w", pady=(4, 3))
         ttk.Entry(parent, textvariable=self.output_var).grid(row=7, column=0, sticky="ew")
         ttk.Button(parent, text="Choose folder...", command=self._choose_output).grid(
             row=8, column=0, sticky="w", pady=(6, 0))
-        ttk.Label(parent, text="Open the generated .miz from DCS Mission > My Missions, or copy it to your server.",
+        ttk.Label(parent, text="On Windows, missions are saved in your DCS Saved Games folder automatically. Use Choose folder if you use a custom DCS profile.",
                   style="Help.TLabel", wraplength=315).grid(row=9, column=0, sticky="w", pady=(15, 0))
 
     def _theatre_changed(self, _event=None) -> None:
@@ -406,7 +459,6 @@ class Application(tk.Tk):
         units = tuple(key for key, variable in self.line_vars.items() if variable.get())
         if mission == "line" and not units:
             raise ValueError("Select at least one unit type for the fortified line.")
-        self.seed_var.set(str(seed))
         return MissionOptions(
             map=self._map_by_label[self.theatre_var.get()],
             aircraft=self._aircraft_by_label[self.aircraft_var.get()]["id"],
@@ -441,19 +493,33 @@ class Application(tk.Tk):
         self._busy = True
         self.generate_button.configure(state="disabled")
         self.progress.start(14)
-        self.status_var.set("Building mission...")
-        self.output_status_var.set(f"Seed {options.seed} · preparing aircraft, targets and mission scripts")
-        threading.Thread(target=self._generate_worker, args=(options,), daemon=True).start()
+        self.status_var.set("Creating your mission...")
+        self.output_status_var.set("Preparing your aircraft, targets and support flights. This may take a few seconds.")
+        self.next_step_var.set("")
+        # The worker owns only plain data. Closing the window must not leave a
+        # worker holding the last reference to a Tk interpreter or its widgets.
+        threading.Thread(target=self._generate_worker, args=(options, self._results), daemon=True).start()
 
-    def _generate_worker(self, options) -> None:
+    @staticmethod
+    def _generate_worker(options, results) -> None:
         try:
             from .generator import generate
 
             path = generate(options)
-            self._results.put((True, Path(path)))
+            results.put((True, Path(path)))
         except Exception as exc:
             logging.exception("Iron Anvil mission generation failed")
-            self._results.put((False, f"{type(exc).__name__}: {exc}"))
+            if isinstance(exc, PermissionError):
+                message = ("Iron Anvil couldn't save in the selected folder. "
+                           "Choose another mission folder in Conditions, then try again.")
+            elif isinstance(exc, OSError):
+                message = ("Iron Anvil couldn't read or write a required file. "
+                           "Check that your mission folder is available, then try again.")
+            elif isinstance(exc, ValueError):
+                message = str(exc)
+            else:
+                message = "Try creating the mission again. If this keeps happening, share the log file below when asking for help."
+            results.put((False, message))
 
     def _poll_generation(self) -> None:
         try:
@@ -466,13 +532,24 @@ class Application(tk.Tk):
             self.generate_button.configure(state="normal")
             if success:
                 self._last_output = result
-                self.status_var.set("Mission ready")
+                self.status_var.set(f"Mission ready: {result.name}")
                 self.output_status_var.set(str(result))
+                self.next_step_var.set("In DCS: Mission > My Missions to fly solo, or Multiplayer > New server to host for friends. Add the saved mission.")
             else:
+                from .diagnostics import log_path
+
                 self.status_var.set("Mission could not be generated")
                 self.output_status_var.set("Review the error, adjust the settings and try again.")
-                messagebox.showerror("Mission generation failed", result, parent=self)
-        self.after(100, self._poll_generation)
+                self.next_step_var.set(f"Help log: {log_path()}")
+                messagebox.showerror("Mission generation failed",
+                                     f"{result}\n\nDetails were saved to:\n{log_path()}", parent=self)
+        self._poll_timer = self.after(100, self._poll_generation)
+
+    def destroy(self) -> None:
+        if getattr(self, "_poll_timer", None):
+            self.after_cancel(self._poll_timer)
+            self._poll_timer = None
+        super().destroy()
 
     def _choose_output(self) -> None:
         folder = filedialog.askdirectory(parent=self, title="Mission output folder",
@@ -495,4 +572,7 @@ class Application(tk.Tk):
 
 
 def run() -> None:
+    from .diagnostics import configure_logging
+
+    configure_logging()
     Application().mainloop()

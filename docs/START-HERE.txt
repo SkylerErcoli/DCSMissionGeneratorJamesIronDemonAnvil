@@ -1,0 +1,55 @@
+IRON ANVIL MISSIONS
+==================
+
+If you downloaded IronAnvil-Setup-x64.exe:
+1. Double-click it and follow the short setup wizard.
+2. Open Iron Anvil from the Start menu or its desktop shortcut.
+
+If you downloaded IronAnvil-Windows-x64.zip instead:
+1. Extract the whole ZIP with Windows "Extract All".
+2. Open the extracted folder and double-click IronAnvil.exe.
+3. Keep IronAnvil.exe and the _internal folder together.
+
+Use Windows 10 or 11, 64-bit. No Python installation or typed commands are
+needed. The installer works without administrator access.
+
+MAKE A MISSION
+--------------
+Choose a map, aircraft, mission, and number of pilots (1 to 4).
+
+Enemy CAP flights = enemy fighter patrols.
+Enemy air defenses = enemy missiles and anti-aircraft guns.
+Either checkbox can be turned on or off for every mission type.
+
+Click the map to choose the target location, or leave it unset for the app
+to choose. Use the mouse wheel to zoom. Drag to move around the map.
+"Internet map (OSM)" adds roads and towns when you have internet access.
+It shows real-world geography, which can differ from DCS scenery.
+
+Click "Generate mission", then "Open mission folder".
+Open the new .miz file in DCS or use it to host a multiplayer mission.
+
+Only the mission creator needs this app. Friends join through DCS as usual.
+Everyone flying needs their chosen aircraft and the selected DCS map.
+Syria and Cold War Germany require their separate DCS map modules.
+
+BEFORE YOUR FIRST GROUP FLIGHT
+-----------------------------
+Check the generated mission's target placement and aircraft loadouts in
+the DCS Mission Editor. Full flight testing in DCS remains outstanding.
+
+IF THE APP DOES NOT OPEN
+------------------------
+Run the installer again. For the portable ZIP, extract the entire ZIP
+before running the app. Keep IronAnvil.exe beside its _internal folder.
+
+HELP AND UPDATES
+----------------
+https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil
+
+New Windows versions:
+https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/latest
+
+Choose IronAnvil-Setup-x64.exe for the easiest setup and updates.
+IronAnvil-Windows-x64.zip is the optional portable app; extract each new
+version into a new folder. GitHub's "Source code" ZIP is for developers.
