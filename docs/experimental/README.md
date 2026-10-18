@@ -1,6 +1,6 @@
 # Iron Anvil experimental gameplay
 
-**Status: the first experimental preview is implemented in source; Windows packaging and publication are being validated.**
+**Status: [the first experimental preview is published](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.0-experimental.1). Windows packaging/coexistence and automated mission checks passed. Real DCS flight testing remains outstanding.**
 
 Implemented: Broken Relay and Supply Denial, required/optional functional goals, one finite staged response with delay/cancel consequences, shared debrief, distance presets, mission kneeboards, local briefings, named presets and replay import/export. Read the [work log](PROGRESS.md) for exact checks and remaining limits.
 

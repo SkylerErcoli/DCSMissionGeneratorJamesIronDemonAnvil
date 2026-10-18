@@ -40,3 +40,22 @@ Added a dedicated Windows build/coexistence script and `experimental-release.yml
 Preflight: complete source suite **319 passed**, followed by the expanded **25-case Lua suite** (one additional staging-mark case). Source executable probe passed **55 generated/reloaded missions**, including **12 operation cases**, **55 decoded kneeboards**, local briefing and replay checks. Desktop probe covers both themes/all maps and persistent operation/distance/response settings. Workflow YAML and documentation links were checked. These are source checks; Windows packaging/coexistence results are pending the new workflow run.
 
 Resume instructions: inspect the newest Experimental co-op preview workflow after pushing this batch. If it fails, inspect its public summary, fix and commit on `experimental`; never modify `main` or replace a published tag. After success, download the experimental installer/ZIP/checksums and all six JSON reports, verify hashes and ZIP integrity, check the stable latest manifest still reports 1.2.0, and record exact URLs/results here. Real DCS playtesting remains outstanding.
+
+## Batch 4 completed — published and independently verified
+
+- Release: [first co-op experimental preview](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.0-experimental.1), built from `11d05f8`.
+- [CI run 39119538322](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/actions/runs/39119538322) passed Linux, Windows and publication. Linux includes the full source/Lua suite and 168-mission matrix.
+- Actual frozen and installed Windows apps each passed **55 generated/reloaded missions**, including 12 operation cases and 55 decoded kneeboards, plus six map/theme renders and persistent operation settings.
+- Actual coexistence/reinstall/uninstall report passed. Published stable 1.2.0 was SHA-256-verified, installed separately, retained its executable and preferences bytes, and passed its own **43-mission frozen self-test after experimental uninstall**. An existing mission and experimental preferences were retained.
+- Independently downloaded the public installer (**21,969,935 bytes**) and ZIP (**30,447,728 bytes**), checksums and all six JSON reports. Both hashes matched. All **1,356 ZIP members** passed integrity checks, including the operation Lua resource and experimental handout. Every executable/coexistence report confirms success.
+- Verified GitHub `/releases/latest` and its `update.json` still point to **1.2.0**. `main` remains `62e5dd42408b138f126655dbff9dbf78f73b03c6`; tag `v1.2.0` remains `04820cf9448d804c0d3ad8fff12dc15bb741783a`.
+
+All implementation batches are committed and pushed to `experimental`. The app is a **prerelease**, deliberately excluded from the stable update feed. No further source changes are pending at this checkpoint.
+
+## Next work after this checkpoint
+
+1. Fly both operations in DCS with at least two players, initially with CAP/air defenses off. Check static damage thresholds, stage holding/dispatch, road routing, optional-target consequences, kneeboard display and all-survivor recovery. Repeat across the supported maps before calling the preview flight-tested.
+2. Record pacing and terrain-placement problems with the mission seed/settings. Tune the finite response using observed playtests; current timings are initial game rules.
+3. Candidate next gameplay batch: convoy interception with consequences, reconnaissance/search, an optional return-with-partial-result command, and better alternate-base recovery. Keep a single shared aircraft type as the default; mixed-aircraft packages, rescue logistics and campaigns remain later options.
+4. For a new binary, increment `RELEASE_TAG` and corresponding workflow/notes/download links (and numeric app version as appropriate). **Never replace the existing preview's assets/tag**, merge to `main`, or change the stable updater without explicit direction.
+5. The default experimental updater is intentionally disabled; the header opens the dedicated preview page. Same-channel installers update the experimental copy in place. No external mission frameworks or dependencies were added.
