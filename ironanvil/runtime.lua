@@ -217,16 +217,20 @@ do
         if state.complete then
             if state.result == 2 then
                 announce("Mission failed. All participating client aircraft were lost.")
+            elseif state.result==3 then
+                announce("Team withdrew safely with a partial result. Main objective incomplete.")
             else
-                announce("Mission complete. All objectives achieved and every surviving client recovered.")
+                announce("Mission complete. Required objectives achieved and every surviving client recovered.")
             end
+        elseif state.withdrawn and not state.objective then
+            announce("Team withdrawal confirmed. Recover all survivors at " .. tostring(config.recovery_label or config.base_name) .. " for the partial debrief.")
         elseif state.objective then
             local remaining = 0
             for _, record in pairs(state.roster) do
                 if not record.dead and not record.recovered then remaining = remaining + 1 end
             end
             announce("Objective complete. " .. remaining .. " surviving clients must fly and recover at " ..
-                tostring(config.base_name or "your friendly airbase") .. ".")
+                tostring(config.recovery_label or config.base_name or "your friendly airbase") .. ".")
         elseif config.mission_type == "cap" then
             if config.enemy_cap then
                 announce("CAP: " .. liveCount(config.cap_groups) .. " enemy aircraft remaining. Enemy flights launch when a client is airborne.")
@@ -237,7 +241,7 @@ do
             end
         else
             announce("Ground objective: " .. (liveCount(config.target_groups) + staticCount()) ..
-                " targets remaining. Recover at " .. tostring(config.base_name or "your friendly airbase") .. ".")
+                " targets remaining. Recover at " .. tostring(config.recovery_label or config.base_name or "your friendly airbase") .. ".")
         end
     end
     local function startCAP()
@@ -339,22 +343,28 @@ do
         if state.objective then return end
         state.objective = true
         flag("IRON_ANVIL_OBJECTIVE_COMPLETE")
-        announce("Objective complete. RTB to " .. tostring(config.base_name or "your friendly airbase") .. " and land to complete the mission.", 25)
+        announce("Objective complete. RTB to " .. tostring(config.recovery_label or config.base_name or "your friendly airbase") .. " and land to complete the mission.", 25)
     end
     local function friendlyHome(unit, place)
-        local placeName = method(place, "getName")
-        local side = method(place, "getCoalition")
-        if placeName and config.base_name then
-            return placeName == config.base_name and (side == nil or side == blue)
+        local bases=config.recovery_bases or {{name=config.base_name,x=config.home.x,z=config.home.z}}
+        local placeName=method(place,"getName")
+        local side=method(place,"getCoalition")
+        if placeName then
+            for _, base in ipairs(bases) do
+                if placeName==base.name and (side==nil or side==blue) then return true,base.name end
+            end
+            return false
         end
-        -- Helicopter/FARP land events can omit event.place; use home proximity
-        -- and the actual airbase coalition when the sandbox exposes it.
-        if not place and Airbase and Airbase.getByName and config.base_name then
-            local ok, airbase = pcall(Airbase.getByName, config.base_name)
-            if ok and airbase then side = method(airbase, "getCoalition") end
+        for _, base in ipairs(bases) do
+            local currentSide
+            if Airbase and Airbase.getByName then
+                local ok, airbase=pcall(Airbase.getByName,base.name)
+                if ok and airbase then currentSide=method(airbase,"getCoalition") end
+            end
+            if horizontalDistance(method(unit,"getPoint"),base)<(tonumber(config.home_radius) or 4000)
+                and (currentSide==nil or currentSide==blue) then return true,base.name end
         end
-        return horizontalDistance(method(unit, "getPoint"), config.home) <= (tonumber(config.home_radius) or 4000)
-            and (side == nil or side == blue)
+        return false
     end
     local function checkResult()
         if state.complete or not state.airborne then return end
@@ -364,7 +374,10 @@ do
             if not record.dead and not alive(record.unit) then record.dead = true end
             if not record.dead then
                 surviving = surviving + 1
-                if record.tookOff and record.recovered then recovered = recovered + 1 end
+                if state.withdrawn and not record.tookOff and not method(record.unit,"inAir") then
+                    record.recovered=select(1,friendlyHome(record.unit,nil))
+                end
+                if record.recovered and (record.tookOff or state.withdrawn) then recovered = recovered + 1 end
             end
         end
         if joined > 0 and surviving == 0 then
@@ -372,22 +385,54 @@ do
             flag("IRON_ANVIL_RESULT", 2)
             announce("Mission failed. All participating client aircraft were lost.", 30)
             if operation then operation.debrief(state.roster, 2) end
-        elseif state.objective and surviving > 0 and recovered == surviving then
-            state.complete, state.result = true, 1
-            flag("IRON_ANVIL_MISSION_COMPLETE")
-            flag("IRON_ANVIL_RESULT", 1)
-            announce("Mission complete. Every surviving client recovered at " .. tostring(config.base_name or "home base") .. ".", 30)
-            if operation then operation.debrief(state.roster, 1) end
+        elseif (state.objective or state.withdrawn) and surviving>0 and recovered==surviving then
+            local result=state.objective and 1 or 3
+            state.complete,state.result=true,result
+            flag("IRON_ANVIL_RESULT",result)
+            if result==1 then
+                flag("IRON_ANVIL_MISSION_COMPLETE")
+                announce("Mission complete. Every surviving client recovered at " .. tostring(config.recovery_label or config.base_name or "an approved base") .. ".",30)
+            else
+                flag("IRON_ANVIL_WITHDRAWN")
+                announce("Team withdrawal complete. All surviving participants are safe at approved bases. Main objective incomplete; partial results recorded.",30)
+            end
+            if operation then operation.debrief(state.roster,result) end
         end
     end
     local function recover(unit, place)
         local record = registerPlayer(unit)
         if record and not record.dead and record.tookOff then
             record.lastInAir = false
-            record.recovered = friendlyHome(unit, place)
+            record.recovered,record.recoveryBase = friendlyHome(unit, place)
             registerJoinedPlayers()
             checkResult()
         end
+    end
+    local function proposeWithdrawal()
+        if state.complete then announce("The sortie already has a final result."); return end
+        if not state.airborne then announce("Withdrawal is available after the flight has launched."); return end
+        if state.objective then announce("Main objective complete. Recover the team for a full success."); return end
+        if state.withdrawn then announce("Withdrawal already confirmed. Bring all survivors to an approved base."); return end
+        state.withdrawProposal=(timer and timer.getTime and timer.getTime() or 0)+30
+        announce("Team withdrawal proposed. Agree over comms, then use Confirm withdrawal within 30 seconds. Any teammate may Cancel withdrawal. This does not end the mission while survivors are airborne.",30)
+    end
+    local function confirmWithdrawal()
+        local now=timer and timer.getTime and timer.getTime() or 0
+        if state.complete or state.objective then announce("Recover the team using the current mission result."); return end
+        if not state.withdrawProposal or now>state.withdrawProposal then
+            state.withdrawProposal=nil
+            announce("No active withdrawal proposal. Use Propose withdrawal first."); return
+        end
+        state.withdrawn=true;state.withdrawProposal=nil
+        flag("IRON_ANVIL_WITHDRAWAL_CONFIRMED")
+        announce("Team withdrawal confirmed. Recover every surviving participant at " .. tostring(config.recovery_label or config.base_name or "an approved base") .. ". The partial debrief follows recovery; enemies remain active.",30)
+        registerJoinedPlayers()
+        checkResult()
+    end
+    local function cancelWithdrawal()
+        if state.withdrawn then announce("Withdrawal is confirmed. Completing the main objective before recovery can still earn full success."); return end
+        state.withdrawProposal=nil
+        announce("Withdrawal proposal cancelled. Continue the mission.")
     end
     if config.operation and IRON_ANVIL_CREATE_OPERATION then
         operation = IRON_ANVIL_CREATE_OPERATION(config.operation, {
@@ -487,6 +532,16 @@ do
         missionCommands.addCommandForCoalition(blue, "Target position / mark", menu, reportPosition)
         missionCommands.addCommandForCoalition(blue, "Target bearing / range", menu, function() vectorTo(targetPoint(), "target") end)
         missionCommands.addCommandForCoalition(blue, "Vector home", menu, function() vectorTo(config.home, tostring(config.base_name or "home base")) end)
+        if config.recovery_bases and config.recovery_bases[2] then
+            local alternate=config.recovery_bases[2]
+            missionCommands.addCommandForCoalition(blue,"Vector alternate",menu,function() vectorTo(alternate,alternate.name) end)
+        end
+        if config.allow_withdrawal then
+            local withdrawal=missionCommands.addSubMenuForCoalition(blue,"Team withdrawal",menu)
+            missionCommands.addCommandForCoalition(blue,"Propose withdrawal",withdrawal,proposeWithdrawal)
+            missionCommands.addCommandForCoalition(blue,"Confirm withdrawal",withdrawal,confirmWithdrawal)
+            missionCommands.addCommandForCoalition(blue,"Cancel withdrawal",withdrawal,cancelWithdrawal)
+        end
     end
     if timer and timer.scheduleFunction and timer.getTime then
         timer.scheduleFunction(tick, nil, timer.getTime() + 5)

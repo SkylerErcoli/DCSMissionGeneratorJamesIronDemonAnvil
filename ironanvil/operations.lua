@@ -253,6 +253,17 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
         end
     end
 
+    function op.objectivePoints()
+        local points=0
+        for _, objective in ipairs(op.objectives) do
+            if objective.definition.required then
+                points=points+math.floor((objective.definition.points or 300)*
+                    math.min(1,objective.destroyed/objective.definition.threshold))
+            end
+        end
+        return points
+    end
+
     function op.status()
         local lines={config.title or 'Cooperative operation'}
         for _, objective in ipairs(op.objectives) do
@@ -266,7 +277,7 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
         end
         lines[#lines+1]='Ground response: ' .. op.response .. suffix
         if config.convoy then lines[#lines+1]='Supply delivery: ' .. (op.delivered and 'delivered' or op.deliveryClosed and 'prevented' or 'in transit') end
-        lines[#lines+1]='Shared objective points: ' .. ((op.main and 300 or 0)+op.bonus) .. '. Replay seed: ' .. tostring(config.seed)
+        lines[#lines+1]='Shared objective points: ' .. (op.objectivePoints()+op.bonus) .. '. Replay seed: ' .. tostring(config.seed)
         service.announce(table.concat(lines, '\n'), 25)
     end
 
@@ -290,18 +301,22 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
     function op.debrief(roster, result)
         if op.debriefed then return end
         op.debriefed=true
-        local recovered,lost=0,0
+        local recovered,lost,parked=0,0,0
         for _, record in pairs(roster) do
-            if record.dead then lost=lost+1 elseif record.recovered then recovered=recovered+1 end
+            if record.dead then lost=lost+1 elseif record.recovered then
+                if record.tookOff then recovered=recovered+1 else parked=parked+1 end
+            end
         end
-        local score=(op.main and 300 or 0)+op.bonus+recovered*25
+        local score=op.objectivePoints()+op.bonus+recovered*25
         service.flag('IRON_ANVIL_SCORE', score)
         service.announce((config.title or 'Operation') .. ' — DEBRIEF\n' ..
             'Main objective: ' .. (op.main and 'disabled' or 'incomplete') ..
             ' | Bonus points: ' .. op.bonus .. '\n' ..
-            'Recovered: ' .. recovered .. ' | Lost: ' .. lost .. ' | Shared score: ' .. score .. '\n' ..
+            'Recovered: ' .. recovered .. ' | Safely parked: ' .. parked .. ' | Lost: ' .. lost .. ' | Shared score: ' .. score .. '\n' ..
             'Ground response: ' .. op.response .. ' | Replay seed: ' .. tostring(config.seed) .. '\n' ..
-            (result==1 and 'Operation complete. Thank you for bringing the team home.' or 'Flight lost. Completed objectives still appear in this debrief.'), 45)
+            (result==1 and 'Operation complete. Thank you for bringing the team home.' or
+             result==3 and 'Team withdrew safely. Partial objective progress is included in this debrief.' or
+             'Flight lost. Completed objectives still appear in this debrief.'), 45)
     end
     return op
 end

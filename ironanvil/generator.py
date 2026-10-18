@@ -18,7 +18,7 @@ from dcs import lua
 from .loadouts import apply_loadout, tanker_type
 from .model import MissionOptions, resolve_aircraft, default_output_dir
 from .theatres import get_theatre
-from .airfields import select_airport
+from .airfields import select_airport, select_alternate
 from .weather import apply_weather, WEATHER_LABELS
 from .air_support import create_support_flight, create_enemy_cap
 from .compounds import build_facility_complex
@@ -163,7 +163,7 @@ def _briefing(options, theatre, home, target, label, tanker_name):
              f"Home: {home.name} — BLUE coalition, unlimited fuel and ammunition.",
              "All player slots are CLIENT slots. Flight radio 251 MHz AM.",
              f"Enemy fighters: {'enabled' if options.enemy_cap else 'disabled'}. Air defences: {'enabled' if options.air_defenses else 'disabled'}.",
-             "Use F10 > Iron Anvil for status and target position. Return and land at home after objectives complete.",
+             "Use F10 > Iron Anvil for status and target position. Recover at an approved base after objectives complete.",
              f"Seed: {options.seed}; difficulty: {options.difficulty}."]
     if tanker_name:
         lines.append(f"Tanker: {tanker_name}, 251.5 MHz AM, TACAN 11Y TEX. Stable racetrack between home and target, 7,000 m MSL.")
@@ -199,6 +199,7 @@ def build_mission(options: MissionOptions):
         coordinates = target.latlng()
         latitude, longitude = coordinates.lat, coordinates.lng
     _set_airport_ownership(terrain, theatre, home)
+    alternate = select_alternate(terrain, home, target, aircraft) if options.recovery == "home_or_alternate" else None
     level = DIFFICULTY[options.difficulty]
     main_task = {"cap": task.CAP, "sead": task.SEAD}.get(options.mission, task.GroundAttack)
     # Assign only a task the module advertises; some helicopters have CAS only.
@@ -307,6 +308,16 @@ def build_mission(options: MissionOptions):
     briefing += (f"\n\nHome to main target: {distance_km:.1f} km / {distance_km / 1.852:.1f} NM. "
                  f"Cruise-only round trip: approximately {120 * distance_km / cruise_kph:.0f} minutes. "
                  "Excludes startup, climb, combat, weather and recovery.")
+    if alternate:
+        location = alternate.position.latlng()
+        briefing += (f"\n\nApproved alternate recovery: {alternate.name}, {location.lat:.5f}, {location.lng:.5f}. "
+                     "Friendly, with unlimited fuel and ammunition. Pilots may recover at home or this alternate. "
+                     "F10 Vector alternate provides a bearing and range; the planned flight route still returns home.")
+    if options.allow_withdrawal:
+        briefing += ("\n\nIf the team needs to leave before the main objective is complete, use F10 Propose withdrawal, "
+                     "agree over comms, then Confirm withdrawal within 30 seconds. Any teammate can cancel a proposal. "
+                     "Every surviving participant must recover at an approved base for a partial debrief. "
+                     "This is a team radio procedure, not a per-player voting system.")
     if facility_metadata:
         briefing += (f"\n\nFacility complex: {facility_metadata['site_count']} occupied sites, "
                      f"{facility_metadata['objective_count']} objective objects. " +
@@ -323,6 +334,10 @@ def build_mission(options: MissionOptions):
         "enemy_cap": options.enemy_cap, "cap_groups": cap_groups,
         "target": {"x": target.x, "z": target.y},
         "home": {"x": home.position.x, "z": home.position.y}, "base_name": home.name,
+        "recovery_bases": [{"name": airport.name, "x": airport.position.x, "z": airport.position.y}
+                           for airport in ([home, alternate] if alternate else [home])],
+        "recovery_label": home.name + (f" or {alternate.name}" if alternate else ""),
+        "allow_withdrawal": options.allow_withdrawal,
         "convoy_group": convoy.name if convoy else None,
         "convoy_destination": {"x": convoy_destination.x, "z": convoy_destination.y} if convoy_destination else None,
         "operation": operation_config,
@@ -332,6 +347,7 @@ def build_mission(options: MissionOptions):
     metadata = {"options": asdict(options), "home_airport": home.name, "home_airport_id": home.id,
                 "target_lat": latitude, "target_lon": longitude, "runtime": config,
                 "tanker": tanker_name, "compound_style": compound_style,
+                "alternate_airport": alternate.name if alternate else None,
                 "resolved_weather": resolved_weather, "generator_version": 3, "app_version": __version__,
                 "route_summary": {"one_way_km": round(distance_km, 1),
                                   "cruise_round_trip_minutes": round(120 * distance_km / cruise_kph),

@@ -366,3 +366,21 @@ def test_open_briefing_uses_generated_local_document(app,tmp_path,monkeypatch):
     opened=[];monkeypatch.setattr(gui.webbrowser,'open',opened.append)
     app._open_briefing()
     assert len(opened)==1 and opened[0].startswith('file:') and opened[0].endswith('My%20mission.html')
+
+
+def test_recovery_and_withdrawal_choices_survive_recipe_and_restart(app,tmp_path):
+    from ironanvil.gui import Application
+    from ironanvil.model import MissionOptions,RECOVERY_LABELS
+    from ironanvil.recipes import write_recipe
+    recipe=write_recipe(MissionOptions(operation='rolling_thunder',recovery='home_or_alternate',
+        allow_withdrawal=False,seed=91),tmp_path/'recovery.json')
+    app._load_recipe(recipe)
+    assert app.recovery_var.get()==RECOVERY_LABELS['home_or_alternate']
+    options=app.collect_options()
+    assert options.operation=='rolling_thunder' and options.recovery=='home_or_alternate' and not options.allow_withdrawal
+    app._save_settings();app.destroy()
+    reopened=Application();reopened.withdraw()
+    try:
+        options=reopened.collect_options()
+        assert options.recovery=='home_or_alternate' and not options.allow_withdrawal
+    finally:reopened.destroy()

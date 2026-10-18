@@ -40,6 +40,7 @@ def _windows_saved_games_dir() -> Path:
 MISSION_LABELS = {"facility": "Strike — facility", "line": "Strike — fortified line",
                   "convoy": "Strike — moving convoy", "sead": "SEAD / DEAD", "cap": "CAP"}
 LINE_UNITS = ("mbt", "ifv", "apc", "atgm", "infantry", "manpads", "aaa", "artillery")
+RECOVERY_LABELS = {"home": "Home base only", "home_or_alternate": "Home or friendly alternate"}
 
 
 def default_output_dir():
@@ -101,6 +102,8 @@ class MissionOptions:
     operation: str = "classic"
     pace: str = "standard"
     enemy_response: bool = True
+    recovery: str = "home"
+    allow_withdrawal: bool = True
     clients: int = 2
     difficulty: str = "normal"
     enemy_cap: bool = True
@@ -132,6 +135,7 @@ class MissionOptions:
             "facility_type": ("random", "fuel", "command", "ammunition", "factory", "radar"),
             "operation": ("classic", "broken_relay", "supply_denial", "rolling_thunder"),
             "pace": ("compact", "standard", "extended"),
+            "recovery": RECOVERY_LABELS,
             "start": ("cold", "hot", "runway", "air"),
             "time_of_day": ("day", "dawn", "dusk", "night", "random"),
             "weather": WEATHERS, "loadout": ("auto", "default"),
@@ -145,7 +149,7 @@ class MissionOptions:
         aircraft = resolve_aircraft(self.aircraft)
         if self.operation != "classic" and self.mission != "facility":
             raise ValueError("Cooperative operations use the facility mission; choose Strike — facility")
-        for name in ("enemy_response", "enemy_cap", "air_defenses", "tanker", "awacs", "base_detail"):
+        for name in ("enemy_response", "enemy_cap", "air_defenses", "tanker", "awacs", "base_detail", "allow_withdrawal"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"{name.replace('_', ' ').title()} must be enabled or disabled")
         if self.departure_airport is not None:

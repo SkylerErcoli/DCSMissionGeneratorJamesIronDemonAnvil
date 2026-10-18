@@ -38,6 +38,14 @@ CASES = (
     "convoy_delivery_accelerates_only_one_response",
     "convoy_delivery_respects_cancelled_response",
     "convoy_operation_f10_tracks_moving_cargo",
+    "withdrawal_needs_confirmation_and_all_survivors",
+    "withdrawal_proposal_expiry_cancel_and_disabled_option",
+    "withdrawal_keeps_parked_teammates_safe_without_awarding_flight_points",
+    "withdrawal_can_upgrade_to_full_success_and_loss_still_fails",
+    "approved_alternate_allows_split_team_recovery",
+    "alternate_rejects_hostile_and_unlisted_airfields",
+    "alternate_helipad_event_without_place_checks_coalition",
+
 
 
 )

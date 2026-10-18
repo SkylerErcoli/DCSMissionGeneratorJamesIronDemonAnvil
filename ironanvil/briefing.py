@@ -27,6 +27,8 @@ def summary_lines(metadata):
            f"Replay seed: {options['seed']}"]
     if options['tanker'] and metadata['tanker']:lines.append('Tanker: 251.5 MHz AM | TACAN 11Y TEX')
     if options['awacs']:lines.append('AWACS: 252 MHz AM')
+    if metadata.get('alternate_airport'):
+        lines.append('Approved recovery: '+metadata['home_airport']+' or '+metadata['alternate_airport']+'. F10 Vector alternate is available.')
     if operation:
         for index, goal in enumerate(operation['objectives']):
             site=metadata['facility_sites'][index]
@@ -44,7 +46,9 @@ def summary_lines(metadata):
     else:
         lines.append(f"Main target: {metadata['target_lat']:.5f}, {metadata['target_lon']:.5f}")
     lines.append('F10 > Iron Anvil: status, target marks, bearing/range and vector home.')
-    lines.append('Complete the required goal and recover all surviving teammates at home.')
+    lines.append('Complete the required goal and recover all surviving teammates at an approved base.')
+    if options.get('allow_withdrawal'):
+        lines.append('Team withdrawal: Propose, agree over comms, then Confirm within 30 seconds. Recover survivors for a partial debrief.')
     return lines
 
 
@@ -70,6 +74,8 @@ def kneeboard_png(metadata):
     draw.rectangle((35,top,965,bottom),fill='#e0e6e5',outline='#829394',width=2)
     home=metadata['runtime']['home'];target=metadata['runtime']['target']
     points=[('HOME',home,'#21679e'),('MAIN',target,'#b54630')]
+    for alternate in metadata['runtime'].get('recovery_bases', [])[1:]:
+        points.append(('ALTERNATE',alternate,'#21679e'))
     operation=metadata['runtime'].get('operation')
     if operation:
         points.extend((goal['title'],goal['position'],'#b54630' if goal['required'] else '#aa790b')

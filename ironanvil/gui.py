@@ -19,7 +19,7 @@ from tkinter import font as tkfont
 
 from .airfields import airport_catalogue
 from .mapview import MapView
-from .model import MissionOptions, aircraft_catalogue, default_output_dir
+from .model import MissionOptions, aircraft_catalogue, default_output_dir, RECOVERY_LABELS
 from .preferences import load_preferences, save_preferences
 from .theatres import THEATRES, get_theatre
 from .weather import WEATHER_LABELS
@@ -108,6 +108,7 @@ class Application(tk.Tk):
         self._facility_by_label = {label: key for key, label in FACILITY_LABELS.items()}
         self._operation_by_label = {label: key for key, label in OPERATION_LABELS.items()}
         self._pace_by_label = {label: key for key, label in PACE_LABELS.items()}
+        self._recovery_by_label = {label: key for key, label in RECOVERY_LABELS.items()}
         self._variables()
         self._restore_settings()
         self._style()
@@ -137,6 +138,8 @@ class Application(tk.Tk):
         self.operation_help_var = tk.StringVar()
         self.pace_var = tk.StringVar(value=PACE_LABELS["standard"])
         self.response_var = tk.BooleanVar(value=True)
+        self.recovery_var = tk.StringVar(value=RECOVERY_LABELS["home"])
+        self.withdrawal_var = tk.BooleanVar(value=True)
         self.preset_var = tk.StringVar()
         self.facility_var = tk.StringVar(value=FACILITY_LABELS["random"])
         self.clients_var = tk.StringVar(value="2")
@@ -272,7 +275,7 @@ class Application(tk.Tk):
         return {name: getattr(self, f"{name}_var") for name in (
             "theatre", "aircraft", "departure", "mission", "facility", "clients", "difficulty", "enemy_cap",
             "air_defenses", "start", "time", "weather", "loadout", "tanker", "awacs",
-            "base_detail", "opponent", "seed", "output", "operation", "pace", "response")}
+            "base_detail", "opponent", "seed", "output", "operation", "pace", "response", "recovery", "withdrawal")}
 
     def _restore_settings(self) -> None:
         settings = self._preferences.get("mission", {})
@@ -287,6 +290,7 @@ class Application(tk.Tk):
             "weather": self._weather_by_label, "loadout": ("auto", "default"),
             "opponent": ("regular", "insurgents"),
             "operation": self._operation_by_label, "pace": self._pace_by_label,
+            "recovery": self._recovery_by_label,
         }
         for name, variable in self._settings_variables().items():
             value = settings.get(name)
@@ -502,6 +506,11 @@ class Application(tk.Tk):
         ttk.Button(presets, text="Load preset", command=self._load_preset).grid(row=1, column=1, sticky="ew", pady=5)
         ttk.Button(presets, text="Import mission / settings", command=self._import_recipe).grid(row=2, column=0, sticky="ew")
         ttk.Button(presets, text="Export settings", command=self._export_recipe).grid(row=2, column=1, sticky="ew")
+        self.recovery_combo = self._combo(parent, 15, "Approved recovery bases", self.recovery_var, list(RECOVERY_LABELS.values()))
+        ttk.Checkbutton(parent, text="Allow team withdrawal with partial debrief", variable=self.withdrawal_var).grid(
+            row=17, column=0, sticky="w", pady=8)
+        ttk.Label(parent, text="An alternate is selected from friendly compatible bases. Withdrawal uses a proposal and confirmation in the F10 menu.",
+            style="Help.TLabel", wraplength=315).grid(row=18, column=0, sticky="w")
 
     def _mission_tab(self, parent) -> None:
         parent.columnconfigure(0, weight=1)
@@ -744,6 +753,8 @@ class Application(tk.Tk):
             operation=self._operation_by_label[self.operation_var.get()] if mission == "facility" else "classic",
             pace=self._pace_by_label[self.pace_var.get()],
             enemy_response=self.response_var.get(),
+            recovery=self._recovery_by_label[self.recovery_var.get()],
+            allow_withdrawal=self.withdrawal_var.get(),
             clients=int(self.clients_var.get()),
             difficulty=self.difficulty_var.get(),
             enemy_cap=self.enemy_cap_var.get(),
@@ -956,6 +967,8 @@ class Application(tk.Tk):
         self.facility_var.set(FACILITY_LABELS[options.facility_type])
         self.pace_var.set(PACE_LABELS[options.pace])
         self.response_var.set(options.enemy_response)
+        self.recovery_var.set(RECOVERY_LABELS[options.recovery])
+        self.withdrawal_var.set(options.allow_withdrawal)
         for name, value in {"clients": str(options.clients), "difficulty": options.difficulty,
                 "enemy_cap": options.enemy_cap, "air_defenses": options.air_defenses, "start": options.start,
                 "time": options.time_of_day, "weather": WEATHER_LABELS[options.weather], "loadout": options.loadout,

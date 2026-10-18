@@ -105,3 +105,13 @@ def select_airport(terrain, theatre, target, aircraft, clients, start, selected=
         raise ValueError(f"No {theatre.label} airfield can host {clients} {aircraft.id} "
                          f"pilots with a {start} start; choose fewer pilots or another start type")
     return min(candidates, key=lambda airport: airport.position.distance_to_point(target))
+
+
+def select_alternate(terrain, home, target, aircraft):
+    """Pick an already-friendly alternate with a compatible landing surface."""
+    candidates = [airport for airport in terrain.airports.values()
+                  if airport.id != home.id and airport.is_blue()
+                  and (aircraft.helicopter or not _helicopter_only(airport))]
+    if not candidates:
+        raise ValueError("No compatible friendly alternate is available. Choose home-base recovery.")
+    return min(candidates, key=lambda airport: airport.position.distance_to_point(target))

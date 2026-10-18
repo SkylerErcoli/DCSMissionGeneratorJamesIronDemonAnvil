@@ -69,3 +69,11 @@ Implemented Operation Rolling Thunder: three moving supply trucks with a two-tru
 New coverage: four Lua gameplay cases (cargo vs escorts, delivery/response, cancellation, moving position) and six actual saved/reloaded convoy operations across all maps/threat settings. Existing 25 Lua and 21 operation cases remain covered. Prerelease version is now prepared as `1.3.1` / `v1.3.1-experimental.2`; it has **not** been published. Publishing now requires a deliberate `[publish-preview]` commit checkpoint or workflow dispatch; ordinary feature commits continue source validation without replacing a release.
 
 Next batches in this active work: partial-result withdrawal and alternate recovery; better operational intelligence/planning; package and upgrade-test the combined preview. Existing `v1.3.0-experimental.1` and stable `v1.2.0` remain immutable.
+
+## Continued creative development — batch 6
+
+Implemented optional friendly alternate recovery (actual compatible BLUE airfield with supplies), alternate vectors and briefing/kneeboard information, and a two-step F10 team withdrawal procedure. A proposal expires after 30 seconds and can be cancelled; confirmation does not finish the sortie until surviving participants recover. Safe parked teammates need not take off solely to end an aborted flight, and do not earn flight-recovery points. Incomplete operations receive proportional objective points and result flag 3; completing the main goal during withdrawal can still earn full success. Losing all aircraft still produces failure. This is a team radio procedure, not a per-player voting mechanism.
+
+Validation: 36 Lua cases now pass (seven new withdrawal/alternate scenarios); seven saved-recovery/input cases verify all three maps and fixed-wing/helicopter alternates, actual BLUE warehouses and supplies. The 35 GUI/recipe checks passed, including restart/import of the new options. Default recovery remains home-only and both options can be changed in the desktop or recipe. No DCS flight has been performed.
+
+Continue directly into operational intelligence and visual planning. Publishing remains held until the combined preview is validated; no user approval or environment configuration edit is pending.

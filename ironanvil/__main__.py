@@ -6,7 +6,7 @@ import sys
 import tempfile
 import traceback
 
-from .model import LINE_UNITS, MISSION_LABELS, MissionOptions, aircraft_catalogue
+from .model import LINE_UNITS, MISSION_LABELS, MissionOptions, aircraft_catalogue, RECOVERY_LABELS
 from .theatres import THEATRES
 from .weather import WEATHER_LABELS
 from .operations import OPERATION_LABELS, PACE_LABELS
@@ -28,6 +28,8 @@ def parser():
     gen.add_argument("--operation", choices=OPERATION_LABELS, default="classic")
     gen.add_argument("--pace", choices=PACE_LABELS, default="standard")
     gen.add_argument("--enemy-response", action=argparse.BooleanOptionalAction, default=True)
+    gen.add_argument("--recovery", choices=RECOVERY_LABELS, default="home")
+    gen.add_argument("--allow-withdrawal", action=argparse.BooleanOptionalAction, default=True)
     gen.add_argument("--clients", type=int, default=2)
     gen.add_argument("--difficulty", choices=("easy", "normal", "hard", "extreme"), default="normal")
     gen.add_argument("--enemy-cap", action=argparse.BooleanOptionalAction, default=True,

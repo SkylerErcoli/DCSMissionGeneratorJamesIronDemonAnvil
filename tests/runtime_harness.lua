@@ -4,6 +4,7 @@ local cases = {}
 
 local function newWorld(configuration)
     IRON_ANVIL = configuration
+    Airbase = nil
     local data = {groups = {}, statics = {}, flags = {}, messages = {}, activated = {}, menus = {}, now = 0}
     function data.unit(name, player, point)
         local unit = {name = name, life = 100, player = player, flying = false, point = point or {x=0, y=0, z=0}}
@@ -94,7 +95,7 @@ end
 
 local function base(kind)
     return {
-        mission_type=kind, player_group="players", base_name="Home", home={x=0, z=0},
+        mission_type=kind, player_group="players", base_name="Home", home={x=0, z=0}, allow_withdrawal=true,
         target={x=5000, z=5000}, target_groups={"target"}, cap_groups={"enemycap"}, enemy_cap=true,
     }
 end
@@ -585,6 +586,99 @@ function cases.convoy_operation_f10_tracks_moving_cargo()
     assert(#cargo.tasks==1 and cargo.tasks[1].params.route.points[2].action=='On Road')
     data.advance()
     assert(not data.flags.IRON_ANVIL_CONVOY_DELIVERED,'one lead vehicle passing a location is not delivery')
+end
+
+
+function cases.withdrawal_needs_confirmation_and_all_survivors()
+    local data,players=operationWorld('delay',false)
+    data.statics.tank1.life=0;data.advance()
+    data.menus['Confirm withdrawal']()
+    assert(not data.flags.IRON_ANVIL_WITHDRAWAL_CONFIRMED)
+    data.menus['Propose withdrawal']();data.menus['Confirm withdrawal']()
+    assert(data.flags.IRON_ANVIL_WITHDRAWAL_CONFIRMED==1 and not data.flags.IRON_ANVIL_RESULT)
+    data.land(players.all[1],'Home',2)
+    assert(not data.flags.IRON_ANVIL_RESULT,'an airborne teammate blocks final withdrawal')
+    data.land(players.all[2],'Home',2)
+    assert(data.flags.IRON_ANVIL_RESULT==3 and data.flags.IRON_ANVIL_SCORE==200)
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE and not data.flags.IRON_ANVIL_MISSION_COMPLETE)
+    data.menus['Mission status']()
+    assert(data.messages[#data.messages]:find('partial result'))
+end
+
+function cases.withdrawal_proposal_expiry_cancel_and_disabled_option()
+    local data=operationWorld('delay',false)
+    data.menus['Propose withdrawal']();data.advance(7);data.menus['Confirm withdrawal']()
+    assert(not data.flags.IRON_ANVIL_WITHDRAWAL_CONFIRMED,'expired proposal must not apply')
+    data.menus['Propose withdrawal']();data.menus['Cancel withdrawal']();data.menus['Confirm withdrawal']()
+    assert(not data.flags.IRON_ANVIL_WITHDRAWAL_CONFIRMED,'cancelled proposal must not apply')
+    local config=base('facility');config.allow_withdrawal=false
+    local quiet=newWorld(config);quiet.group('players',1,'Pilot');quiet.start()
+    assert(not quiet.menus['Propose withdrawal'] and not quiet.menus['Confirm withdrawal'])
+end
+
+function cases.withdrawal_keeps_parked_teammates_safe_without_awarding_flight_points()
+    local config=base('facility');config.enemy_cap=false
+    config.operation={title='Partial',seed=9,objectives={
+        {id='primary',title='Fuel',required=true,statics={'one','two'},threshold=2,points=300}}}
+    local data=newWorld(config);local players=data.group('players',2,'Pilot')
+    data.statics.one=data.unit('one');data.statics.two=data.unit('two');data.start()
+    data.takeoff(players.all[1]);data.statics.one.life=0;data.advance()
+    data.menus['Propose withdrawal']();data.menus['Confirm withdrawal']()
+    data.land(players.all[1],'Home',2)
+    assert(data.flags.IRON_ANVIL_RESULT==3 and data.flags.IRON_ANVIL_SCORE==175)
+    assert(data.messages[#data.messages]:find('Safely parked: 1'))
+end
+
+function cases.withdrawal_can_upgrade_to_full_success_and_loss_still_fails()
+    local data,players=operationWorld('delay',false)
+    data.menus['Propose withdrawal']();data.menus['Confirm withdrawal']()
+    data.statics.tank1.life=0;data.statics.tank2.life=0;data.advance()
+    data.land(players.all[1],'Home',2);data.land(players.all[2],'Home',2)
+    assert(data.flags.IRON_ANVIL_RESULT==1,'finishing main goal during return earns full success')
+    local loss,pilots=operationWorld('delay',false)
+    loss.menus['Propose withdrawal']();loss.menus['Confirm withdrawal']()
+    loss.lose(pilots.all[1]);loss.lose(pilots.all[2])
+    assert(loss.flags.IRON_ANVIL_RESULT==2,'withdrawal cannot turn aircraft losses into safe recovery')
+end
+
+local function alternateWorld()
+    local config=base('facility');config.enemy_cap=false
+    config.recovery_bases={{name='Home',x=0,z=0},{name='Alternate',x=9000,z=0}}
+    config.recovery_label='Home or Alternate'
+    local data=newWorld(config);local players=data.group('players',2,'Pilot')
+    local target=data.group('target',1);data.start()
+    data.takeoff(players.all[1]);data.takeoff(players.all[2]);target.all[1].life=0;data.advance()
+    return data,players
+end
+
+function cases.approved_alternate_allows_split_team_recovery()
+    local data,players=alternateWorld()
+    data.menus['Vector alternate']()
+    assert(data.messages[#data.messages]:find('Alternate'))
+    data.land(players.all[1],'Home',2);data.land(players.all[2],'Alternate',2)
+    assert(data.flags.IRON_ANVIL_RESULT==1)
+end
+
+function cases.alternate_rejects_hostile_and_unlisted_airfields()
+    local data,players=alternateWorld()
+    data.land(players.all[1],'Home',2);data.land(players.all[2],'Alternate',1)
+    assert(not data.flags.IRON_ANVIL_RESULT,'captured alternate must be rejected')
+    data.land(players.all[2],'Unlisted friendly field',2)
+    assert(not data.flags.IRON_ANVIL_RESULT,'only briefed recovery fields count')
+    data.land(players.all[2],'Alternate',2)
+    assert(data.flags.IRON_ANVIL_RESULT==1)
+end
+
+function cases.alternate_helipad_event_without_place_checks_coalition()
+    local data,players=alternateWorld()
+    data.land(players.all[1],'Home',2)
+    players.all[2].point={x=9000,y=0,z=0}
+    Airbase={getByName=function(name) return {getCoalition=function() return name=='Alternate' and 1 or 2 end} end}
+    data.land(players.all[2],nil,nil)
+    assert(not data.flags.IRON_ANVIL_RESULT)
+    Airbase={getByName=function() return {getCoalition=function() return 2 end} end}
+    data.land(players.all[2],nil,nil)
+    assert(data.flags.IRON_ANVIL_RESULT==1)
 end
 
 local selected = arg[2]
