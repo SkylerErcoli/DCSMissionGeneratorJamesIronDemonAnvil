@@ -17,6 +17,7 @@ import urllib.request
 
 from PIL import Image, ImageDraw
 from shapely.geometry import shape, box
+import numpy as np
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -76,6 +77,7 @@ def main():
         mpp=156543.033928*math.cos(math.radians((theatre.bounds[1]+theatre.bounds[3])/2))/2**10
         road_width=round(4000/mpp)
         road_count=0
+        road_lines=[]
         for geom in geometries['roads']:
             if not geom.intersects(region):continue
             clipped=geom.intersection(region)
@@ -83,7 +85,8 @@ def main():
             for line in lines:
                 if line.geom_type!='LineString':continue
                 coords=[(round(x-left),round(y-top)) for x,y in (world(lat,lon,10) for lon,lat in line.coords)]
-                if len(coords)>1:road_draw.line(coords,fill=1,width=road_width);road_count+=1
+                if len(coords)>1:
+                    road_draw.line(coords,fill=1,width=road_width);road_count+=1;road_lines.append(list(line.coords))
         roads.save(OUT/f'{key}-roads.png',optimize=True)
         l,t,r,b=extent(theatre.bounds,8)
         x0,y0,x1,y1=l//256,t//256,r//256,b//256
@@ -101,6 +104,28 @@ def main():
             for x,y,image,url,digest in pool.map(tile,jobs):
                 dem.paste(image,((x-x0)*256,(y-y0)*256));manifest[url]=digest
         dem.save(OUT/f'{key}-height.png',optimize=True)
+        # A small pre-rendered relief backdrop adds no work/dependency at runtime.
+        w,s,e,n=theatre.bounds
+        width,height=1200,round(1200*(bottom-top)/(right-left))
+        fx,fy=world(n,w,8);ex,ey=world(s,e,8)
+        heights=np.asarray(dem.convert('F').transform((width,height),Image.Transform.EXTENT,
+            (fx-x0*256,fy-y0*256,ex-x0*256,ey-y0*256),Image.Resampling.BILINEAR))-32768
+        meter_size=156543.033928*math.cos(math.radians((s+n)/2))/2**8*(ex-fx)/width
+        gy,gx=np.gradient(heights,meter_size)
+        shade=np.clip((1-gx*.6+gy*.6)/np.sqrt(1+gx*gx+gy*gy),.45,1.2)
+        levels=[-500,0,200,600,1200,2000,4000,6000]
+        colors=[(85,129,115),(109,145,109),(141,157,110),(171,159,115),(181,151,115),(169,148,133),(202,198,186),(241,242,244)]
+        rgb=np.stack([np.interp(heights,levels,[c[channel] for c in colors])*shade for channel in range(3)],axis=-1)
+        fx,fy=world(n,w,10);ex,ey=world(s,e,10)
+        land_pixels=np.asarray(mask.transform((width,height),Image.Transform.EXTENT,
+            (fx-left,fy-top,ex-left,ey-top),Image.Resampling.NEAREST),dtype=bool)
+        rgb[~land_pixels]=(35,72,96)
+        relief=Image.fromarray(np.clip(rgb,0,255).astype('uint8'))
+        relief_draw=ImageDraw.Draw(relief)
+        for line in road_lines:
+            coords=[((x-fx)/(ex-fx)*width,(y-fy)/(ey-fy)*height) for x,y in (world(lat,lon,10) for lon,lat in line)]
+            relief_draw.line(coords,fill='#8e6843',width=1)
+        relief.save(OUT/f'{key}-relief.png',optimize=True)
         config={'bounds':theatre.bounds,'land':{'zoom':10,'left':left,'top':top},
                 'height':{'zoom':8,'left':x0*256,'top':y0*256,'offset':32768},
                 'note':'Approximate public terrain, not DCS elevation. Land pixels ~80–130 m; heights ~340–520 m depending on latitude.'}

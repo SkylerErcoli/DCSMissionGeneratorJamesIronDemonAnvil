@@ -44,7 +44,7 @@ def main():
     baseline=json.loads(args.baseline.read_text()) if args.baseline else []
     image=Image.new('RGB',(1500,1080),'#111923');draw=ImageDraw.Draw(image)
     title=ImageFont.load_default(size=25);font=ImageFont.load_default(size=17)
-    draw.text((24,16),'Automatic mission geography — 300 seeds per map and mode',font=title,fill='white')
+    draw.text((24,16),f'Automatic mission geography — {args.count} seeds per map and mode',font=title,fill='white')
     for col,(key,theatre) in enumerate(THEATRES.items()):
         w,s,e,n=theatre.bounds
         for row,values in enumerate((baseline,rows)):

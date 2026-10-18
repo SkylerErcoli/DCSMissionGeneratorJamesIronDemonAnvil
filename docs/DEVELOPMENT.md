@@ -48,28 +48,19 @@ Tk needs a display. On headless Linux, use `xvfb-run -a python -m pytest -q`. Lu
 
 [`tools/setup_cloud.sh`](../tools/setup_cloud.sh) prepares the cloud checkout with a virtual environment outside the source tree and verified Debian packages for Xvfb/Lua, without root access. Use the existing checkout: each cloud task is already isolated. Do not create a Git worktree unless the user explicitly requests one. [Validation details](VALIDATION.md) record completed checks and remaining limits.
 
-## Building the Windows downloads
+## Building the portable Windows app
 
-Build on **64-bit Windows** with **64-bit CPython 3.12**, including Tcl/Tk, and **Inno Setup 6.3 or newer**. The script finds `ISCC.exe` in the standard Inno Setup 6 installation directory or on `PATH`. PyInstaller cannot build the Windows executable from Linux.
+Use **64-bit CPython 3.12 on Windows**, including Tcl/Tk. Run `tools/build_experimental_windows.ps1` from PowerShell. It installs the pinned build requirements unless `-SkipInstall` is passed. Inno Setup is not used by the experimental build.
 
-From PowerShell in the repository folder, run the supported build entry point:
+The output is **`dist/IronAnvil-Experimental.exe`** and `dist/SHA256SUMS.txt`. PyInstaller bundles Python, Tcl/Tk, pydcs, PROJ, Pillow and offline geography into one executable. It extracts runtime libraries to the normal Windows temporary area; preferences/cache/missions stay outside that extraction and outside the EXE folder. It does not create an installer or ZIP.
 
-```powershell
-.\tools\build_experimental_windows.ps1
-```
+The native probe clears Python from PATH, runs 25 representative generated/reloaded missions and a real GUI smoke/restart check, and verifies offline relief, ownership/navigation, paths with spaces and a deny-write application-folder ACL. It then replaces the EXE and runs a separate desktop state probe using existing external preferences. An existing mission must stay byte-for-byte unchanged. Reports are written to `test-results/portable-*.json`.
 
-On the experimental branch, this script builds the separate experimental installer, exercises 77 frozen and 77 installed missions (33 operation, six search and fifteen alternate-recovery cases), including recommended cold-start settings on every map and a local payload preset, and tests coexistence alongside the verified published stable 1.2.0 app. It also installs the verified published previous experimental preview and upgrades it to the new build without a directory override. Experimental reinstall and uninstall must retain stable executable/settings and existing mission bytes. The stable executable is actually run afterward. Reports go to `test-results`. Use a clean Windows runner; the script refuses an existing real installation. The old stable build script refuses experimental source.
+This verifies portable file replacement and settings compatibility, not installation or migration from every historical executable. Previous experimental installer users can run the downloaded EXE directly with the same external preferences. Their old Start shortcut remains pointed at the installed copy. No old installer downloads, registry writes or stable installation tests are in the normal release path. Historical assets and stable 1.2 remain untouched.
 
-Successful builds produce:
+The [workflow](../.github/workflows/experimental-release.yml) runs source/Lua regression checks on source checkpoints; its Linux runner is only a development test host, not a Linux application product. Windows packaging/publication occurs only for `[publish-preview]` or workflow dispatch. Windows-specific source checks and native portable probes complement the full source/Lua suite. The broad mission matrix and geographic diversity report are run deliberately during feature development rather than redundantly on every release. Existing immutable tags/assets are never replaced; new binaries require a new version/tag and are prereleases with `--latest=false`.
 
-| File | Purpose |
-| --- | --- |
-| `dist/IronAnvil-Experimental-Setup-x64.exe` | Recommended download for players: per-user setup, Start menu entry, optional desktop shortcut, and uninstaller. |
-| `dist/IronAnvil-Experimental-Windows-x64.zip` | Portable alternative containing the complete app folder. Its `_internal` directory must stay beside the executable. |
-| Experimental update channel | Manual prerelease downloads; this build never consumes the stable update feed. |
-| `dist/SHA256SUMS.txt` | SHA-256 checksums for the experimental installer and ZIP. |
-
-The [experimental release workflow](../.github/workflows/experimental-release.yml) runs Linux/Lua regression checks on source pushes. Windows packaging and publication require a deliberate commit containing `[publish-preview]` or a workflow dispatch. Successful publication creates immutable prerelease assets with `--latest=false`; a new binary requires a new release tag. These checks run before publishing versioned release assets. Building a package does not establish that its checks passed or that a release has been published; inspect the workflow's results and release assets. DCS itself is not exercised by these build checks.
+For developer-only geography rebuilds, see [GEOGRAPHY.md](experimental/GEOGRAPHY.md). Runtime users do not need Shapely, NumPy or source downloads.
 
 ## Mission implementation notes
 
@@ -79,7 +70,7 @@ The [experimental release workflow](../.github/workflows/experimental-release.ym
 - Enemy CAP uses `trigger.action.activateGroup` after client takeoff and retries activation if necessary. A newly activated group must be observed alive before its absence counts as a defeat.
 - Tanker and AWACS support have complete three-waypoint routes with two separated racetrack anchors, aligned spawn headings, and their correct support tasks. Only these support groups receive invisible/immortal AI commands.
 - Weather supports clear, scattered, broken, overcast, rain, storm, fog, windy, and seeded random moderate conditions. The legacy `cloudy` CLI value remains an alias. Rain/storm use the legacy cloud representation so DCS precipitation is serialized; fog, visibility, and winds are explicit.
-- Per-user preferences preserve theme, mission options, departure selection, and output location. The desktop updater checks the official release manifest, verifies the downloaded installer hash, and launches the normal visible installer when the user accepts the update.
+- Per-user preferences preserve theme, mission options, departure selection, and output location. Experimental downloads are manual portable EXEs; replace the file while the program is closed. The stable installer updater code is retained for its historical channel and is not invoked by the experimental app.
 - The Hornet has a curated ground-attack payload with a targeting pod. Supported flyable modules use their own pylon definitions and capability-based mission choices; unarmed trainers are omitted. Generic loadouts and tanker compatibility use heuristics.
 - Syria's insurgent option changes convoy and air-defense composition. Fortified-line selections and facility garrisons retain their selected regular types.
 - The embedded Lua 5.1 controller provides objective status, target position, an F10 map mark, fighter activation, convoy movement, and return-to-base completion. It uses **DO SCRIPT FILE**, avoiding the `DictKey_Translation` inline-script error recorded in the original conversation. No campaign hook or changes to `MissionScripting.lua` are needed.
@@ -91,7 +82,7 @@ See [map help](MAPS.md) for optional chart calibration and supported projections
 The originally supplied files contained launchers and documentation, but no application source. This project reconstructs the single-mission tool described there. The [original README](original-README.md), [original requirements](original-requirements.txt), and [conversation](claudechatjames.txt) are retained as historical reference; the earlier campaign/debrief application is not this implementation.
 
 - DCS is not installed in the cloud. Validation uses pydcs, archive inspection, and a mocked DCS Lua API. A real Windows DCS multiplayer flight remains necessary.
-- Water rejection uses coarse coastlines. No DCS terrain-height or slope database is included; buildings and units need a final Mission Editor terrain check.
+- Offline public coastline/lake, height/slope and approximate main-road screening is included. It is not DCS terrain or road data; buildings, obstacles and units still need Mission Editor and flight checks.
 - Authentic DCS imagery requires a user-supplied georeferenced chart.
 - Historical campaign persistence, forward FARPs, dedicated WWII force sets, and prop-size calibration have not been reconstructed. Helicopters use friendly airfields. Germany uses a 1985 mission date; a WWII aircraft does not change the ground-force era.
 - Convoy road following depends on DCS APIs, with a logged off-road fallback available. Generated loadouts should be reviewed in the simulator.

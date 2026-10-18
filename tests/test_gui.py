@@ -427,6 +427,20 @@ def test_automatic_preview_seed_is_not_saved_as_a_permanent_replay(app):
     assert load_preferences()['mission']['seed']=='731' and 'Fixed variation: 731' in app.quick_help_var.get()
 
 
+def test_offline_relief_and_planned_airfield_sides_match_the_generated_scenario(app):
+    app.deiconify();app.update();app.seed_var.set('22');app._preview()
+    deadline=time.monotonic()+20
+    while app._busy and time.monotonic()<deadline:app.update();time.sleep(.01)
+    app.map_view._render()
+    assert app.map_view.canvas.find_withtag('offline-relief')
+    sides=app._preview_metadata['planner']['airfield_sides']
+    assert sides
+    for airport in app.map_view._airports:
+        assert airport['friendly']==(sides[str(airport['id'])]=='blue')
+    app.clients_var.set('3');app.update()
+    assert app.map_view._plan is None
+
+
 def test_search_preview_hides_exact_sites_and_changed_settings_clear_it(app):
     from ironanvil.model import INTELLIGENCE_LABELS
     app.deiconify();app.update()
@@ -532,6 +546,8 @@ def test_quick_essential_controls_and_generate_fit_a_small_window(app):
         assert combo.winfo_rootx()+combo.winfo_width()<=canvas.winfo_rootx()+canvas.winfo_width()
         assert combo.winfo_rooty()+combo.winfo_height()<=canvas.winfo_rooty()+canvas.winfo_height()
     assert app.generate_button.winfo_rooty()+app.generate_button.winfo_height()<=app.winfo_rooty()+app.winfo_height()
+    for label in (app.map_view._coordinate_label,app.map_view._status_label):
+        assert label.winfo_y()+label.winfo_height()<=app.map_view.winfo_height()
     assert app.coordinate_frame.winfo_manager()==''
     app._toggle_coordinates();assert app.coordinate_frame.winfo_manager()=='grid'
     app._toggle_coordinates();assert app.coordinate_frame.winfo_manager()==''

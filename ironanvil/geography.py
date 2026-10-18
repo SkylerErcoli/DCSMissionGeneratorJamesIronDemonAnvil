@@ -17,7 +17,6 @@ from dcs import mapping
 from .airfields import _compatibility_error, select_airport
 
 DATA=Path(__file__).with_name('assets')/'geography'
-RANGES={'compact':(.8,1.2),'standard':(.8,1.2),'extended':(.8,1.2)}
 
 
 def world(lat,lon,zoom):
@@ -25,7 +24,7 @@ def world(lat,lon,zoom):
     return (lon+180)/360*size,(1-math.asinh(math.tan(math.radians(lat)))/math.pi)/2*size
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=1) # The desktop plans one theatre at a time; release old rasters.
 def terrain_data(key):
     metadata=json.loads((DATA/f'{key}.json').read_text())
     images=[]
@@ -53,7 +52,7 @@ def height_at(theatre,lat,lon):
     return ((a*(1-dx)+b*dx)*(1-dy)+(c*(1-dx)+d*dx)*dy)-info['offset']
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=1)
 def road_mask(key):
     with Image.open(DATA/f'{key}-roads.png') as image:
         image.load();return image.copy()
@@ -143,8 +142,18 @@ def plan_scenario(options,theatre,terrain,aircraft,rng):
     else:homes=region_order(compatible,rng)
     selected=None
     sites={}
+    # Automatic plans prefer a nearby alternate. An explicitly requested base
+    # can be isolated by coast/mountains; retain it and explain a longer recovery.
+    alternate_floor=240000 if options.departure_airport else 120000
     for home in homes:
         def related(point):
+            if options.recovery=='home_or_alternate':
+                dx,dz=point.x-home.position.x,point.y-home.position.y
+                length_squared=dx*dx+dz*dz
+                maximum=max(alternate_floor,math.sqrt(length_squared)*1.25)
+                if not any(airport.id!=home.id and airport.position.distance_to_point(home.position)<=maximum and
+                    ((airport.position.x-home.position.x)*dx+(airport.position.y-home.position.y)*dz)<length_squared*.45
+                    for airport in compatible):return False
             if options.operation=='classic' and options.mission!='convoy':return True
             from .operations import _separate_site
             try:
@@ -162,7 +171,9 @@ def plan_scenario(options,theatre,terrain,aircraft,rng):
                 return True
             except ValueError:return False
         if pinned:
-            if not related(target):raise ValueError('The pinned target has no room for the operation sites. Pin farther inland or choose a classic mission.')
+            if not related(target):
+                if not options.departure_airport:continue
+                raise ValueError('The pinned target/departure cannot fit the operation and a safe alternate. Try home-only recovery, another pin or a classic mission.')
             chosen=target
         else:
             chosen=sample_target(home,theatre,aircraft,options.pace,rng,airports,ground=options.mission!='cap',
@@ -181,16 +192,17 @@ def plan_scenario(options,theatre,terrain,aircraft,rng):
     ownership={airport.id:('blue' if progress(airport)<length*.45 else 'red') for airport in airports}
     alternate=None
     if options.recovery=='home_or_alternate':
-        candidates=[airport for airport in compatible if airport.id!=home.id and progress(airport)<length*.45]
-        if not candidates:
-            candidates=[airport for airport in compatible if airport.id!=home.id
-                        and airport.position.distance_to_point(target)>max(5000,length*.65)]
-        if not candidates:raise ValueError('No compatible safe alternate is available. Choose home-base recovery or another departure.')
+        candidates=[airport for airport in compatible if airport.id!=home.id and progress(airport)<length*.45
+                    and airport.position.distance_to_point(home.position)<=max(alternate_floor,length*1.25)]
+        if not candidates:raise ValueError('No compatible nearby friendly alternate is available. Choose home-base recovery or another departure.')
         alternate=min(candidates,key=lambda airport:airport.position.distance_to_point(home.position))
         ownership[alternate.id]='blue'
     ownership[home.id]='blue'
     location=target.latlng()
     notes=[]
+    if alternate and home.position.distance_to_point(alternate.position)>120000:
+        notes.append(f'This selected departure needs a longer friendly alternate: {alternate.name}, '
+                     f'{home.position.distance_to_point(alternate.position)/1000:.0f} km from home. Choose home-only recovery or another departure for a closer recovery plan.')
     if pinned and options.mission!='cap' and not suitable_ground(target,theatre,airports=airports):
         notes.append('Pinned target retained exactly; public terrain screening flags nearby water, elevation, slope or an airfield. Check placement in DCS.')
     info={'algorithm':2,'selection':'pinned' if pinned else 'automatic','heading_grid':round(home.position.heading_between_point(target),1),

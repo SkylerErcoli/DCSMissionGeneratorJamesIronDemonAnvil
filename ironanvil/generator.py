@@ -368,11 +368,11 @@ def build_mission(options: MissionOptions):
             group.hidden = True
     metadata = {"options": asdict(options), "home_airport": home.name, "home_airport_id": home.id,
                 "intelligence": intelligence, "geography":scenario.metadata,
-                "planner": planner_metadata(terrain,home,target,alternate,operation_config,intelligence),
+                "planner": planner_metadata(terrain,home,target,alternate,operation_config,intelligence,scenario.ownership),
                 "target_lat": latitude, "target_lon": longitude, "runtime": config,
                 "tanker": tanker_name, "compound_style": compound_style,
                 "alternate_airport": alternate.name if alternate else None,
-                "resolved_weather": resolved_weather, "generator_version": 3, "app_version": __version__,
+                "resolved_weather": resolved_weather, "generator_version": 4, "app_version": __version__,
                 "route_summary": {"one_way_km": round(distance_km, 1),
                                   "cruise_round_trip_minutes": round(120 * distance_km / cruise_kph),
                                   "note": "Cruise-only estimate; excludes startup, climb, combat, weather and recovery."},

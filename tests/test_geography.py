@@ -41,6 +41,7 @@ def test_seeded_plan_and_local_ownership_are_reproducible_and_recovery_is_friend
     assert a.ownership[a.home.id]==a.ownership[a.alternate.id]=='blue'
     assert a.home.id!=a.alternate.id and 'red' in a.ownership.values()
     for airport in (a.home,a.alternate):assert len(airport.free_parking_slots(aircraft))>=2
+    assert a.home.position.distance_to_point(a.alternate.position)<=120000
 
 
 @pytest.mark.parametrize('map,name',[('caucasus','Anapa-Vityazevo'),('syria','Damascus'),('germany','Stendal')])

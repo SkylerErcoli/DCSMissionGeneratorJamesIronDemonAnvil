@@ -43,6 +43,9 @@ def test_saved_navigation_card_uses_public_points_and_real_airport_radios(tmp_pa
             assert image.size==(1000,1440);image.verify()
         mission=lua.loads(archive.read('mission').decode())['mission']
     nav=metadata['navigation']
+    if departure=='Sochi-Adler':
+        assert any('longer friendly alternate' in note for note in metadata['geography']['notes'])
+        assert any('longer friendly alternate' in line for line in metadata['runtime']['briefing_lines'])
     assert len(nav['points'])==len(metadata['planner']['points'])
     for actual,public in zip(nav['points'],metadata['planner']['points']):
         assert actual['label']==public['label'] and actual['role']==public['role']

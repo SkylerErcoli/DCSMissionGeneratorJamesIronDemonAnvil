@@ -31,6 +31,7 @@ class MapView(ttk.Frame):
         self.target = None
         self._plan = None
         self._airports = []
+        self._catalogue_airports=[]
         self._home_airport = None
         self._map_colors = {"ocean": "#a8c8d8", "land": "#e4dec5", "outline": "#a49e83",
                             "text": "#35423f", "label": "#f5f2e7", "grid": "#738994",
@@ -38,6 +39,8 @@ class MapView(ttk.Frame):
                             "enemy": "#b52f2c", "target": "#da2831"}
         self._chart = None
         self._chart_image = None
+        self._terrain_image = None
+        self._terrain_chart = None
         self._store = ChartStore()
         self._cache = TileCache()
         self._tiles = OrderedDict()
@@ -68,11 +71,11 @@ class MapView(ttk.Frame):
         ttk.Button(chart_toolbar, text="Import DCS chart...", command=self._import_dialog).pack(side="left", padx=(0, 3))
         ttk.Button(chart_toolbar, text="Clear chart", command=self.clear_overlay).pack(side="left")
         self.canvas = tk.Canvas(self, width=720, height=420, background="#a8c8d8", highlightthickness=0)
-        self.canvas.pack(fill="both", expand=True, pady=4)
         self._coordinate_label = ttk.Label(self, textvariable=self._coordinates, wraplength=650)
-        self._coordinate_label.pack(anchor="w")
         self._status_label = ttk.Label(self, textvariable=self._message, wraplength=650)
-        self._status_label.pack(anchor="w")
+        self._status_label.pack(side='bottom',fill='x')
+        self._coordinate_label.pack(side='bottom',fill='x')
+        self.canvas.pack(fill="both", expand=True, pady=4)
         self.canvas.bind("<Configure>", self._resize)
         self.canvas.bind("<ButtonPress-1>", self._press)
         self.canvas.bind("<B1-Motion>", self._motion)
@@ -90,7 +93,11 @@ class MapView(ttk.Frame):
         self.target = None
         self._plan = None
         self._airports = list(theatre.airports()) if callable(getattr(theatre, "airports", None)) else []
+        self._catalogue_airports=[dict(airport) for airport in self._airports]
         self._chart, self._chart_image = None, None
+        terrain_path=Path(__file__).parent/'assets/geography'/f'{theatre.key}-relief.png'
+        with Image.open(terrain_path) as image:self._terrain_image=image.convert('RGB')
+        self._terrain_chart=Chart(terrain_path,theatre.bounds,'EPSG:3857')
         try:
             chart = self._store.load(theatre.key)
             if chart:
@@ -128,6 +135,11 @@ class MapView(ttk.Frame):
 
     def set_plan(self, plan, *, fit=False):
         self._plan = plan
+        sides=plan.get('airfield_sides',{}) if plan else {}
+        self._airports=[dict(airport) for airport in self._catalogue_airports]
+        for airport in self._airports:
+            side=sides.get(str(airport['id']))
+            if side:airport.update(side=side,friendly=side=='blue',neutral=False)
         if plan and fit:
             self.fit_plan()
         else:
@@ -375,6 +387,8 @@ class MapView(ttk.Frame):
             self._draw_tiles()
         if self._chart_image is not None:
             self._draw_chart()
+        elif not self._online.get():
+            self._draw_chart(self._terrain_chart,self._terrain_image,tag='offline-relief')
         self._draw_grid()
         west, south, east, north = self.theatre.bounds
         x1, y1 = self.viewport.to_pixel(north, west)
@@ -422,7 +436,7 @@ class MapView(ttk.Frame):
             suffix = " · Some tiles unavailable; geographic outlines shown" if self._failures else ""
             self._message.set(OSM_ATTRIBUTION + suffix)
         else:
-            self._message.set("Natural Earth geography (public domain, coarse coastlines) · Import a georeferenced DCS chart for its actual map imagery")
+            self._message.set("Offline terrain and major roads · Natural Earth / Mapzen / USGS / Copernicus EU-DEM · Data credits above · Not DCS imagery")
 
     def _label(self, x, y, text, color=None):
         item = self.canvas.create_text(x, y, anchor="nw", text=text,
@@ -506,8 +520,10 @@ class MapView(ttk.Frame):
         if not self._destroyed:
             self._poll_timer = self.after(100, self._poll)
 
-    def _draw_chart(self):
-        west, south, east, north = self._chart.bounds
+    def _draw_chart(self,chart=None,source=None,tag='local-chart'):
+        chart=self._chart if chart is None else chart
+        source=self._chart_image if source is None else source
+        west, south, east, north = chart.bounds
         x0, y0 = self.viewport.to_pixel(north, west)
         x1, y1 = self.viewport.to_pixel(south, east)
         left, top = max(0, math.floor(x0)), max(0, math.floor(y0))
@@ -522,13 +538,13 @@ class MapView(ttk.Frame):
             next_y = min(height, y+16)
             quad = []
             for px, py in ((left, top+y), (left, top+next_y), (right, top+next_y), (right, top+y)):
-                quad.extend(self._chart.source_pixel(*self.viewport.to_latlon(px, py), self._chart_image.size))
+                quad.extend(chart.source_pixel(*self.viewport.to_latlon(px, py), source.size))
             mesh.append(((0, y, width, next_y), tuple(quad)))
-        rendered = self._chart_image.transform((width, height), Image.Transform.MESH, mesh,
+        rendered = source.transform((width, height), Image.Transform.MESH, mesh,
                                                 resample=Image.Resampling.BILINEAR)
         photo = ImageTk.PhotoImage(rendered, master=self.canvas)
         self._images.append(photo)
-        self.canvas.create_image(left, top, anchor="nw", image=photo)
+        self.canvas.create_image(left, top, anchor="nw", image=photo,tags=tag)
 
     def _dispose(self, event):
         if event.widget is not self or self._destroyed:

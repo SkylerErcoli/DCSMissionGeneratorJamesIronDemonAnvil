@@ -92,6 +92,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: IronAnvil-Experimental-Windows
+          compression-level: 0
           path: |
             dist/IronAnvil-Experimental.exe
             dist/SHA256SUMS.txt
@@ -132,5 +133,5 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "This immutable prerelease already exists; updated builds remain workflow artifacts. Bump RELEASE_TAG for another preview."
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "Iron Anvil Experimental 1.3.4 — cold starts and target assistance" --notes-file "docs/releases/${tag}.md" release-assets/IronAnvil-Experimental.exe release-assets/SHA256SUMS.txt release-assets/validation/portable-self-test.json release-assets/validation/portable-smoke-gui.json release-assets/validation/portable-state.json release-assets/validation/portable-validation.json
+            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "Iron Anvil Experimental 1.4.0 — varied geography, one portable EXE" --notes-file "docs/releases/${tag}.md" release-assets/IronAnvil-Experimental.exe release-assets/SHA256SUMS.txt release-assets/validation/portable-self-test.json release-assets/validation/portable-smoke-gui.json release-assets/validation/portable-state.json release-assets/validation/portable-validation.json
           fi

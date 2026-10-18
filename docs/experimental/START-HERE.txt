@@ -1,42 +1,38 @@
-IRON ANVIL EXPERIMENTAL 1.3.4 - COLD STARTS AND TARGET ASSISTANCE
+IRON ANVIL EXPERIMENTAL 1.4.0 — PORTABLE WINDOWS EXE
 
-Stable Iron Anvil 1.2 stays installed separately.
-Run this installer over an older experimental copy to update it in place.
-No Python, terminal, extra client mods or DCS scripting changes are needed.
+Download IronAnvil-Experimental.exe, save it locally, and double-click it.
+No installer, ZIP extraction, Python or terminal is needed.
 
-1. Open Iron Anvil Experimental from Start.
-   For the ZIP, choose Extract All and keep the complete folder together.
-2. Quick setup: choose your map, aircraft, pilot count and mission.
-3. Choose Relaxed, Balanced or Challenging. Generate mission, or Preview first.
-   The default is a nearby daytime mission with clear weather and engines off.
-   Relaxed removes optional fighters, air defenses and the ground response.
-   Ground troops remain armed. The two visible threat switches can be changed.
-4. Open Mission briefing, then host the .miz in DCS. Friends need the selected
-   DCS map and aircraft modules; only the mission creator needs this app.
-5. In DCS: F10 > Iron Anvil > Briefing / help explains your job and recovery.
-   Briefed targets are marked automatically. Complete the required goal and
-   land all surviving participating aircraft at home or the approved alternate.
+1. Quick setup: choose your map, shared aircraft, pilot count and mission.
+2. Preview mission on map, then Generate mission. Open Mission briefing.
+3. Host the .miz in DCS. Friends only need the chosen DCS map/aircraft modules.
+4. F10 > Iron Anvil > Briefing / help repeats the job and recovery instructions.
+5. Complete the required job and recover all survivors at home or the alternate.
 
-Broken Relay: disable two fuel tanks; an optional command site delays response.
-Supply Denial: disable ammunition; bonus fuel support can cancel response.
-Rolling Thunder: stop two cargo trucks, preferably before their supplies arrive.
-Guards, escorts and scenery never block these operations' required objectives.
+Defaults: engines OFF in parking, nearby target, daylight, clear weather,
+recommended weapons and Balanced opposition. Existing preferences are retained;
+Use recommended setup applies the defaults. Relaxed removes optional threats.
 
-Customize contains departure airfields, starts, weather, weapons, recovery,
-optional search intelligence, saved presets and settings import/export.
-Repeat last mission is under Customize > Flight > Squadron presets.
-New variation previews another layout. Generate uses that preview's variation.
-A map pin keeps the target fixed and overrides the automatic distance.
+Automatic missions vary departure, target region, direction and distance.
+Offline terrain/roads help planning. Preview matches Generate, and the next
+automatic Generate gets a fresh variation. New variation previews another plan.
+A map pin or explicit replay seed stays fixed until you change it.
 
-New default: parked with engines OFF. Saved preferences stay intact on upgrade;
-Use recommended setup switches an existing hot-start setup to cold.
-The second kneeboard page has coordinates, ATC radios and runway directions.
-F10 > Iron Anvil > Target assistance has live coordinates, bearings and optional
-orange target smoke. Smoke needs an airborne teammate within 15 km, confirmed
-intelligence and a shared five-minute cooldown. Convoys can move away from smoke.
+Broken Relay: disable fuel; optional command support delays the ground response.
+Supply Denial: disable ammunition; bonus fuel can cancel a preparing response.
+Rolling Thunder: stop two supply trucks before delivery for a bonus.
+Facility strike chooses varied facility types. Guards/scenery are not mandatory
+cleanup targets for the cooperative operations.
 
-No flight in DCS has been performed here. Check a new mission in Mission Editor
-before a group sortie; terrain, roads, damage and multiplayer behavior need flights.
+F10 Target assistance has live coordinates/bearings and optional orange smoke.
+Smoke needs confirmed intelligence and an airborne teammate within 15 km;
+the shared cooldown is five minutes. Convoys can move away from the smoke.
 
-Download and changelog: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.4-experimental.5
-Stable 1.2: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0
+Update: close the app and replace the EXE. Saved preferences/missions stay put.
+Previously used an installer? Open this new EXE directly. An old Start shortcut
+still points to the old installed app. Stable 1.2 remains separate and untouched.
+
+No DCS flight has been performed here. Terrain, roads, AI and multiplayer need
+real flights. Public map/height data are approximate, not actual DCS terrain.
+
+Changelog/download: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.0-experimental.6

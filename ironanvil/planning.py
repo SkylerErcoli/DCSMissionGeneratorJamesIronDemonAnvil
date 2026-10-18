@@ -17,7 +17,7 @@ def search_intelligence(target, theatre, aircraft, rng):
             'description':'Stay airborne inside the search area for 45 continuous seconds, then request the shared reconnaissance check-in. This is a radio/intelligence game rule, not simulated sensor recognition.'}
 
 
-def planner_metadata(terrain, home, target, alternate, operation, intelligence):
+def planner_metadata(terrain, home, target, alternate, operation, intelligence,ownership=None):
     def point(label, role, position):
         location=position.latlng()
         return {'label':label,'role':role,'lat':location.lat,'lon':location.lng,'x':position.x,'z':position.y}
@@ -38,4 +38,5 @@ def planner_metadata(terrain, home, target, alternate, operation, intelligence):
             points.append(point('Supply delivery','delivery',mapping.Point(position['x'],position['z'],terrain)))
     else:points.append(point('Main target','required',target))
     return {'points':points,'intelligence':'search' if intelligence else 'precise',
+            'airfield_sides':{str(key):value for key,value in (ownership or {}).items()},
             'note':'Planning schematic and approximate coastlines; check DCS terrain, obstacles, routes and loadouts.'}

@@ -1,53 +1,48 @@
 # Iron Anvil Experimental
 
-Co-op DCS missions for the aircraft and maps your group already owns. Everyone can fly the same aircraft type.
+Create DCS co-op missions for your friends: choose the map and aircraft you own, pick a job, and generate a mission.
 
-**[Download the Windows app and see what's changed](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.4-experimental.5)**
+**[Windows EXE download and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.0-experimental.6)** · [Stable 1.2 remains available](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0)
 
-[Stable Iron Anvil 1.2](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0) stays unchanged and installs separately.
+## Run it
 
-## Make a mission
+1. Download **IronAnvil-Experimental.exe**, save it in a folder you like, and double-click it. No installer, ZIP extraction or Python is required.
+2. In **Quick setup**, choose Caucasus, Syria or Cold War Germany, your shared aircraft, pilot count and mission.
+3. Choose **Preview mission on map**, then **Generate mission**. Open **Mission briefing** for the job, radios and loaded weapons.
+4. Host the saved `.miz` in DCS. Only the mission creator needs this app; friends join normally with the selected DCS aircraft and map modules.
 
-1. Install and open **Iron Anvil Experimental**. No Python or terminal commands are needed.
-2. In **Quick setup**, pick your map, aircraft, number of pilots and mission.
-3. Choose **Relaxed**, **Balanced** or **Challenging**, then **Generate mission**. You can preview the plan first.
-4. Open **Mission briefing**, then host the `.miz` in DCS. Friends only need DCS and the selected modules.
+Windows 10/11, 64-bit. The EXE is unsigned, so Windows may show an unrecognized publisher prompt.
 
-New installs start with a nearby target, daylight, clear weather, engines off in parking, recommended weapons and a friendly alternate. **Balanced** ground missions have air defenses and a finite ground response, with enemy fighters off. **Relaxed** removes those optional threats; ground troops remain armed. Your existing saved settings are preserved.
+New installs start parked with **engines off**, nearby targets, daylight, clear weather, recommended weapons and a friendly alternate. **Balanced** ground missions have air defenses and one finite ground response, with enemy fighters off. **Relaxed** removes those optional threats; ground troops remain armed. Existing saved preferences stay intact. **Use recommended setup** applies these defaults to an existing copy.
 
-F10 → **Iron Anvil → Briefing / help** explains your job and how to finish. Briefed targets are marked automatically. Complete the required objective and land all surviving participating aircraft at an approved base.
+## A different location each sortie
 
-## Choose your job
+Automatic planning varies suitable departure airfields, target regions, directions and distances across the map. It screens coastlines, lakes, approximate elevation/slope and space for related sites. Convoys use approximate main-road corridors, then DCS chooses its actual road route. The offline relief map shows public terrain and major roads without an internet connection. It is not DCS terrain imagery.
 
-- **Broken Relay:** disable two fuel tanks. An optional command site can delay the ground response.
-- **Supply Denial:** disable an ammunition structure. Optional fuel support can cancel the response before dispatch.
-- **Rolling Thunder:** hunt moving cargo trucks. Intercept them before delivery for a bonus.
-- The original facility, fortified-position, convoy, air-defense and air-patrol missions are also in the same picker.
+Preview and Generate use the same variation. After generating an automatic preview, the next Generate chooses a fresh variation. **New variation** previews another layout. A manually entered or imported seed stays fixed for replay and is labeled **Fixed variation**. A map pin stays where you put it and overrides automatic target distance.
 
-Optional goals never block victory. Guards and scenery are not required cleanup targets. The ground response is one preplaced force, with no endless waves. If things go badly, the F10 team-withdrawal procedure lets survivors recover with partial credit.
+Your chosen job still matters: **Broken Relay** is a fuel strike; **Facility strike** randomizes fuel, command, ammunition, factory or radar facilities. Layouts and placements are generated procedurally around those mission rules.
 
-## Adjust only what you need
+![Offline terrain and a generated cooperative mission](docs/experimental/images/planner.png)
 
-The fighter and air-defense switches stay visible. **Customize** contains departure fields, weather, cold/air starts, exact coordinates, weapons, recovery choices and saved squadron presets. Irrelevant controls stay hidden. **Use recommended setup** restores the easy starting configuration while keeping your map, aircraft, pilots and pinned target.
+## Fly together
 
-**New variation** previews another layout without writing a mission. A preview uses the same variation as the next Generate. A map pin fixes the target location and overrides automatic distance.
+In DCS, **F10 → Iron Anvil → Briefing / help** repeats your objectives and recovery instructions. Joining pilots also get a private briefing. Required and optional sites have distinct marks; optional search intelligence initially shows an approximate area.
 
-Every mission includes a kneeboard and a browser briefing with goals, radios, recovery information and actual loaded stores. Optional search intelligence starts with an approximate area and a shared radio check-in; precise locations remain the default. Save/share settings or repeat a favorite mission through **Customize → Flight → Squadron presets**.
+**Target assistance** provides live coordinates, bearings and optional orange ground-target smoke. Smoke needs a confirmed target and an airborne teammate within 15 km; the team shares a five-minute cooldown. It does not laser-designate targets. Convoys may move away from released smoke.
 
-The second kneeboard page has cockpit-friendly coordinates, home/alternate ATC radios and runway directions. In flight, **F10 → Iron Anvil → Target assistance** provides live coordinates and bearings. **Smoke target (orange)** is an optional visual cue for ground missions: an airborne teammate must be within 15 km, and the team shares a five-minute cooldown. Search missions require recon confirmation first.
+Complete the required job and recover all surviving participating aircraft at home or the approved alternate. **Team withdrawal** lets the group agree to recover early for partial credit. Guards and scenery do not block the cooperative operations' functional objectives.
 
-Upgrading keeps your saved start preference. Select **Use recommended setup** to switch an existing hot-start setup to the new engines-off default.
+**Customize** contains detailed weather, departure, weapons and recovery choices, plus squadron presets and settings import/export. The [short co-op guide](docs/experimental/FLYING-TOGETHER.md) explains the three operations. No extra client mods or DCS scripting-security changes are required.
 
-Dark/light mode, all 472 catalogued airfields/helipads, nine weather choices, friendly fuel/ammunition and protected tanker/AWACS support remain available. No extra client mods or scripting changes are required.
+## Update
 
-## Install or update
+Close the program and replace your old portable EXE with the new one. Preferences and missions are stored separately and retained. If you previously used an installer, run the new downloaded EXE directly; an old Start-menu shortcut still opens the old installed version. Stable 1.2 uses separate settings and remains unchanged.
 
-Windows 10/11, 64-bit. Run the newer experimental installer over your existing experimental copy; uninstalling first is unnecessary. It has its own settings and mission folder, and never uses the stable update feed. A portable ZIP is also available: choose **Extract All** and keep the complete folder together.
+## Scope and checks
 
-## Preview status
+The [original-request audit](docs/experimental/ORIGINAL-REQUEST-AUDIT.md) lists implemented, partial, missing and historical campaign features. Forward FARPs, dedicated WWII forces, measured wall calibration and campaign persistence remain gaps. A WWII aircraft selection does not change ground-force era.
 
-**This preview has not been flown in DCS.** Automated source, Lua, mission-archive and packaged Windows checks cover the generator and interface. Terrain placement, road/ground AI, damage recognition and actual multiplayer behavior still require live flights. Review a new mission in the Mission Editor before your first group sortie.
+**Real DCS flight checks are still needed.** Public terrain/roads do not exactly match DCS buildings, trees, slopes or road networks. Inspect new locations in Mission Editor and keep the mission/variation number when reporting a problem.
 
-![Quick setup and mission preview](docs/experimental/images/planner.png)
-
-[Short flying/F10 guide](docs/experimental/FLYING-TOGETHER.md) · [Community feedback behind this update](docs/experimental/USABILITY-RESEARCH.md) · [Validation and saved checkpoints](docs/experimental/PROGRESS.md) · [Research roadmap](docs/experimental/README.md) · [Source development](docs/DEVELOPMENT.md)
+[Validation and progress](docs/experimental/PROGRESS.md) · [Geography and data sources](docs/experimental/GEOGRAPHY.md) · [Developer documentation](docs/DEVELOPMENT.md)

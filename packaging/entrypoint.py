@@ -169,6 +169,7 @@ def self_test() -> dict:
         quick_setup_checks = 0
         local_preset_checks = 0
         navigation_checks = 0
+        geography_checks=0
         for index, options in enumerate(cases):
             path = generate(options, directory / f"mission-{index}.miz")
             with zipfile.ZipFile(path) as archive:
@@ -213,6 +214,10 @@ def self_test() -> dict:
                         raise RuntimeError("Search briefing exposed exact target coordinates")
                     intelligence_checks += 1
                 warehouses = lua.loads(archive.read("warehouses").decode("utf-8"))["warehouses"]
+                for airport_id,side in metadata['planner']['airfield_sides'].items():
+                    if warehouses['airports'][int(airport_id)]['coalition']!=side.upper():
+                        raise RuntimeError('Planner airfield colors differ from actual DCS ownership')
+                geography_checks+=1
                 home = warehouses["airports"][metadata["home_airport_id"]]
                 if home["coalition"] != "BLUE" or not home["unlimitedFuel"] or not home["unlimitedMunitions"]:
                     raise RuntimeError(f"Home base cannot supply friendly pilots: {path.name}")
@@ -375,6 +380,7 @@ def self_test() -> dict:
             "operation_checks": operation_checks, "kneeboard_checks": len(missions),
             "intelligence_checks": intelligence_checks, "alternate_checks": alternate_checks,
             "loadout_checks": loadout_checks, "navigation_checks": navigation_checks,
+            "geography_checks":geography_checks,
             "quick_setup_checks": quick_setup_checks, "local_preset_checks": local_preset_checks,
             "airport_counts": airport_counts, "weather_checks": weather_checks,
             "facility_checks": facility_checks, "support_checks": support_checks,
@@ -437,6 +443,9 @@ def smoke_gui() -> dict:
                     app.theatre_var.set(theatre.label)
                     app._theatre_changed()
                     app.update()
+                    app.map_view._render()
+                    if not app.map_view.canvas.find_withtag('offline-relief'):
+                        raise RuntimeError(f'Bundled offline terrain map failed for {theatre.key}')
                     if len(app.departure_combo.cget("values")) != len(airport_catalogue(theatre.key)) + 1:
                         raise RuntimeError(f"Departure selector is incomplete for {theatre.key}")
                     rendered.append({"map": theatre.key, "theme": theme})
@@ -492,7 +501,8 @@ def smoke_gui() -> dict:
                                "Quick setup defaults, all mission shortcuts and Relaxed preset; essential controls fit 1024x700",
                                "Theme, airfield, weather and operation/intelligence/recovery controls survive restart", "Tk event loop completed"],
                     "maps": rendered, "tk_version": tk_version, "preferences_reloaded": True, "mission_preview_passed": True,
-                    "quick_setup_passed": True, "small_window_passed": True, "custom_settings_preserved": True}
+                    "quick_setup_passed": True, "small_window_passed": True, "custom_settings_preserved": True,
+                    "offline_relief_passed":True}
         finally:
             if app is not None:
                 app.destroy()

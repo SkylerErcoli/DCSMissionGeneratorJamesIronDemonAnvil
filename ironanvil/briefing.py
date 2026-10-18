@@ -191,7 +191,7 @@ def briefing_html(metadata,png):
     rows=''.join('<tr><td>'+escape(point['role'].upper()+': '+point['label'])+'</td><td>'+
         '<br>'.join(escape(label+': '+point['coordinates'][key]) for label,key in
                      (('Decimal','decimal'),('DDM','ddm'),('DMS','dms')))+'</td></tr>' for point in navigation['points'])
-    credits=(Path(__file__).parent/'assets/geography/CREDITS.html').read_text().split('<pre>',1)[1].split('</pre>',1)[0]
+    credits=(Path(__file__).parent/'assets/geography/CREDITS.html').read_text(encoding='utf-8').split('<pre>',1)[1].split('</pre>',1)[0]
     return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{heading} - Iron Anvil Experimental</title><style>
 body{{margin:0;background:#111923;color:#edf3fa;font:17px/1.6 system-ui,sans-serif}}main{{max-width:980px;margin:auto;padding:28px}}

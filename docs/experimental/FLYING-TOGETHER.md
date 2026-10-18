@@ -4,7 +4,7 @@ Only the person creating the mission needs Iron Anvil. Your friends join your DC
 
 For an easy first try, choose **Close to base**, daylight and clear weather. Leave **Target intelligence** at precise. Turn enemy CAP and air defenses off while learning the objectives. You can turn the separate ground response off too.
 
-Start in **Quick setup**. Choose **Preview mission on map**, then **Generate mission**. Detailed choices are under **Customize**. Preview selects a variation number so the generated mission matches the plan. Open **Mission briefing** before hosting; each pilot also gets a mission kneeboard in DCS.
+Open the single portable Windows EXE; no installer or Python is needed. Start in **Quick setup**. Choose **Preview mission on map**, then **Generate mission**. Detailed choices are under **Customize**. Preview selects a variation number so the generated mission matches the plan; the next automatic Generate gets a fresh variation. Open **Mission briefing** before hosting; each pilot also gets a mission kneeboard in DCS.
 
 ## Pick a mission
 
@@ -49,4 +49,4 @@ This preview has automated checks but has not been flown in DCS. Check a new mis
 
 Keep the generated `.miz` and note what happened. Its settings and variation number make the problem easier to reproduce. You can load those settings through **Import settings** or **Repeat last mission** under **Customize → Flight → Squadron presets**; exact layouts may change between program versions.
 
-[Download and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.4-experimental.5) · [Stable 1.2](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0)
+[Download and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.0-experimental.6) · [Stable 1.2](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0)

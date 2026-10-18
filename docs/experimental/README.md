@@ -1,8 +1,8 @@
 # Iron Anvil experimental gameplay
 
-**Status: [the cold-start and target-assistance preview](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.4-experimental.5). Windows packaging/coexistence and automated mission checks passed. Real DCS flight testing remains outstanding.**
+**Status: [the portable geography preview](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.0-experimental.6). Source geography checks passed; final native portable publication is in progress. Real DCS flight testing remains outstanding.**
 
-The latest update adds [cold starts, target assistance and navigation cards](NAVIGATION-RESEARCH.md), building on [Quick setup and in-mission guidance](USABILITY-RESEARCH.md). Detailed choices remain optional; saved settings are retained.
+The latest update adds [varied geography, offline relief and portable Windows delivery](GEOGRAPHY.md), building on [Quick setup and in-mission guidance](USABILITY-RESEARCH.md). Detailed choices remain optional; saved settings are retained.
 
 Implemented: Broken Relay, Supply Denial and Rolling Thunder; required/optional functional goals; a moving supply convoy with delivery consequences; one finite staged response with delay/cancel consequences; shared debrief and partial-credit withdrawal; friendly alternate recovery; optional search-area intelligence; map previews; distance presets; mission kneeboards/local briefings; named presets and replay import/export. Read the [work log](PROGRESS.md) for exact checks and remaining limits.
 
