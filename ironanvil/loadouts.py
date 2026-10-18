@@ -124,7 +124,5 @@ def payload_summary(group, mode):
 
 
 def payload_text(summary):
-    from collections import Counter
     if summary.get('warning'):return summary['warning']
-    counts=Counter(store['name'] for store in summary.get('stores',[]))
-    return 'Stores: '+', '.join(f'{count} x {name}' for name,count in counts.items())
+    return f"{len(summary.get('stores',[]))} stations loaded. The weapons and stores list is in Mission briefing."

@@ -58,7 +58,7 @@ From PowerShell in the repository folder, run the supported build entry point:
 .\tools\build_experimental_windows.ps1
 ```
 
-On the experimental branch, this script builds the separate experimental installer, exercises 73 frozen and 73 installed missions (30 operation, six search and twelve alternate-recovery cases), and tests coexistence alongside the verified published stable 1.2.0 app. It also installs the verified published previous experimental preview and upgrades it to the new build without a directory override. Experimental reinstall and uninstall must retain stable executable/settings and existing mission bytes. The stable executable is actually run afterward. Reports go to `test-results`. Use a clean Windows runner; the script refuses an existing real installation. The old stable build script refuses experimental source.
+On the experimental branch, this script builds the separate experimental installer, exercises 77 frozen and 77 installed missions (33 operation, six search and fifteen alternate-recovery cases), including recommended hot-start settings on every map and a local payload preset, and tests coexistence alongside the verified published stable 1.2.0 app. It also installs the verified published previous experimental preview and upgrades it to the new build without a directory override. Experimental reinstall and uninstall must retain stable executable/settings and existing mission bytes. The stable executable is actually run afterward. Reports go to `test-results`. Use a clean Windows runner; the script refuses an existing real installation. The old stable build script refuses experimental source.
 
 Successful builds produce:
 

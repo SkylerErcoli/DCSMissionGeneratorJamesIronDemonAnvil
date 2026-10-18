@@ -179,13 +179,13 @@ def briefing_html(metadata,png):
     data=base64.b64encode(png).decode('ascii')
     task=''.join('<li>'+escape(line)+'</li>' for line in mission_help_lines(metadata))
     stores=''.join(f"<li>Station {store['station']}: {escape(store['name'])}</li>" for store in metadata.get('loadout',{}).get('stores',[]))
-    loadout='<h2>Weapons and stores aboard</h2><ul>'+stores+'</ul>' if stores else '<p>'+escape(metadata.get('loadout',{}).get('warning') or 'Review weapons in DCS before flying.')+'</p>'
+    loadout='<ul>'+stores+'</ul>' if stores else '<p>'+escape(metadata.get('loadout',{}).get('warning') or 'Review weapons in DCS before flying.')+'</p>'
     return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{heading} - Iron Anvil Experimental</title><style>
 body{{margin:0;background:#111923;color:#edf3fa;font:17px/1.6 system-ui,sans-serif}}main{{max-width:980px;margin:auto;padding:28px}}
 h1{{line-height:1.2}}li{{margin:9px 0}}pre{{white-space:pre-wrap;font:inherit;background:#202936;padding:22px;border-radius:10px}}
 img{{max-width:100%;height:auto;border-radius:8px}}.muted{{color:#b0bfd0}}@media print{{body{{background:white;color:black}}pre{{background:#eee}}}}
 </style><main><p class="muted">IRON ANVIL EXPERIMENTAL - COOPERATIVE BRIEFING</p><h1>{heading}</h1>
-<h2>Your job</h2><ul>{task}</ul><details><summary>Flight details and full operation briefing</summary><ul>{items}</ul>{detail}{loadout}</details><h2>Kneeboard and route schematic</h2><p>Included in the mission's DCS kneeboard. This is a schematic, not a terrain chart.</p>
+<h2>Your job</h2><ul>{task}</ul><details><summary>Weapons and stores aboard</summary>{loadout}</details><details><summary>Flight details and full operation briefing</summary><ul>{items}</ul>{detail}</details><h2>Kneeboard and route schematic</h2><p>Included in the mission's DCS kneeboard. This is a schematic, not a terrain chart.</p>
 <img alt="Mission kneeboard with objectives, communications and route schematic" src="data:image/png;base64,{data}">
 <p class="muted">Generated locally. No account or online service is required. Check the mission in DCS before flying.</p></main></html>'''

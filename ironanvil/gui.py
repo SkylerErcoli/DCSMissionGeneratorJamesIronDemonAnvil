@@ -25,7 +25,7 @@ from .preferences import load_preferences, save_preferences
 from .theatres import THEATRES, get_theatre
 from .weather import WEATHER_LABELS
 from .operations import OPERATION_LABELS, OPERATION_HELP, PACE_LABELS
-from .quickstart import SCENARIOS, PRESSURES, PRESSURE_HELP, START_HELP, LOADOUT_LABELS, pressure_settings, pressure_name
+from .quickstart import SCENARIOS, PRESSURES, PRESSURE_HELP, CLASSIC_PRESSURE_HELP, START_HELP, LOADOUT_LABELS, pressure_settings, pressure_name
 from . import APP_NAME, RELEASE_TAG, __version__
 
 
@@ -542,7 +542,8 @@ class Application(tk.Tk):
         self.quick_distance_combo.configure(state='disabled' if pinned else 'readonly')
         settings={name:getattr(self,name+"_var").get() for name in PRESSURES['Balanced']}
         pressure=pressure_name(settings,mission)
-        self.pressure_var.set(pressure);self.pressure_help_var.set(PRESSURE_HELP[pressure])
+        self.pressure_var.set(pressure)
+        self.pressure_help_var.set((CLASSIC_PRESSURE_HELP if operation=='classic' else PRESSURE_HELP)[pressure])
         self.setup_summary_var.set(f"{START_HELP[self.start_var.get()]} · {self.time_var.get()} · {self.weather_var.get()}.\nDeparture: {self.departure_var.get()}. More choices in Customize.")
         self.loadout_display_var.set(LOADOUT_LABELS[self.loadout_var.get()])
         self.intelligence_help_var.set('Exact target locations are included in your briefing.' if self.intelligence_var.get()==INTELLIGENCE_LABELS['precise'] else

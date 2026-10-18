@@ -467,6 +467,7 @@ def test_quick_picker_covers_supported_missions_without_changing_aircraft(app):
         assert (options.mission,options.operation)==(mission,operation)
         assert app.aircraft_var.get()==aircraft
         if mission=='cap':assert options.enemy_cap
+        if operation=='classic':assert 'ground response' not in app.pressure_help_var.get()
 
 
 def test_quick_presets_are_shortcuts_and_manual_changes_survive_restart(app):

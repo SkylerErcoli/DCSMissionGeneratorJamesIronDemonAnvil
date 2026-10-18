@@ -1,52 +1,49 @@
 # Iron Anvil Experimental
 
-Richer co-op missions for the aircraft and maps your group already owns. Everyone can fly the same aircraft type and work toward shared objectives.
+Co-op DCS missions for the aircraft and maps your group already owns. Everyone can fly the same aircraft type.
 
-**[Download the experimental preview and read what's new](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.2-experimental.3)**
+**[Download the Windows app and see what's changed](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.3-experimental.4)**
 
-**Your stable version is separate:** [Iron Anvil 1.2](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0) remains unchanged for normal play. This branch uses its own installer identity, settings, cache and mission folder.
+[Stable Iron Anvil 1.2](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0) stays unchanged and installs separately.
 
-## New co-op operations
+## Make a mission
 
-- **Broken Relay:** disable two of three fuel tanks. Destroy a command structure first to delay a finite enemy ground response by six minutes.
-- **Supply Denial:** disable an ammunition structure. Destroy bonus fuel support before dispatch to cancel the ground response.
-- **Rolling Thunder:** intercept a moving supply convoy. Stopping two cargo trucks before delivery earns a bonus; letting supplies arrive accelerates a still-preparing ground response. Destroy bonus fuel support before dispatch to cancel that response.
-- **Choose your priorities:** either site can be attacked first. Bonus goals are optional; guards and decorative scenery never block the required objective.
-- **Bring the team back:** every participating surviving pilot must recover at home or an approved friendly alternate, when enabled. A shared debrief records required/bonus goals, recovery, losses and replay seed.
-- **Know when to disengage:** a two-step F10 team withdrawal command lets survivors recover with partial objective credit. Enemies stay active, and completing the main goal before recovery can still earn full success.
+1. Install and open **Iron Anvil Experimental**. No Python or terminal commands are needed.
+2. In **Quick setup**, pick your map, aircraft, number of pilots and mission.
+3. Choose **Relaxed**, **Balanced** or **Challenging**, then **Generate mission**. You can preview the plan first.
+4. Open **Mission briefing**, then host the `.miz` in DCS. Friends only need DCS and the selected modules.
 
-The ground response is one preplaced force that must travel from its staging area. It has no respawn loop. Turn it off independently if you prefer a quieter sortie. Enemy CAP and air defenses retain their own switches.
+New installs start with a nearby target, daylight, clear weather, engines running in parking, recommended weapons and a friendly alternate. **Balanced** ground missions have air defenses and a finite ground response, with enemy fighters off. **Relaxed** removes those optional threats; ground troops remain armed. Your existing saved settings are preserved.
 
-## Plan, brief and replay
+F10 → **Iron Anvil → Briefing / help** explains your job and how to finish. Briefed targets are marked automatically. Complete the required objective and land all surviving participating aircraft at an approved base.
 
-Choose close-to-base, standard or longer automatic target distances, adjusted for helicopters. A target pinned on the map takes priority.
+## Choose your job
 
-**Preview mission on map** shows the briefed objectives, staging area and recovery bases before writing a mission. Preview chooses a variation number if needed; Generate then uses that plan. Change settings to prepare another plan.
+- **Broken Relay:** disable two fuel tanks. An optional command site can delay the ground response.
+- **Supply Denial:** disable an ammunition structure. Optional fuel support can cancel the response before dispatch.
+- **Rolling Thunder:** hunt moving cargo trucks. Intercept them before delivery for a bonus.
+- The original facility, fortified-position, convoy, air-defense and air-patrol missions are also in the same picker.
 
-**Optional search-area intelligence:** start with an approximate area instead of exact target coordinates. Keep an airborne teammate in the area for 45 continuous seconds, then use F10 **Recon check-in** to share the updated target locations. This is a radio-intelligence game rule that works with any selected aircraft; it does not simulate sensor recognition. You can still find and attack targets visually.
+Optional goals never block victory. Guards and scenery are not required cleanup targets. The ground response is one preplaced force, with no endless waves. If things go badly, the F10 team-withdrawal procedure lets survivors recover with partial credit.
 
-Every mission includes a **DCS kneeboard** with objectives, coordinates, frequencies and a route schematic. **Mission briefing** opens a readable local page for planning and printing.
+## Adjust only what you need
 
-Save named **squadron presets**, share exported settings, or import settings from an existing `.miz`. **Repeat last mission** restores its settings and seed; change the variation number for another layout. Replays use the current generator, so layouts can change between app versions. Imported settings retain your own output folder.
+The fighter and air-defense switches stay visible. **Customize** contains departure fields, weather, cold/air starts, exact coordinates, weapons, recovery choices and saved squadron presets. Irrelevant controls stay hidden. **Use recommended setup** restores the easy starting configuration while keeping your map, aircraft, pilots and pinned target.
 
-The original five mission types remain available through **Classic single mission**. Dark/light mode, nine weather choices, protected tanker/AWACS support, friendly home-base supplies and all 472 catalogued airfields/helipads are retained.
+**New variation** previews another layout without writing a mission. A preview uses the same variation as the next Generate. A map pin fixes the target location and overrides automatic distance.
 
-## Getting started
+Every mission includes a kneeboard and a browser briefing with goals, radios, recovery information and actual loaded stores. Optional search intelligence starts with an approximate area and a shared radio check-in; precise locations remain the default. Save/share settings or repeat a favorite mission through **Customize → Flight → Squadron presets**.
 
-1. Download the **experimental installer** from the preview page, double-click it, and open **Iron Anvil Experimental** from the Start menu. It installs beside stable 1.2 without replacing it.
-2. Choose your map, aircraft and one to four pilots.
-3. In **Mission**, choose an operation and target distance. Leave the target automatic or pin it on the map.
-4. Choose opposition, preview the map, generate the mission, and open **Mission briefing**.
-5. Host the `.miz` in DCS. Only the mission creator needs this app; friends need DCS and the selected map/aircraft modules.
+Dark/light mode, all 472 catalogued airfields/helipads, nine weather choices, friendly fuel/ammunition and protected tanker/AWACS support remain available. No extra client mods or scripting changes are required.
 
-No Python, commands, extra client mods or DCS scripting changes are required. Windows 10/11, 64-bit. A portable ZIP is also available; extract it and keep the entire app folder together.
+## Install or update
 
-The preview has its own **Experimental downloads** page. Run the newer experimental installer to update the existing experimental copy in place; uninstalling first is unnecessary. The stable app's update feed does not offer previews.
+Windows 10/11, 64-bit. Run the newer experimental installer over your existing experimental copy; uninstalling first is unnecessary. It has its own settings and mission folder, and never uses the stable update feed. A portable ZIP is also available: choose **Extract All** and keep the complete folder together.
 
 ## Preview status
 
-**This is experimental and has not been flown in DCS.** Automated tests cover generated missions, Lua state transitions and the desktop. Windows packaging checks the frozen/installed app alongside published stable 1.2. Terrain placement, roads/ground AI, static-object damage and in-simulator kneeboard display still require playtesting. Review missions in the DCS Mission Editor before your first group flight.
+**This preview has not been flown in DCS.** Automated source, Lua, mission-archive and packaged Windows checks cover the generator and interface. Terrain placement, road/ground AI, damage recognition and actual multiplayer behavior still require live flights. Review a new mission in the Mission Editor before your first group sortie.
 
-![Experimental mission planner](docs/experimental/images/planner.png)
+![Quick setup and mission preview](docs/experimental/images/planner.png)
 
-[Flying together and F10 controls](docs/experimental/FLYING-TOGETHER.md) · [Player handout](docs/experimental/START-HERE.txt) · [Completed batches and resume notes](docs/experimental/PROGRESS.md) · [Research and roadmap](docs/experimental/README.md) · [Source development](docs/DEVELOPMENT.md)
+[Short flying/F10 guide](docs/experimental/FLYING-TOGETHER.md) · [Community feedback behind this update](docs/experimental/USABILITY-RESEARCH.md) · [Validation and saved checkpoints](docs/experimental/PROGRESS.md) · [Research roadmap](docs/experimental/README.md) · [Source development](docs/DEVELOPMENT.md)

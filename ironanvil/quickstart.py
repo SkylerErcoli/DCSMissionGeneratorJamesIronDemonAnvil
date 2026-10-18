@@ -23,6 +23,12 @@ PRESSURE_HELP = {
     'Challenging': 'Enemy fighters, air defenses and a ground response, with more skilled enemies.',
     'Custom': 'Your individual threat settings are active. Change either switch below or use Customize.',
 }
+CLASSIC_PRESSURE_HELP = {
+    'Relaxed': 'No enemy fighters or air defenses. Ground troops remain armed.',
+    'Balanced': 'Air defenses enabled. Enemy fighters only for air patrols.',
+    'Challenging': 'Enemy fighters and air defenses, with more skilled enemies.',
+    'Custom': PRESSURE_HELP['Custom'],
+}
 START_HELP = {'cold': 'Parked, engines off', 'hot': 'Parked, engines running',
               'runway': 'Ready on the runway', 'air': 'Already airborne'}
 LOADOUT_LABELS = {'auto': 'Recommended weapons', 'default': 'DCS local preset (may be empty)'}
