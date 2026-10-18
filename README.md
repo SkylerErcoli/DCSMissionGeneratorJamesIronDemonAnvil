@@ -2,7 +2,9 @@
 
 Create DCS co-op missions for your friends: choose the map and aircraft you own, pick a job, and generate a mission.
 
-**[Windows EXE download and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.0-experimental.6)** · [Stable 1.2 remains available](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0)
+**[Windows EXE download and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.1-experimental.7)** · [Stable 1.2 remains available](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0)
+
+**1.4.1 fixes the DCS missing locked-time errors for tanker, AWACS and enemy CAP.** Replace the EXE, then generate a new mission. Existing `.miz` files need a separate repair or regeneration.
 
 ## Run it
 

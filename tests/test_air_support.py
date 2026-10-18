@@ -22,6 +22,32 @@ def _tasks(point):
     return list(point["task"]["params"]["tasks"].values())
 
 
+@pytest.mark.parametrize("seed", (427909374, 1577748685))
+def test_reported_supply_denial_mission_and_recipe_have_dcs_valid_timing(seed, tmp_path):
+    """Reproduce both supplied files, without retaining the user's output path."""
+    from ironanvil.generator import generate
+    from ironanvil.model import MissionOptions
+
+    options = MissionOptions(map="caucasus", aircraft="FA_18C_hornet", clients=2,
+                             operation="supply_denial", pace="compact", seed=seed,
+                             departure_airport="Batumi", target_lat=42.299213, target_lon=42.262852,
+                             start="cold", recovery="home_or_alternate", allow_withdrawal=True,
+                             tanker=True, awacs=True, enemy_cap=True, air_defenses=True)
+    path = generate(options, tmp_path / "reported.miz")
+    with zipfile.ZipFile(path) as archive:
+        saved = lua.loads(archive.read("mission").decode())["mission"]
+    flights = {group["name"]: group for side in saved["coalition"].values()
+               for country in side.get("country", {}).values()
+               for group in country.get("plane", {}).get("group", {}).values()}
+    for name in ("TEXACO", "OVERLORD", "ENEMY CAP 1"):
+        points = flights[name]["route"]["points"]
+        assert points[1]["ETA_locked"] is True, name
+        assert points[1]["ETA"] == 0, name
+        assert all(point["ETA_locked"] is False for index, point in points.items() if index != 1)
+        assert all(point["speed_locked"] is True for point in points.values())
+    assert flights["ENEMY CAP 1"]["lateActivation"] is True
+
+
 @pytest.mark.parametrize("map_key", ("caucasus", "syria", "germany"))
 @pytest.mark.parametrize("aircraft,role,speed", (
     (planes.KC135MPRS, task.Refueling, 650),
@@ -48,6 +74,10 @@ def test_support_has_complete_level_racetrack_and_correct_serialized_speed(
     assert serialized["task"] == role.name
     assert not serialized.get("lateActivation", False)
     assert not serialized.get("uncontrolled", False)
+    # DCS refuses a route with no locked ETA, even if pydcs can reload it.
+    assert points[1]["ETA_locked"] is True
+    assert points[1]["ETA"] == 0
+    assert all(point["ETA_locked"] is False for index, point in points.items() if index != 1)
     assert unit["speed"] == pytest.approx(speed / 3.6)
     assert unit["heading"] == pytest.approx(math.radians(67))
     assert unit["psi"] == pytest.approx(-math.radians(67))
@@ -77,16 +107,25 @@ def test_support_has_complete_level_racetrack_and_correct_serialized_speed(
 
 @pytest.mark.parametrize("aircraft", (planes.MiG_29A, planes.MiG_21Bis))
 @pytest.mark.parametrize("late_activation", (True, False))
-def test_cap_is_armed_and_can_engage_before_reaching_its_station(aircraft, late_activation):
+def test_cap_is_armed_and_can_engage_before_reaching_its_station(aircraft, late_activation, tmp_path):
     mission, station = _mission_and_point()
     spawn = station.point_from_heading(250, 45000)
     group = create_enemy_cap(mission, mission.country("Russia"), "ENEMY CAP", aircraft,
                              spawn, station, group_size=2, skill=Skill.High,
                              late_activation=late_activation)
-    saved = group.dict()
+    destination = tmp_path / "cap.miz"
+    assert mission.save(str(destination))
+    with zipfile.ZipFile(destination) as archive:
+        data = lua.loads(archive.read("mission").decode())["mission"]
+    saved = next(group for country in data["coalition"]["red"]["country"].values()
+                 for group in country.get("plane", {}).get("group", {}).values())
     points = saved["route"]["points"]
     assert len(points) == 3
     assert saved.get("lateActivation", False) == late_activation
+    # A lock elsewhere on the route is insufficient for late activation.
+    assert points[1]["ETA_locked"] is True
+    assert points[1]["ETA"] == 0
+    assert all(point["ETA_locked"] is False for index, point in points.items() if index != 1)
     assert all(unit["skill"] == "High" for unit in saved["units"].values())
     for point in points.values():
         assert point["alt_type"] == "BARO"

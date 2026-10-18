@@ -80,6 +80,33 @@ def save_report(path: Path, report: dict) -> None:
     temporary.replace(path)
 
 
+def _check_air_route_timing(saved: dict) -> int:
+    """Check the saved Lua against DCS's route-time save requirements.
+
+    pydcs reload accepts missing locks, so reloading alone cannot catch this.
+    Check both coalitions and helicopters as well as fixed-wing aircraft.
+    """
+    from math import isfinite
+
+    checked = 0
+    for side in saved["coalition"].values():
+        for country in side.get("country", {}).values():
+            for category in ("plane", "helicopter"):
+                for group in country.get(category, {}).get("group", {}).values():
+                    points = group.get("route", {}).get("points", {})
+                    locked = [point for point in points.values() if point.get("ETA_locked") is True]
+                    name = group["name"]
+                    if not locked:
+                        raise RuntimeError(f"{name}: Route has no waypoints with locked time!")
+                    if group.get("lateActivation") and points.get(1, {}).get("ETA_locked") is not True:
+                        raise RuntimeError(f"{name}: Late activation requires a locked time at the first waypoint!")
+                    if any(type(point.get("ETA")) not in (int, float)
+                           or not isfinite(point["ETA"]) or point["ETA"] < 0 for point in locked):
+                        raise RuntimeError(f"{name}: Locked waypoint has an invalid ETA!")
+                    checked += 1
+    return checked
+
+
 def self_test() -> dict:
     """Exercise bundled terrain modules, resources, native libraries, and codecs.
 
@@ -170,6 +197,8 @@ def self_test() -> dict:
         local_preset_checks = 0
         navigation_checks = 0
         geography_checks=0
+        air_route_timing_checks = 0
+        air_routes_checked = 0
         for index, options in enumerate(cases):
             path = generate(options, directory / f"mission-{index}.miz")
             with zipfile.ZipFile(path) as archive:
@@ -230,6 +259,8 @@ def self_test() -> dict:
                     if metadata["options"][toggle] is not getattr(options, toggle):
                         raise RuntimeError(f"Enemy toggle mismatch: {path.name}")
                 saved = lua.loads(archive.read("mission").decode("utf-8"))["mission"]
+                air_routes_checked += _check_air_route_timing(saved)
+                air_route_timing_checks += 1
                 if options.intelligence == "search":
                     for country in saved["coalition"]["red"]["country"].values():
                         for category in ("vehicle", "static"):
@@ -366,6 +397,7 @@ def self_test() -> dict:
         checks.append(f"{intelligence_checks} search missions withhold exact coordinates, F10 symbols and navigation waypoints")
         checks.append(f"{alternate_checks} jet/helicopter alternate-recovery missions verify distinct friendly supplied bases")
         checks.append("Support aircraft have immediate roles/protection and complete three-point racetrack routes")
+        checks.append(f"DCS time locks verified on {air_routes_checked} saved aircraft routes, including first-point locks for late activation")
         checks.append("Every mission's F10 help describes recovery and its store manifest matches every client aircraft")
         checks.append("Recommended cold-start cooperative settings serialize and reload on all maps; local-preset reporting is exercised")
         checks.append("Every mission includes a second navigation kneeboard and public-only cockpit coordinates")
@@ -381,6 +413,7 @@ def self_test() -> dict:
             "intelligence_checks": intelligence_checks, "alternate_checks": alternate_checks,
             "loadout_checks": loadout_checks, "navigation_checks": navigation_checks,
             "geography_checks":geography_checks,
+            "air_route_timing_checks": air_route_timing_checks, "air_routes_checked": air_routes_checked,
             "quick_setup_checks": quick_setup_checks, "local_preset_checks": local_preset_checks,
             "airport_counts": airport_counts, "weather_checks": weather_checks,
             "facility_checks": facility_checks, "support_checks": support_checks,

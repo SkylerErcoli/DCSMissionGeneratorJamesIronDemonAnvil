@@ -22,9 +22,14 @@ def _align_airborne_group(group, destination):
         unit.psi = -math.radians(heading)
         unit.alt_type = "BARO"
         unit.fuel = unit.unit_type.fuel_max
-    for waypoint in group.points:
+    for index, waypoint in enumerate(group.points):
         waypoint.alt_type = "BARO"
-        waypoint.ETA_locked = False
+        # DCS requires a time reference on every flight route, and specifically
+        # the first waypoint for late activation. Keep the spawn at time zero;
+        # subsequent legs use cruise speed rather than fixed arrival times.
+        waypoint.ETA_locked = index == 0
+        if index == 0:
+            waypoint.ETA = 0
 
 
 def create_support_flight(mission, country, name, aircraft, point, main_task, frequency,

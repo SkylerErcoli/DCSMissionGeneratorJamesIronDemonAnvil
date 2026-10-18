@@ -96,3 +96,26 @@ def test_downloads_and_windows_version_properties_match_the_application():
     assert RELEASE_TAG.startswith('v'+__version__+'-experimental.')
     assert (root/'docs/releases'/f'{RELEASE_TAG}.md').is_file()
     assert '/releases/tag/'+RELEASE_TAG in (root/'packaging/installer.iss').read_text()
+
+
+@pytest.mark.parametrize("category", ("plane", "helicopter"))
+@pytest.mark.parametrize("side", ("blue", "red", "neutrals"))
+def test_compiled_probe_rejects_dcs_route_timing_errors(entrypoint, category, side):
+    # The reported support error, then CAP with a lock at the WRONG point.
+    points = {1: {"ETA": 0, "ETA_locked": False},
+              2: {"ETA": 60, "ETA_locked": False}}
+    group = {"name": "REPORTED FLIGHT", "route": {"points": points}}
+    saved = {"coalition": {side: {"country": {1: {category: {"group": {1: group}}}}}}}
+    with pytest.raises(RuntimeError, match="REPORTED FLIGHT: Route has no waypoints with locked time"):
+        entrypoint._check_air_route_timing(saved)
+    points[2]["ETA_locked"] = True
+    assert entrypoint._check_air_route_timing(saved) == 1
+    group["lateActivation"] = True
+    with pytest.raises(RuntimeError, match="Late activation requires a locked time at the first waypoint"):
+        entrypoint._check_air_route_timing(saved)
+    points[1]["ETA_locked"] = True
+    points[2]["ETA_locked"] = False
+    assert entrypoint._check_air_route_timing(saved) == 1
+    del points[1]["ETA"]
+    with pytest.raises(RuntimeError, match="Locked waypoint has an invalid ETA"):
+        entrypoint._check_air_route_timing(saved)
