@@ -238,6 +238,10 @@ def build_mission(options: MissionOptions):
                 mission, red, target, home, theatre, options, rng, level)
             label = operation_config["title"]
             target_statics = [name for goal in operation_config["objectives"] for name in goal["statics"]]
+            if operation_config.get("convoy"):
+                convoy_info = operation_config["convoy"]
+                convoy = mission.coalition["red"].find_group(convoy_info["group"])
+                convoy_destination = mapping.Point(convoy_info["destination"]["x"], convoy_info["destination"]["z"], terrain)
         else:
             target_statics, label, facility_metadata = build_facility_complex(
                 mission, red, target, rng, level, facility_type=options.facility_type)

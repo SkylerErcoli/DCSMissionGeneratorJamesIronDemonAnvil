@@ -30,9 +30,13 @@ def summary_lines(metadata):
     if operation:
         for index, goal in enumerate(operation['objectives']):
             site=metadata['facility_sites'][index]
+            total=len(goal.get('statics', []))+len(goal.get('units', []))
+            kind='supply trucks' if goal.get('units') else 'objective structures'
             lines.append(('REQUIRED: ' if goal['required'] else 'BONUS: ')+goal['title']+
-                         f" - disable {goal['threshold']} of {len(goal['statics'])} objective structures. "
+                         f" - disable {goal['threshold']} of {total} {kind}. "
                          f"{site['latitude']:.5f}, {site['longitude']:.5f}")
+        if operation.get('convoy'):
+            lines.append('Convoy departs after takeoff. F10 follows its live position; stopping it before delivery earns 150 bonus points.')
         if operation.get('response'):
             lines.append('One staged ground response; first objective damage raises the alarm.')
             lines.append('Bonus before dispatch '+('delays response by six minutes.' if operation['id']=='broken_relay' else 'cancels the ground response.'))

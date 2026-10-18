@@ -13,6 +13,7 @@ on:
       - 'tools/build_experimental_windows.ps1'
       - 'tests/**'
       - 'docs/experimental/START-HERE.txt'
+      - 'docs/releases/**'
 
 permissions:
   contents: read
@@ -41,6 +42,7 @@ jobs:
       - run: python tools/test_matrix.py --lua lua5.1
 
   windows:
+    if: github.ref == 'refs/heads/experimental' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish-preview]'))
     name: Build experimental app and prove stable coexistence
     runs-on: windows-2022
     timeout-minutes: 25
@@ -106,7 +108,7 @@ jobs:
   publish:
     name: Publish experimental prerelease only
     needs: [linux, windows]
-    if: github.ref == 'refs/heads/experimental'
+    if: github.ref == 'refs/heads/experimental' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish-preview]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -132,5 +134,5 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "This immutable prerelease already exists; updated builds remain workflow artifacts. Bump RELEASE_TAG for another preview."
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "Iron Anvil Experimental — first co-op preview" --notes-file docs/releases/v1.3.0-experimental.1.md release-assets/IronAnvil-Experimental-Setup-x64.exe release-assets/IronAnvil-Experimental-Windows-x64.zip release-assets/SHA256SUMS.txt release-assets/validation/frozen-self-test.json release-assets/validation/frozen-smoke-gui.json release-assets/validation/installed-self-test.json release-assets/validation/installed-smoke-gui.json release-assets/validation/coexistence-validation.json release-assets/validation/stable-after-experimental.json
+            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "Iron Anvil Experimental — convoy and recovery update" --notes-file "docs/releases/${tag}.md" release-assets/IronAnvil-Experimental-Setup-x64.exe release-assets/IronAnvil-Experimental-Windows-x64.zip release-assets/SHA256SUMS.txt release-assets/validation/frozen-self-test.json release-assets/validation/frozen-smoke-gui.json release-assets/validation/installed-self-test.json release-assets/validation/installed-smoke-gui.json release-assets/validation/coexistence-validation.json release-assets/validation/stable-after-experimental.json
           fi

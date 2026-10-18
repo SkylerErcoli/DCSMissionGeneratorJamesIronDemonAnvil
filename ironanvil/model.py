@@ -130,7 +130,7 @@ class MissionOptions:
         choices = {
             "mission": MISSION_LABELS, "difficulty": ("easy", "normal", "hard", "extreme"),
             "facility_type": ("random", "fuel", "command", "ammunition", "factory", "radar"),
-            "operation": ("classic", "broken_relay", "supply_denial"),
+            "operation": ("classic", "broken_relay", "supply_denial", "rolling_thunder"),
             "pace": ("compact", "standard", "extended"),
             "start": ("cold", "hot", "runway", "air"),
             "time_of_day": ("day", "dawn", "dusk", "night", "random"),

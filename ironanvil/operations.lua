@@ -22,6 +22,17 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
         end
         return object, life
     end
+    local function readTarget(target)
+        if not target.group then return readStatic(target.name) end
+        for _, unit in ipairs(service.units(target.group)) do
+            local ok, name=pcall(function() return unit:getName() end)
+            if ok and name==target.name then
+                local good, life=pcall(function() return unit:getLife() end)
+                return unit, good and type(life)=='number' and life or nil
+            end
+        end
+        return nil,nil
+    end
     local function setResponse(value)
         op.response = value
         service.flag('IRON_ANVIL_RESPONSE_STATUS', responseCodes[value] or 0)
@@ -41,6 +52,12 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
         for _, name in ipairs(definition.statics or {}) do
             local object, life = readStatic(name)
             objective.targets[#objective.targets+1] = {name=name, seen=object ~= nil, initial=life}
+        end
+        for _, name in ipairs(definition.units or {}) do
+            local target={name=name, group=definition.group}
+            local object,life=readTarget(target)
+            target.seen=object~=nil;target.initial=life
+            objective.targets[#objective.targets+1]=target
         end
         op.objectives[#op.objectives+1] = objective
     end
@@ -122,7 +139,7 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
             if not objective.complete then
                 local destroyed = 0
                 for _, target in ipairs(objective.targets) do
-                    local object, life = readStatic(target.name)
+                    local object, life = readTarget(target)
                     if object then
                         if not target.seen then target.seen=true; target.initial=life end
                         if life and life<=1 then destroyed=destroyed+1; damaged=true
@@ -147,6 +164,46 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
                 if not objective.complete then allRequired=false end
             end
         end
+        local deliveredNow=false
+        if config.convoy and not op.deliveryClosed then
+            local primaryComplete=false
+            for _, goal in ipairs(op.objectives) do
+                if goal.definition.required and goal.complete then primaryComplete=true end
+            end
+            if primaryComplete then
+                op.deliveryClosed=true
+                op.bonus=op.bonus+(config.convoy.interdiction_points or 150)
+                service.flag('IRON_ANVIL_INTERDICTION_BONUS',1)
+                service.announce('Supply convoy stopped before delivery. Interdiction bonus: ' ..
+                    tostring(config.convoy.interdiction_points or 150) .. ' shared points.')
+            else
+                local arrived=0
+                for _, goal in ipairs(op.objectives) do
+                    if goal.definition.required then
+                        for _, target in ipairs(goal.targets) do
+                            local unit,life=readTarget(target)
+                            if unit and life and life>1 then
+                                local ok,point=pcall(function() return unit:getPoint() end)
+                                local destination=config.convoy.destination
+                                if ok and point and destination then
+                                    local dx,dz=point.x-destination.x,point.z-destination.z
+                                    if dx*dx+dz*dz <= (config.convoy.delivery_radius or 350)^2 then arrived=arrived+1 end
+                                end
+                            end
+                        end
+                    end
+                end
+                if arrived>=2 then
+                    op.delivered=true;op.deliveryClosed=true;deliveredNow=true
+                    service.flag('IRON_ANVIL_CONVOY_DELIVERED',1)
+                    if response and op.response=='scheduled' then
+                        op.deadline=math.min(op.deadline,now+(config.convoy.delivery_response_delay or 60))
+                    end
+                    service.announce('Convoy delivered its supplies. The early-interdiction bonus is lost; the main objective remains active.' ..
+                        ((response and (op.response=='held' or op.response=='scheduled')) and ' Ground response preparation is accelerated.' or ''))
+                end
+            end
+        end
         if response and (op.response=='held' or op.response=='scheduled') then
             local living=0
             for _, unit in ipairs(service.units(response.group)) do
@@ -157,11 +214,13 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
                 service.announce('The staged ground response has been destroyed. No replacement force will be dispatched.')
             end
         end
-        if damaged and not op.alarm then
+        if (damaged or deliveredNow) and not op.alarm then
             op.alarm=true
             service.flag('IRON_ANVIL_ALARM', 1)
             if response and op.response=='held' then
-                op.deadline=now+(response.delay or 180)+op.extra
+                local delay=response.delay or 180
+                if deliveredNow then delay=math.min(delay,config.convoy.delivery_response_delay or 60) end
+                op.deadline=now+delay+op.extra
                 setResponse('scheduled')
                 service.announce('Alarm raised. A ground response is preparing at the briefed staging area. Optional objectives can disrupt it.')
             end
@@ -206,6 +265,7 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
             suffix=' (dispatch in ' .. math.max(0, math.ceil(op.deadline-timer.getTime())) .. ' seconds)'
         end
         lines[#lines+1]='Ground response: ' .. op.response .. suffix
+        if config.convoy then lines[#lines+1]='Supply delivery: ' .. (op.delivered and 'delivered' or op.deliveryClosed and 'prevented' or 'in transit') end
         lines[#lines+1]='Shared objective points: ' .. ((op.main and 300 or 0)+op.bonus) .. '. Replay seed: ' .. tostring(config.seed)
         service.announce(table.concat(lines, '\n'), 25)
     end

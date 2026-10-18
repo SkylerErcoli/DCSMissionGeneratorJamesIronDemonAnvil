@@ -529,6 +529,64 @@ function cases.operation_staging_mark_is_available_to_the_team()
     assert(quiet.messages[#quiet.messages]:find('disabled'))
 end
 
+
+local function convoyOperationWorld()
+    local config=base('facility');config.enemy_cap=false
+    config.convoy_group='cargo';config.convoy_destination={x=5000,z=5000}
+    config.operation={title='Rolling Thunder',seed=13,objectives={
+        {id='primary',title='Supply convoy',required=true,statics={},units={'cargo1','cargo2','cargo3'},group='cargo',threshold=2,points=300},
+        {id='bonus',title='Fuel support',required=false,statics={'fuel'},threshold=1,points=100,effect='cancel'},
+    },convoy={group='cargo',destination={x=5000,z=5000},delivery_radius=350,interdiction_points=150,delivery_response_delay=15},
+    response={group='response',destination={x=5000,z=5000},delay=60,max_attempts=3,retry_interval=5}}
+    local data=newWorld(config);local players=data.group('players',2,'Pilot')
+    local cargo=data.group('cargo',4);data.group('response',2)
+    data.statics.fuel=data.unit('fuel');data.start()
+    data.takeoff(players.all[1]);data.takeoff(players.all[2])
+    return data,players,cargo
+end
+
+function cases.convoy_operation_counts_supply_trucks_not_escorts()
+    local data,players,cargo=convoyOperationWorld()
+    cargo.all[4].life=0;data.advance()
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE)
+    cargo.all[1].life=0;cargo.all[2].life=0;data.advance()
+    assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE==1 and data.flags.IRON_ANVIL_INTERDICTION_BONUS==1)
+    assert(cargo.all[3].life==100,'third supply truck need not be hunted')
+    data.land(players.all[1],'Home',2);data.land(players.all[2],'Home',2)
+    assert(data.flags.IRON_ANVIL_SCORE==500,'main plus early interdiction plus both recoveries')
+end
+
+function cases.convoy_delivery_accelerates_only_one_response()
+    local data,_,cargo=convoyOperationWorld()
+    cargo.all[1].point={x=5000,y=0,z=5000};cargo.all[2].point={x=5000,y=0,z=5000}
+    data.advance()
+    assert(data.flags.IRON_ANVIL_CONVOY_DELIVERED==1 and not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE)
+    data.advance(3)
+    assert(data.flags.IRON_ANVIL_RESPONSE_STATUS==2 and #data.groups.response.tasks==1)
+    data.advance(20)
+    assert(#data.groups.response.tasks==1,'delivery cannot create infinite response waves')
+    cargo.all[1].life=0;cargo.all[2].life=0;data.advance()
+    assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE==1 and not data.flags.IRON_ANVIL_INTERDICTION_BONUS)
+end
+
+function cases.convoy_delivery_respects_cancelled_response()
+    local data,_,cargo=convoyOperationWorld()
+    data.statics.fuel.life=0;data.advance()
+    cargo.all[1].point={x=5000,y=0,z=5000};cargo.all[2].point={x=5000,y=0,z=5000}
+    data.advance(30)
+    assert(data.flags.IRON_ANVIL_CONVOY_DELIVERED==1)
+    assert(data.flags.IRON_ANVIL_RESPONSE_STATUS==3 and #data.groups.response.tasks==0)
+end
+
+function cases.convoy_operation_f10_tracks_moving_cargo()
+    local data,_,cargo=convoyOperationWorld()
+    cargo.all[1].point={x=10000,y=0,z=12000};data.menus['Target position / mark']()
+    assert(data.mark.x==10000 and data.mark.z==12000)
+    assert(#cargo.tasks==1 and cargo.tasks[1].params.route.points[2].action=='On Road')
+    data.advance()
+    assert(not data.flags.IRON_ANVIL_CONVOY_DELIVERED,'one lead vehicle passing a location is not delivery')
+end
+
 local selected = arg[2]
 if selected then
     assert(cases[selected], "Unknown runtime case: " .. selected)()

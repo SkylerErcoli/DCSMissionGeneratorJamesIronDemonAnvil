@@ -10,11 +10,13 @@ OPERATION_LABELS = {
     'classic': 'Classic single mission',
     'broken_relay': 'Operation Broken Relay',
     'supply_denial': 'Operation Supply Denial',
+    'rolling_thunder': 'Operation Rolling Thunder',
 }
 OPERATION_HELP = {
     'classic': 'The original mission rules. Choose any mission type below.',
     'broken_relay': 'Disable the fuel depot. Take out communications first to delay the enemy response. Same aircraft, shared goals.',
     'supply_denial': 'Disable the ammunition depot. Destroy the fuel support site before dispatch to cancel the enemy response.',
+    'rolling_thunder': 'Intercept three moving supply trucks. Stop two before delivery for an extra bonus. Fuel support can cancel the ground response.',
 }
 PACE_LABELS = {'compact': 'Close to base', 'standard': 'Standard distance', 'extended': 'Longer sortie'}
 
@@ -55,7 +57,8 @@ def _separate_site(point, home, theatre, rng, *, distance):
 
 def build_operation(mission, country, target, home, theatre, options, rng, level):
     relay = options.operation == 'broken_relay'
-    primary_kind, bonus_kind = ('fuel', 'command') if relay else ('ammunition', 'fuel')
+    rolling = options.operation == 'rolling_thunder'
+    primary_kind, bonus_kind = ('fuel', 'command') if relay else ('command' if rolling else 'ammunition', 'fuel')
     separation = {'compact': 2400, 'standard': 3800, 'extended': 6000}[options.pace]
     secondary = _separate_site(target, home, theatre, rng, distance=separation)
     sites = [build_facility_site(mission, country, target, rng, level, kind=primary_kind, index=1),
@@ -76,6 +79,20 @@ def build_operation(mission, country, target, home, theatre, options, rng, level
              'position': {'x': secondary.x, 'z': secondary.y}},
         ],
     }
+    if rolling:
+        destination = _separate_site(target, home, theatre, rng, distance=7500)
+        types = ['Ural-375', 'Ural ATsP-6', 'Ural-375',
+                 'BTR-60' if options.opponent == 'insurgents' else 'BTR-80']
+        if options.air_defenses:
+            types.append('Ural-375 ZU-23 Insurgent' if options.opponent == 'insurgents' else 'Ural-375 ZU-23')
+        convoy = mission.vehicle_group_platoon(country, 'OPERATION SUPPLY CONVOY',
+                    [vehicles.vehicle_map[t] for t in types], target, heading=target.heading_between_point(destination))
+        convoy.set_skill((Skill.Average, Skill.Good, Skill.High, Skill.Excellent)[level - 1])
+        convoy.add_waypoint(destination, speed=30)
+        objective['objectives'][0].update(title='Moving supply convoy', statics=[],
+            units=[unit.name for unit in convoy.units[:3]], group=convoy.name, threshold=2)
+        objective['convoy'] = {'group': convoy.name, 'destination': {'x': destination.x, 'z': destination.y},
+            'delivery_radius': 350, 'interdiction_points': 150, 'delivery_response_delay': 60}
     if options.enemy_response:
         staging = _separate_site(target, home, theatre, rng, distance=9000)
         types = (['BTR-60', 'Ural-375'] if options.opponent == 'insurgents' else
@@ -88,7 +105,8 @@ def build_operation(mission, country, target, home, theatre, options, rng, level
         # A valid editor route remains visible and editable; Lua holds this group
         # at mission start and issues a road-aware route only after dispatch.
         response.add_waypoint(target, speed=30)
-        objective['response'] = {'group': response.name, 'destination': {'x': target.x, 'z': target.y},
+        response_destination = objective['convoy']['destination'] if rolling else {'x': target.x, 'z': target.y}
+        objective['response'] = {'group': response.name, 'destination': response_destination,
             'staging': {'x': staging.x, 'z': staging.y},
             'delay': (300, 180, 150, 120)[level - 1] + rng.randrange(31),
             'bonus_delay': 360, 'max_attempts': 3, 'retry_interval': 15}
@@ -105,7 +123,13 @@ def operation_briefing(operation):
              'Choose either site first. Optional tasks never block mission completion.']
     for objective in operation['objectives']:
         role = 'REQUIRED' if objective['required'] else 'BONUS'
-        lines.append(f"{role}: {objective['title']} — disable {objective['threshold']} of {len(objective['statics'])} marked objective structures. Guards and scenery do not count.")
+        total = len(objective.get('statics', [])) + len(objective.get('units', []))
+        kind = 'supply trucks' if objective.get('units') else 'objective structures'
+        lines.append(f"{role}: {objective['title']} — disable {objective['threshold']} of {total} {kind}. Guards and scenery do not count.")
+    if operation.get('convoy'):
+        lines.extend(['The supply convoy departs when a client is airborne. F10 target position follows the live convoy.',
+                      'Stop two supply trucks before delivery for 150 extra shared points. Escorts are not mandatory targets.',
+                      'Delivery does not fail the mission, but a surviving convoy can accelerate a still-preparing response to one minute.'])
     response = operation.get('response')
     if response:
         lines.extend([

@@ -98,3 +98,25 @@ def test_classic_missions_keep_legacy_goal_rules():
     assert metadata['runtime']['operation'] is None
     assert len(metadata['facility_sites'])==3
     assert metadata['runtime']['target_statics']==[name for site in metadata['facility_sites'] for name in site['objective_statics']]
+
+
+@pytest.mark.parametrize('terrain',['caucasus','syria','germany'])
+@pytest.mark.parametrize('threats',[False,True])
+def test_rolling_thunder_saved_convoy_has_three_supply_targets_and_optional_escorts(tmp_path,terrain,threats):
+    path=generate(MissionOptions(map=terrain,operation='rolling_thunder',enemy_cap=threats,
+        air_defenses=threats,clients=2,seed=81),tmp_path/'convoy-operation.miz')
+    with zipfile.ZipFile(path) as archive:
+        metadata=json.loads(archive.read('ironanvil.json'))
+        assert archive.testzip() is None
+        assert b'supply trucks' in archive.read('ironanvil-briefing.html')
+    mission=Mission();mission.load_file(str(path))
+    operation=metadata['runtime']['operation'];goal=operation['objectives'][0]
+    convoy=mission.coalition['red'].find_group(operation['convoy']['group'])
+    assert goal['required'] and goal['threshold']==2 and len(goal['units'])==3 and goal['statics']==[]
+    assert set(goal['units'])=={unit.name for unit in convoy.units[:3]}
+    assert all(unit.type in ('Ural-375','Ural ATsP-6') for unit in convoy.units[:3])
+    assert metadata['runtime']['convoy_group']==convoy.name and len(convoy.points)>=2
+    assert bool({unit.type for unit in convoy.units}&AD_TYPES) is threats
+    assert metadata['runtime']['convoy_destination']==operation['convoy']['destination']
+    assert len(operation['objectives'])==2 and not operation['objectives'][1]['required']
+    assert len(convoy.units) <= 5

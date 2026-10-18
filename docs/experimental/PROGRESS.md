@@ -59,3 +59,13 @@ All implementation batches are committed and pushed to `experimental`. The app i
 3. Candidate next gameplay batch: convoy interception with consequences, reconnaissance/search, an optional return-with-partial-result command, and better alternate-base recovery. Keep a single shared aircraft type as the default; mixed-aircraft packages, rescue logistics and campaigns remain later options.
 4. For a new binary, increment `RELEASE_TAG` and corresponding workflow/notes/download links (and numeric app version as appropriate). **Never replace the existing preview's assets/tag**, merge to `main`, or change the stable updater without explicit direction.
 5. The default experimental updater is intentionally disabled; the header opens the dedicated preview page. Same-channel installers update the experimental copy in place. No external mission frameworks or dependencies were added.
+
+## Continued creative development — batch 5
+
+The first preview was a checkpoint, not the end of the authorized experimental work. Development continues on `experimental`; no environment configuration changes or approvals are needed between code batches.
+
+Implemented Operation Rolling Thunder: three moving supply trucks with a two-truck functional threshold, optional armed escorts honoring the air-defense switch, a fuel-support bonus that can cancel the finite response, an early-interdiction bonus, and a delivery consequence that accelerates a still-preparing response without failing the mission. Native road routing and live F10 target position are reused; all pilots can keep the same aircraft.
+
+New coverage: four Lua gameplay cases (cargo vs escorts, delivery/response, cancellation, moving position) and six actual saved/reloaded convoy operations across all maps/threat settings. Existing 25 Lua and 21 operation cases remain covered. Prerelease version is now prepared as `1.3.1` / `v1.3.1-experimental.2`; it has **not** been published. Publishing now requires a deliberate `[publish-preview]` commit checkpoint or workflow dispatch; ordinary feature commits continue source validation without replacing a release.
+
+Next batches in this active work: partial-result withdrawal and alternate recovery; better operational intelligence/planning; package and upgrade-test the combined preview. Existing `v1.3.0-experimental.1` and stable `v1.2.0` remain immutable.

@@ -34,6 +34,11 @@ CASES = (
     "operation_failure_keeps_partial_debrief",
     "operation_bonus_after_main_before_recovery",
     "operation_staging_mark_is_available_to_the_team",
+    "convoy_operation_counts_supply_trucks_not_escorts",
+    "convoy_delivery_accelerates_only_one_response",
+    "convoy_delivery_respects_cancelled_response",
+    "convoy_operation_f10_tracks_moving_cargo",
+
 
 )
 
