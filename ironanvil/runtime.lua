@@ -21,6 +21,8 @@ do
         capActivated = {},
         capSeenAlive = {},
         capAnnounced = false,
+        capAttempts = {},
+        capNextAttempt = {},
         convoyStarted = false,
         stationTime = 0,
         lastTime = nil,
@@ -58,7 +60,7 @@ do
     local function alive(unit)
         if not unit or method(unit, "isExist") == false then return false end
         local life = method(unit, "getLife")
-        return life == nil or life > 1
+        return life == nil or life >= 1
     end
     local function liveCount(names)
         local count = 0
@@ -68,6 +70,24 @@ do
             end
         end
         return count
+    end
+    local function capLiveCount(names)
+        local count = 0
+        for _, name in ipairs(names or config.cap_groups or {}) do
+            for _, unit in ipairs(units(name)) do
+                -- Late-activation templates can exist and have hit points
+                -- before DCS actually activates their aircraft.
+                if alive(unit) and method(unit, "isActive") == true then count = count + 1 end
+            end
+        end
+        return count
+    end
+    local function capStatus()
+        if not config.enemy_cap then return "Enemy CAP: disabled." end
+        if not state.airborne then return "Enemy CAP: waiting for the first client to launch." end
+        if state.capStarted then return "Enemy CAP: " .. capLiveCount() .. " active fighters remaining." end
+        if state.capFailure then return "Enemy CAP: launch not confirmed. Check dcs.log for [Iron Anvil] CAP diagnostics." end
+        return "Enemy CAP: launch pending; " .. capLiveCount() .. " active fighters confirmed."
     end
     local function staticCount()
         local count = 0
@@ -344,14 +364,15 @@ do
     local function status()
         local operationText=operation and operation.status(true)
         local function report(message,seconds)
-            announce(operationText and (operationText .. '\n' .. message) or message,seconds)
+            local text=operationText and (operationText .. '\n' .. message) or message
+            announce(text .. '\n' .. capStatus(),seconds)
         end
         if not intelRevealed then
             announce("Search-area check-in progress: " .. math.floor(state.reconTime) .. "/" ..
                 tostring(intelligence.required_seconds or 45) .. " seconds. Use Recon check-in while inside the area.",20)
         end
         if operation and not state.objective and not state.complete and not state.withdrawn then
-            announce(operationText,25);return
+            report("",25);return
         end
         if state.complete then
             if state.result == 2 then
@@ -372,7 +393,7 @@ do
                 tostring(config.recovery_label or config.base_name or "your friendly airbase") .. ".")
         elseif config.mission_type == "cap" then
             if config.enemy_cap then
-                report("CAP: " .. liveCount(config.cap_groups) .. " enemy aircraft remaining. Enemy flights launch when a client is airborne.")
+                report("Defeat the enemy patrol, then recover at an approved friendly base.")
             else
                 local remaining = math.max(0, math.ceil((tonumber(config.station_seconds) or 300) - state.stationTime))
                 report("CAP: remain within " .. math.floor((tonumber(config.station_radius) or 25000) / 1000) ..
@@ -385,27 +406,50 @@ do
     end
     local function startCAP()
         if state.capStarted or not config.enemy_cap then return end
+        local now=timer and timer.getTime and timer.getTime() or 0
+        state.capLaunchTime=state.capLaunchTime or now
         local allActivated = #(config.cap_groups or {}) > 0
         local anyActivated = false
         for _, name in ipairs(config.cap_groups or {}) do
             if not state.capActivated[name] then
-                local flight = group(name)
-                -- activateGroup is a trigger action in the DCS sandbox. A
-                -- Group.activate method is not part of the documented API.
-                if flight and trigger and trigger.action and trigger.action.activateGroup then
-                    local ok, err = pcall(trigger.action.activateGroup, flight)
-                    if ok and err ~= false then
-                        state.capActivated[name] = true
-                    else
-                        warnOnce("cap_" .. name, "Could not activate CAP group " .. name .. ": " .. tostring(err) .. "; will retry.")
+                local nativeGrace=config.cap_activation=="native" and now-state.capLaunchTime<45
+                if capLiveCount({name})==0 and not nativeGrace
+                    and (state.capAttempts[name] or 0)<3 and now>=(state.capNextAttempt[name] or 0) then
+                    state.capAttempts[name]=(state.capAttempts[name] or 0)+1
+                    state.capNextAttempt[name]=now+15
+                    local flight=group(name)
+                    local activate=trigger and trigger.action and trigger.action.activateGroup
+                    local fallback=Group and Group.activate
+                    local ok,err=false,"group or activation API unavailable"
+                    if flight and type(activate)=="function" then ok,err=pcall(activate,flight) end
+                    -- Both APIs are documented. A successful call is only a
+                    -- request; confirmation requires a live, active DCS unit.
+                    if flight and (not ok or err==false) and type(fallback)=="function" then
+                        ok,err=pcall(fallback,flight)
                     end
-                else
-                    warnOnce("cap_" .. name, "CAP group or activation API temporarily unavailable: " .. tostring(name) .. "; will retry.")
+                    log("CAP " .. name .. " activation request " .. state.capAttempts[name] ..
+                        "/3; call=" .. tostring(ok) .. "; result=" .. tostring(err))
+                end
+                if capLiveCount({name})>0 then
+                    state.capActivated[name]=true
+                    state.capSeenAlive[name]=true
+                    log("CAP " .. name .. " confirmed active with " .. capLiveCount({name}) .. " fighters.")
+                elseif (state.capAttempts[name] or 0)>=3 and now>=(state.capNextAttempt[name] or 0) then
+                    state.capFailure=true
+                    warnOnce("cap_" .. name,"CAP " .. name .. " launch not confirmed after three requests; no respawn will be attempted.")
                 end
             end
             if state.capActivated[name] then anyActivated = true else allActivated = false end
         end
         state.capStarted = allActivated
+        if allActivated then
+            state.capFailure=false
+            flag("IRON_ANVIL_CAP_LAUNCH_REQUESTED")
+            flag("IRON_ANVIL_CAP_ACTIVE")
+        elseif state.capFailure and not state.capFailureAnnounced then
+            state.capFailureAnnounced=true
+            announce("Enemy CAP launch not confirmed. F10 Mission status reports the current state; dcs.log contains CAP diagnostics.",25)
+        end
         if anyActivated and not state.capAnnounced then
             state.capAnnounced = true
             announce("Enemy CAP is active. Maintain a lookout for hostile fighters.")
@@ -416,12 +460,12 @@ do
         if not state.capStarted then return false end
         local allObserved = true
         for _, name in ipairs(config.cap_groups or {}) do
-            if liveCount({name}) > 0 then state.capSeenAlive[name] = true end
+            if capLiveCount({name}) > 0 then state.capSeenAlive[name] = true end
             if not state.capSeenAlive[name] then allObserved = false end
         end
         -- Activation can take a simulation frame. Missing/unspawned groups
         -- must never count as destroyed fighters and complete CAP instantly.
-        return allObserved and liveCount(config.cap_groups) == 0
+        return allObserved and capLiveCount() == 0
     end
     local function routePoint(x, z, onRoad)
         return {

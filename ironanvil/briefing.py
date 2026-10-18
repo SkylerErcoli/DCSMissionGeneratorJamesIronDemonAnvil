@@ -26,7 +26,7 @@ def mission_help_lines(metadata):
             effect='delays the ground response by six minutes' if operation['id']=='broken_relay' else 'cancels the ground response'
             lines.append('The optional objective '+effect+' if completed before dispatch.')
     elif options['mission']=='cap':
-        lines.append('Defeat the enemy fighter flights. They activate after a client takes off.' if options['enemy_cap'] else
+        lines.append('Defeat the enemy fighter flights.' if options['enemy_cap'] else
                      'Fly airborne within 25 km of the patrol area for five minutes. No enemy fighters are enabled.')
     else:
         lines.append({'facility':'Destroy the installation and its supporting sites.',
@@ -34,6 +34,8 @@ def mission_help_lines(metadata):
             'convoy':'Destroy the moving convoy. Request Target position / mark for its current location.',
             'sead':'Destroy the enemy air defenses.' if options['air_defenses'] else
                 'Air defenses are off. Destroy the command and support vehicles instead.'}[options['mission']])
+    if options['enemy_cap']:
+        lines.append('Enemy CAP launches after a client climbs above 30 m / about 100 ft AGL. F10 Mission status shows confirmed fighters.')
     if metadata.get('intelligence'):
         lines.append('Search: stay airborne inside the briefed area for 45 continuous seconds, then request Recon check-in.')
     if options['mission']!='cap':

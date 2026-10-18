@@ -1,6 +1,6 @@
 # Iron Anvil experimental gameplay
 
-**Status: [the flight route timing fix](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.1-experimental.7). Repairs the waypoint time locks reported by DCS for support flights and late-activated CAP. Release checks inspect the saved route timing. Real DCS flight testing remains outstanding.**
+**Status: [native enemy CAP launch and confirmation](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.2-experimental.8). Native DCS triggers launch the fighters; the controller checks actual active units and reports CAP status in every mission type. Earlier waypoint time locks are retained. Simulator flight confirmation remains outstanding.**
 
 The latest update adds [varied geography, offline relief and portable Windows delivery](GEOGRAPHY.md), building on [Quick setup and in-mission guidance](USABILITY-RESEARCH.md). Detailed choices remain optional; saved settings are retained.
 

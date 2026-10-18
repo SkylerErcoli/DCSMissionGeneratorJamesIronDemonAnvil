@@ -1,11 +1,12 @@
-IRON ANVIL EXPERIMENTAL 1.4.1 — PORTABLE WINDOWS EXE
+IRON ANVIL EXPERIMENTAL 1.4.2 — PORTABLE WINDOWS EXE
 
 Download IronAnvil-Experimental.exe, save it locally, and double-click it.
 No installer, ZIP extraction, Python or terminal is needed.
 
-1.4.1 fixes the DCS missing locked-time errors for TEXACO, OVERLORD and enemy
-CAP. Update the EXE, then generate a new mission; older .miz files keep their
-original routes unless repaired separately.
+1.4.2 fixes enemy CAP launch. Fighters activate when the first client climbs
+above 30 m / about 100 ft above the ground. F10 Mission status reports confirmed
+active fighters. Update the EXE, then generate a NEW mission; older .miz files
+keep their original controller. The earlier waypoint timing fix is retained.
 
 1. Quick setup: choose your map, shared aircraft, pilot count and mission.
 2. Preview mission on map, then Generate mission. Open Mission briefing.
@@ -39,4 +40,4 @@ still points to the old installed app. Stable 1.2 remains separate and untouched
 No DCS flight has been performed here. Terrain, roads, AI and multiplayer need
 real flights. Public map/height data are approximate, not actual DCS terrain.
 
-Changelog/download: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.1-experimental.7
+Changelog/download: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.2-experimental.8

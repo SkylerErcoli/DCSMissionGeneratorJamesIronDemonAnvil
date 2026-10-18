@@ -8,10 +8,32 @@ from __future__ import annotations
 
 import math
 
-from dcs import task
+from dcs import action, condition, task, triggers
 from dcs.unit import Skill
 
 from .loadouts import apply_loadout
+
+
+CAP_LAUNCH_FLAG = "IRON_ANVIL_CAP_LAUNCH_REQUESTED"
+
+
+def add_cap_launch_triggers(mission, clients, cap_groups):
+    """Let DCS activate CAP directly when any client climbs above 30 m AGL.
+
+    Native unit-ID conditions and group-ID actions work independently of the
+    Lua controller's takeoff events, group lookups and activation wrapper.
+    The shared latch keeps later client departures from restarting the patrol.
+    """
+    if not cap_groups:
+        return
+    for client in clients.units:
+        launch = triggers.TriggerOnce(comment=f"Iron Anvil CAP launch - client {client.id}")
+        launch.add_condition(condition.FlagIsFalse(CAP_LAUNCH_FLAG))
+        launch.add_condition(condition.UnitAltitudeHigherAGL(client.id, 30))
+        for group in cap_groups:
+            launch.add_action(action.ActivateGroup(group.id))
+        launch.add_action(action.SetFlag(CAP_LAUNCH_FLAG))
+        mission.triggerrules.triggers.append(launch)
 
 
 def _align_airborne_group(group, destination):

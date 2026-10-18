@@ -119,3 +119,24 @@ def test_compiled_probe_rejects_dcs_route_timing_errors(entrypoint, category, si
     del points[1]["ETA"]
     with pytest.raises(RuntimeError, match="Locked waypoint has an invalid ETA"):
         entrypoint._check_air_route_timing(saved)
+
+
+@pytest.mark.parametrize("fault", ("missing_client", "wrong_patrol", "missing_latch", "compiled_action"))
+def test_compiled_probe_checks_native_cap_launch_links(entrypoint, fault):
+    flag="IRON_ANVIL_CAP_LAUNCH_REQUESTED"
+    config={"enemy_cap": True,"cap_groups": ["CAP"],"player_group": "CLIENTS","cap_activation": "native"}
+    saved={"coalition": {"blue": {"country": {1: {"plane": {"group": {
+        1: {"name": "CLIENTS","units": {1: {"unitId": 1},2: {"unitId": 2}}},
+        2: {"name": "CAP","groupId": 10,"lateActivation": True}}}}}}},"trigrules": {},"trig": {"actions": {}}}
+    for index in (1,2):
+        saved["trigrules"][index]={"comment": f"Iron Anvil CAP launch - client {index}","predicate": "triggerOnce",
+            "rules": {1: {"predicate": "c_flag_is_false","flag": flag},
+                      2: {"predicate": "c_unit_altitude_higher_AGL","unit": index,"altitude": 30}},
+            "actions": {1: {"predicate": "a_activate_group","group": 10},2: {"predicate": "a_set_flag","flag": flag}}}
+        saved["trig"]["actions"][index]='a_activate_group(10);'
+    assert entrypoint._check_native_cap_launch(saved,config)==2
+    if fault=="missing_client": del saved["trigrules"][2]
+    elif fault=="wrong_patrol": saved["trigrules"][1]["actions"][1]["group"]=999
+    elif fault=="missing_latch": del saved["trigrules"][1]["rules"][1]
+    else: saved["trig"]["actions"][1]='a_activate_group(999);'
+    with pytest.raises(RuntimeError): entrypoint._check_native_cap_launch(saved,config)

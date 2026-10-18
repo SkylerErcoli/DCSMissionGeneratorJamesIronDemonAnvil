@@ -5,13 +5,14 @@ local cases = {}
 local function newWorld(configuration)
     IRON_ANVIL = configuration
     Airbase = nil
-    local data = {groups = {}, statics = {}, flags = {}, messages = {}, activated = {}, menus = {}, now = 0, menuEntries={}, marks={}, smokes={},privateMessages={},nextId=1}
+    local data = {groups = {}, statics = {}, flags = {}, messages = {}, activated = {}, menus = {}, now = 0, menuEntries={}, marks={}, smokes={},privateMessages={},nextId=1,logs={}}
     function data.unit(name, player, point)
-        local unit = {name = name, life = 100, player = player, flying = false, point = point or {x=0, y=0, z=0}}
+        local unit = {name = name, life = 100, active = true, player = player, flying = false, point = point or {x=0, y=0, z=0}}
         unit.id=data.nextId;data.nextId=data.nextId+1
         function unit:getID() return self.id end
         function unit:isExist() return self.life > 0 end
         function unit:getLife() return self.life end
+        function unit:isActive() return self.active end
         function unit:getName() return self.name end
         function unit:getPlayerName() return self.player end
         function unit:inAir() return self.flying end
@@ -30,6 +31,7 @@ local function newWorld(configuration)
         function group:setOnOff(value) self.on = value end
         for index = 1, count do
             local unit = data.unit(name .. index, player)
+            if name == 'enemycap' then unit.active = false end
             unit.owner = group
             group.all[#group.all + 1] = unit
         end
@@ -42,7 +44,10 @@ local function newWorld(configuration)
     }
     StaticObject = {getByName = function(name) return data.statics[name] end}
     trigger = {action = {
-        activateGroup = function(group) data.activated[group.name] = (data.activated[group.name] or 0) + 1 end,
+        activateGroup = function(group)
+            data.activated[group.name] = (data.activated[group.name] or 0) + 1
+            for _,unit in ipairs(group.all) do unit.active = true end
+        end,
         outTextForCoalition = function(_, text) data.messages[#data.messages + 1] = text end,
         outTextForUnit = function(id,text) data.privateMessages[#data.privateMessages+1]={id=id,text=text} end,
         setUserFlag = function(name, value) data.flags[name] = value end,
@@ -50,7 +55,7 @@ local function newWorld(configuration)
         removeMark = function() data.removedMark = true end,
         smoke = function(point,color) data.smokes[#data.smokes+1]={point=point,color=color} end,
     }}
-    env = {info = function() end}
+    env = {info = function(text) data.logs[#data.logs+1]=text end}
     missionCommands = {
         addSubMenuForCoalition = function(_, name, parent)
             local menu={name=name};data.menuEntries[#data.menuEntries+1]={name=name,parent=parent,menu=menu};return menu
@@ -386,12 +391,11 @@ function cases.cap_activation_retries_documented_api()
         activate(flight)
     end
     data.start()
-    assert(Group.activate == nil, "the mock must not invent a Group.activate API")
     data.takeoff(player)
     assert(not data.activated.enemycap, "a failed API call must not claim activation")
     assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE)
-    data.advance()
-    assert(data.activated.enemycap == 1, "the next airborne tick retries activation")
+    data.advance(3)
+    assert(data.activated.enemycap == 1, "retry activation after the engine grace interval")
     data.advance()
     assert(data.activated.enemycap == 1, "an active flight must not be activated twice")
 end
@@ -412,6 +416,122 @@ function cases.cap_waits_for_actual_spawn()
     enemy.life = 0
     data.advance()
     assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE == 1, "observed and subsequently destroyed CAP completes")
+end
+
+function cases.cap_silent_activation_failure_is_not_success_and_retries_are_bounded()
+    local data = newWorld(base('cap'))
+    local player = data.group('players',1,'Pilot').all[1]
+    local cap = data.group('enemycap',2)
+    local attempts=0
+    trigger.action.activateGroup=function() attempts=attempts+1 end -- nil, no error, no spawn
+    data.start();data.takeoff(player);data.advance(20)
+    assert(attempts==3,'silent activation failure must retry, with a finite budget')
+    for _,text in ipairs(data.messages) do
+        assert(not text:find('Enemy CAP is active',1,true),'must not announce unspawned fighters')
+    end
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE,'inactive template units cannot complete CAP')
+    data.menus['Mission status']()
+    assert(data.messages[#data.messages]:find('not confirmed',1,true),'status must explain the failure')
+    for _,unit in ipairs(cap.all) do unit.active=true end
+    data.advance()
+    assert(attempts==3,'a delayed native spawn must be recognized without another activation request')
+    for _,unit in ipairs(cap.all) do unit.life=0 end
+    data.advance()
+    assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE==1,'confirmed fighters can subsequently be defeated')
+end
+
+function cases.cap_confirms_asynchronous_spawn_without_repeating_successful_requests()
+    local data = newWorld(base('cap'))
+    local player = data.group('players',1,'Pilot').all[1]
+    local cap = data.group('enemycap',2)
+    local attempts=0
+    trigger.action.activateGroup=function() attempts=attempts+1 end
+    data.start();data.takeoff(player);data.advance()
+    assert(attempts==1,'allow the engine time to instantiate the flight')
+    for _,text in ipairs(data.messages) do assert(not text:find('Enemy CAP is active',1,true)) end
+    for _,unit in ipairs(cap.all) do unit.active=true end
+    data.advance(10)
+    assert(attempts==1,'a confirmed flight must never be activated again')
+    local announced=0
+    for _,text in ipairs(data.messages) do if text:find('Enemy CAP is active',1,true) then announced=announced+1 end end
+    assert(announced==1,'announce once, after actual activation')
+end
+
+function cases.cap_native_launch_is_observed_without_the_script_activation_api()
+    local config=base('facility');config.cap_activation='native'
+    local data=newWorld(config)
+    local player=data.group('players',1,'Pilot').all[1]
+    local cap=data.group('enemycap',2)
+    trigger.action.activateGroup=nil
+    data.start();data.takeoff(player);data.advance()
+    assert(not data.activated.enemycap,'give the native trigger time to launch')
+    for _,unit in ipairs(cap.all) do unit.active=true end -- native Mission Editor action
+    data.advance()
+    assert(data.flags.IRON_ANVIL_CAP_ACTIVE==1,'recognize native activation without a script API')
+    data.menus['Mission status']()
+    assert(data.messages[#data.messages]:find('2 active fighters',1,true),'ground operations also report CAP status')
+end
+
+function cases.cap_fallback_uses_documented_group_activate_when_trigger_wrapper_is_missing()
+    local data=newWorld(base('cap'))
+    local player=data.group('players',1,'Pilot').all[1]
+    data.group('enemycap',2)
+    Group.activate=trigger.action.activateGroup
+    trigger.action.activateGroup=nil
+    data.start();data.takeoff(player);data.advance(5)
+    assert(data.activated.enemycap==1,'documented Group.activate must remain available as fallback')
+    assert(data.flags.IRON_ANVIL_CAP_ACTIVE==1)
+end
+
+function cases.cap_native_launch_fallback_waits_then_confirms_without_respawning_losses()
+    local config=base('facility');config.cap_activation='native'
+    local data=newWorld(config)
+    local player=data.group('players',1,'Pilot').all[1]
+    local cap=data.group('enemycap',2)
+    data.start();data.takeoff(player);data.advance(8)
+    assert(not data.activated.enemycap,'no script fallback during native launch grace period')
+    data.advance(3)
+    assert(data.activated.enemycap==1,'bounded fallback can recover a native launch failure')
+    assert(data.flags.IRON_ANVIL_CAP_ACTIVE==1)
+    for _,unit in ipairs(cap.all) do unit.life=0;unit.active=false end
+    data.advance(20)
+    assert(data.activated.enemycap==1,'destroyed fighters must never be respawned')
+end
+
+function cases.cap_one_life_client_is_alive_and_air_start_is_detected()
+    local data=newWorld(base('cap'))
+    local player=data.group('players',1,'Pilot').all[1]
+    player.life=1;player.flying=true
+    local cap=data.group('enemycap',1)
+    cap.all[1].life=1
+    data.start();data.advance(2)
+    assert(data.activated.enemycap==1,'DCS considers a unit with life 1 alive')
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE,'a live fighter is not a destroyed fighter')
+    cap.all[1].life=0;data.advance()
+    assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE==1)
+end
+
+function cases.cap_partial_activation_never_relaunches_a_destroyed_confirmed_flight()
+    local config=base('cap');config.cap_groups={'enemycap','secondcap'}
+    local data=newWorld(config)
+    local player=data.group('players',1,'Pilot').all[1]
+    local first=data.group('enemycap',1)
+    local second=data.group('secondcap',1);second.all[1].active=false
+    local activate=trigger.action.activateGroup
+    local attempts={}
+    trigger.action.activateGroup=function(flight)
+        attempts[flight.name]=(attempts[flight.name] or 0)+1
+        if flight.name=='enemycap' or attempts[flight.name]>1 then activate(flight) end
+    end
+    data.start();data.takeoff(player)
+    first.all[1].life=0;first.all[1].active=false
+    data.advance(2)
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE,'the second flight is still unspawned')
+    data.advance(2)
+    assert(attempts.enemycap==1 and attempts.secondcap==2,'retry only the unconfirmed flight')
+    assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE,'the second flight is now alive')
+    second.all[1].life=0;data.advance()
+    assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE==1,'both observed flights are now defeated')
 end
 
 

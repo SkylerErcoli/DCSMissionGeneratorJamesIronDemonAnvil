@@ -20,7 +20,7 @@ from .model import MissionOptions, resolve_aircraft, default_output_dir
 from .theatres import get_theatre
 from .geography import plan_scenario, height_at, hostile_air_spawn, support_plan
 from .weather import apply_weather, WEATHER_LABELS
-from .air_support import create_support_flight, create_enemy_cap
+from .air_support import create_support_flight, create_enemy_cap, add_cap_launch_triggers
 from .compounds import build_facility_complex
 from .operations import build_operation, operation_briefing
 from . import APP_DATA_NAME, __version__
@@ -165,6 +165,8 @@ def _briefing(options, theatre, home, target, label, tanker_name):
              f"Enemy fighters: {'enabled' if options.enemy_cap else 'disabled'}. Air defences: {'enabled' if options.air_defenses else 'disabled'}.",
              "Use F10 > Iron Anvil for status and target position. Recover at an approved base after objectives complete.",
              f"Seed: {options.seed}; difficulty: {options.difficulty}."]
+    if options.enemy_cap:
+        lines.append("Enemy CAP launches when the first client climbs above 30 m / about 100 ft AGL. F10 Mission status reports confirmed active fighters.")
     if tanker_name:
         lines.append(f"Tanker: {tanker_name}, 251.5 MHz AM, TACAN 11Y TEX. Stable racetrack between home and target, 7,000 m MSL.")
     if options.awacs:
@@ -284,6 +286,7 @@ def build_mission(options: MissionOptions):
     if options.mission == "sead":
         target_groups.extend(defense_groups)
     if options.enemy_cap:
+        cap_flights = []
         enemy_type = planes.MiG_21Bis if options.map == "germany" else planes.MiG_29A
         for wave in range(1 if level < 3 else 2):
             group = create_enemy_cap(mission, red, f"ENEMY CAP {wave + 1}", enemy_type,
@@ -291,6 +294,8 @@ def build_mission(options: MissionOptions):
                         group_size=1 if level == 1 else 2,
                         skill=(Skill.Average, Skill.Good, Skill.High, Skill.Excellent)[level - 1])
             cap_groups.append(group.name)
+            cap_flights.append(group)
+        add_cap_launch_triggers(mission, flight, cap_flights)
     support_position,support_heading,awacs_position=(support_plan(home,target,theatre)
         if options.tanker or options.awacs else (home.position,0,home.position))
     tanker_name = None
@@ -349,7 +354,7 @@ def build_mission(options: MissionOptions):
     config = {
         "mission_type": options.mission, "target_groups": target_groups,
         "target_statics": target_statics, "player_group": PLAYER_GROUP,
-        "enemy_cap": options.enemy_cap, "cap_groups": cap_groups,
+        "enemy_cap": options.enemy_cap, "cap_groups": cap_groups, "cap_activation": "native",
         "target": {"x": target.x, "z": target.y},
         "home": {"x": home.position.x, "z": home.position.y}, "base_name": home.name,
         "recovery_bases": [{"name": airport.name, "x": airport.position.x, "z": airport.position.y}
@@ -414,7 +419,8 @@ def generate(options: MissionOptions, output_path=None) -> Path:
             resource = mission.map_resource.add_resource_file(script)
             trigger = triggers.TriggerStart(comment="Iron Anvil mission runtime")
             trigger.add_action(action.DoScriptFile(resource))
-            mission.triggerrules.triggers.append(trigger)
+            # Keep controller startup first, followed by native launch rules.
+            mission.triggerrules.triggers.insert(0, trigger)
             mission.save(str(staged))
             with zipfile.ZipFile(staged, "a", compression=zipfile.ZIP_DEFLATED) as archive:
                 archive.writestr("ironanvil.json", json.dumps(metadata, indent=2, sort_keys=True))

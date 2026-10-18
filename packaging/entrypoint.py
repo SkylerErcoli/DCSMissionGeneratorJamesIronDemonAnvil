@@ -107,6 +107,48 @@ def _check_air_route_timing(saved: dict) -> int:
     return checked
 
 
+def _check_native_cap_launch(saved: dict, config: dict) -> int:
+    """Verify saved native conditions/actions refer to the real client/CAP IDs."""
+    groups = {group["name"]: group for side in saved["coalition"].values()
+              for country in side.get("country", {}).values()
+              for category in ("plane", "helicopter")
+              for group in country.get(category, {}).get("group", {}).values()}
+    launches = {index: rule for index, rule in saved.get("trigrules", {}).items()
+                if rule["comment"].startswith("Iron Anvil CAP launch - client ")}
+    names = config.get("cap_groups", [])
+    if not config["enemy_cap"]:
+        if names or launches:
+            raise RuntimeError("Disabled CAP still has launch triggers or patrol groups")
+        return 0
+    if not names or config.get("cap_activation") != "native":
+        raise RuntimeError("Enabled CAP has no native activation configuration")
+    if any(name not in groups or not groups[name].get("lateActivation") for name in names):
+        raise RuntimeError("Native CAP launch references a missing or non-staged flight")
+    group_ids = {groups[name]["groupId"] for name in names}
+    client_ids = {unit["unitId"] for unit in groups[config["player_group"]]["units"].values()}
+    seen = set()
+    flag = "IRON_ANVIL_CAP_LAUNCH_REQUESTED"
+    for index, rule in launches.items():
+        conditions = list(rule["rules"].values())
+        altitude = [c for c in conditions if c["predicate"] == "c_unit_altitude_higher_AGL"]
+        if (rule["predicate"] != "triggerOnce" or len(conditions) != 2 or len(altitude) != 1
+                or altitude[0]["altitude"] != 30 or altitude[0]["unit"] not in client_ids
+                or {"predicate": "c_flag_is_false", "flag": flag} not in conditions):
+            raise RuntimeError("Native CAP launch has an invalid client condition or one-shot latch")
+        seen.add(altitude[0]["unit"])
+        actions = list(rule["actions"].values())
+        actual = {a["group"] for a in actions if a["predicate"] == "a_activate_group"}
+        if (actual != group_ids or len(actions) != len(group_ids) + 1
+                or {"predicate": "a_set_flag", "flag": flag} not in actions):
+            raise RuntimeError("Native CAP launch does not activate every configured patrol")
+        code = saved["trig"]["actions"][index]
+        if any(f"a_activate_group({identifier})" not in code for identifier in group_ids):
+            raise RuntimeError("Compiled native CAP launch is missing a patrol activation action")
+    if seen != client_ids or len(launches) != len(client_ids):
+        raise RuntimeError("Every client slot needs its own native CAP launch condition")
+    return len(launches)
+
+
 def self_test() -> dict:
     """Exercise bundled terrain modules, resources, native libraries, and codecs.
 
@@ -199,6 +241,8 @@ def self_test() -> dict:
         geography_checks=0
         air_route_timing_checks = 0
         air_routes_checked = 0
+        cap_launch_checks = 0
+        cap_launch_triggers_checked = 0
         for index, options in enumerate(cases):
             path = generate(options, directory / f"mission-{index}.miz")
             with zipfile.ZipFile(path) as archive:
@@ -261,6 +305,8 @@ def self_test() -> dict:
                 saved = lua.loads(archive.read("mission").decode("utf-8"))["mission"]
                 air_routes_checked += _check_air_route_timing(saved)
                 air_route_timing_checks += 1
+                cap_launch_triggers_checked += _check_native_cap_launch(saved, metadata["runtime"])
+                cap_launch_checks += 1
                 if options.intelligence == "search":
                     for country in saved["coalition"]["red"]["country"].values():
                         for category in ("vehicle", "static"):
@@ -398,6 +444,7 @@ def self_test() -> dict:
         checks.append(f"{alternate_checks} jet/helicopter alternate-recovery missions verify distinct friendly supplied bases")
         checks.append("Support aircraft have immediate roles/protection and complete three-point racetrack routes")
         checks.append(f"DCS time locks verified on {air_routes_checked} saved aircraft routes, including first-point locks for late activation")
+        checks.append(f"Native CAP launch configuration verified in {cap_launch_checks} missions; {cap_launch_triggers_checked} client triggers reference actual aircraft IDs")
         checks.append("Every mission's F10 help describes recovery and its store manifest matches every client aircraft")
         checks.append("Recommended cold-start cooperative settings serialize and reload on all maps; local-preset reporting is exercised")
         checks.append("Every mission includes a second navigation kneeboard and public-only cockpit coordinates")
@@ -414,6 +461,7 @@ def self_test() -> dict:
             "loadout_checks": loadout_checks, "navigation_checks": navigation_checks,
             "geography_checks":geography_checks,
             "air_route_timing_checks": air_route_timing_checks, "air_routes_checked": air_routes_checked,
+            "cap_launch_checks": cap_launch_checks, "cap_launch_triggers_checked": cap_launch_triggers_checked,
             "quick_setup_checks": quick_setup_checks, "local_preset_checks": local_preset_checks,
             "airport_counts": airport_counts, "weather_checks": weather_checks,
             "facility_checks": facility_checks, "support_checks": support_checks,
