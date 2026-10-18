@@ -27,6 +27,7 @@ py -3 -m ironanvil list
 py -3 -m ironanvil doctor
 py -3 -m ironanvil generate --map syria --aircraft FA_18C_hornet --mission line --clients 2 --line-units mbt,ifv,infantry --no-enemy-cap --no-air-defenses --seed 42
 py -3 -m ironanvil generate --map germany --mission facility --target 52.55 11.4 --start hot --output my-mission.miz
+py -3 -m ironanvil generate --map syria --mission facility --facility-type fuel --weather rain --departure-airport Incirlik
 ```
 
 `generate --help` lists all options; `list --json` prints a machine-readable catalogue. Linux output defaults to `~/IronAnvil/Missions`; `--output-dir` overrides it.
@@ -57,7 +58,7 @@ From PowerShell in the repository folder, run the supported build entry point:
 .\tools\build_windows.ps1
 ```
 
-The script installs the pinned build dependencies, bundles the app with PyInstaller, includes the player handout, and compiles the per-user Inno Setup installer. It runs the frozen app's mission and GUI checks outside the checkout with build Python removed from `PATH`, then performs a silent install, checks the installed app, and uninstalls the test copy. Reports go to `test-results`.
+The script installs the pinned build dependencies, bundles the app with PyInstaller, includes the player handout, and compiles the per-user Inno Setup installer. It runs the frozen app's mission and GUI checks outside the checkout with build Python removed from `PATH`. It then downloads and verifies the published 1.1.0 installer, installs it into a custom folder containing spaces, and upgrades that installation with the new installer. The upgrade must retain the folder, saved preferences, and generated mission bytes. Installed-app checks and uninstall follow. Reports go to `test-results`.
 
 Successful builds produce:
 
@@ -65,15 +66,20 @@ Successful builds produce:
 | --- | --- |
 | `dist/IronAnvil-Setup-x64.exe` | Recommended download for players: per-user setup, Start menu entry, optional desktop shortcut, and uninstaller. |
 | `dist/IronAnvil-Windows-x64.zip` | Portable alternative containing the complete app folder. Its `_internal` directory must stay beside the executable. |
-| `dist/SHA256SUMS.txt` | SHA-256 checksums for both downloads. |
+| `dist/update.json` | Version and exact installer SHA-256 used by the desktop update checker. |
+| `dist/SHA256SUMS.txt` | SHA-256 checksums for both downloads and the updater manifest. |
 
 The [Windows release workflow](../.github/workflows/windows-release.yml) runs the Windows build and Linux/Lua regression checks before publishing versioned release assets. Building a package does not establish that its checks passed or that a release has been published; inspect the workflow's results and release assets. DCS itself is not exercised by these build checks.
 
 ## Mission implementation notes
 
 - Enemy CAP and enemy air defenses are independent for every mission type. Disabling air defenses removes enemy SAMs, AAA, MANPADS, and convoy anti-aircraft escorts, including categories selected in the fortified-line panel. SEAD then targets command/support vehicles; CAP with enemy fighters disabled becomes a five-minute patrol.
-- Client spawn airbases have blue-coalition ownership and unlimited ammunition and fuel in their mission warehouses. Ground starts, airborne starts, and return routes use a configured friendly home base.
-- Fortified lines use varied offsets, headings, alternating depth, and `Sandbag_01` cover. Facility compounds use varied container layouts with a gate and supplies.
+- All 472 terrain-catalogue airfields and helipads are available for explicit selection. Client spawn airbases have blue-coalition ownership and unlimited ammunition and fuel in their mission warehouses. Ground starts require compatible parking; fixed-wing aircraft require a runway. Helicopters can return to helicopter-only bases.
+- Fortified lines use varied offsets, headings, alternating depth, and `Sandbag_01` cover. Facility strikes create two to four separated occupied sites with fuel, command, ammunition, factory, or radar roles, logistics vehicles, guards, and themed supplies. There is at most one giant workshop in a factory complex.
+- Enemy CAP uses `trigger.action.activateGroup` after client takeoff and retries activation if necessary. A newly activated group must be observed alive before its absence counts as a defeat.
+- Tanker and AWACS support have complete three-waypoint routes with two separated racetrack anchors, aligned spawn headings, and their correct support tasks. Only these support groups receive invisible/immortal AI commands.
+- Weather supports clear, scattered, broken, overcast, rain, storm, fog, windy, and seeded random moderate conditions. The legacy `cloudy` CLI value remains an alias. Rain/storm use the legacy cloud representation so DCS precipitation is serialized; fog, visibility, and winds are explicit.
+- Per-user preferences preserve theme, mission options, departure selection, and output location. The desktop updater checks the official release manifest, verifies the downloaded installer hash, and launches the normal visible installer when the user accepts the update.
 - The Hornet has a curated ground-attack payload with a targeting pod. Supported flyable modules use their own pylon definitions and capability-based mission choices; unarmed trainers are omitted. Generic loadouts and tanker compatibility use heuristics.
 - Syria's insurgent option changes convoy and air-defense composition. Fortified-line selections and facility garrisons retain their selected regular types.
 - The embedded Lua 5.1 controller provides objective status, target position, an F10 map mark, fighter activation, convoy movement, and return-to-base completion. It uses **DO SCRIPT FILE**, avoiding the `DictKey_Translation` inline-script error recorded in the original conversation. No campaign hook or changes to `MissionScripting.lua` are needed.

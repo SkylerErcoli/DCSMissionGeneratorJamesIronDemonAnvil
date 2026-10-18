@@ -2,6 +2,21 @@
 
 Validated in the cloud and on a Windows build runner on 2026-10-18. The cloud uses Python 3.12.14, Tk 9.0, the pinned pydcs commit, pyproj 3.7.1, Pillow 11.3.0, Xvfb, and Lua 5.1.5. The released Windows app includes its own Python and Tk 8.6.15. **DCS itself was not run.**
 
+## Windows release 1.2.0
+
+[Windows and Linux CI run 39116741353](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/actions/runs/39116741353) validates release commit `04820cf`. The [release](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0) adds the installer, portable ZIP, exact installer update manifest, checksums, and five executable/upgrade reports.
+
+- Source regression suite: **269 passed, no skips**, under Xvfb with Lua 5.1 in the cloud. CI checks the source separately on Linux and Windows; Linux also generates and reloads the **168-mission matrix**.
+- Every terrain-catalogue airfield/helipad is exposed: **21 Caucasus, 224 Syria, 227 Germany**. Tests cover exact explicit selection, neutral/enemy base conversion to friendly supplies, parking and helicopter-only restrictions, and helicopter return routes to bases without runways.
+- Actual frozen and installed Windows executables each generate and reload **43 missions**, covering all maps, mission types, opposition switches, selected airfields, and all weather presets. Checks inspect actual serialized rain, storm, fog, visibility, winds and route tasks.
+- Frozen and installed GUI checks each render **six map/theme combinations** and verify preferences reload. Independent source GUI tests exercise the actual background generation worker, persistent theme/settings, map highlighting, and update error recovery.
+- The installer test downloads and SHA-256-verifies the published 1.1.0 installer, installs it into a custom path containing spaces, then runs the new installer **without a directory override**. It verifies version replacement in the same directory, unchanged preference and mission bytes, installed mission/GUI checks, and uninstall retaining user data.
+- Independently downloaded the public installer (21,894,029 bytes), portable ZIP (30,369,412 bytes), manifest and all five reports. All three published SHA-256 checksums matched; all 1,355 ZIP members passed integrity checks. Every executable/upgrade report confirms success. The live updater detects 1.2.0 for a 1.1.0 caller, downloads the exact checksum-verified installer, and offers no update to a 1.2.0 caller.
+- CAP regression checks use the documented `trigger.action.activateGroup`, exercise activation retries and delayed spawning, and prevent absent/unspawned fighters from counting as defeated. Support checks inspect the Tanker/AWACS role, safe cruise speeds and altitudes, two racetrack anchors 25 km apart, aligned headings, and invisible/immortal commands restricted to support aircraft.
+- Normal facility missions contain three separated occupied sites; difficulty spans two to four. Tests inspect distinct themes, guards/logistics, at most one giant factory workshop, objective/decor separation and seeded repeatability. A fuel-complex preview with 109 decorative statics was visually checked.
+
+Regenerate missions after updating: existing `.miz` files are deliberately preserved, so they keep their original routes, scripts, and targets. Automated archive/API checks do not establish in-simulator flight behavior; a Windows DCS multiplayer sortie remains required.
+
 ## Windows release 1.1.0
 
 [Windows and Linux CI run 39113723883](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/actions/runs/39113723883) passed for commit `80ce2a7`. The [published release](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.1.0) contains `IronAnvil-Setup-x64.exe`, `IronAnvil-Windows-x64.zip`, checksums, and validation reports.
@@ -37,7 +52,7 @@ The final cloud setup script was exercised in its documented working directory. 
 
 - Independent enemy CAP and air-defense switches reach the mission builder for all five mission types. Air defenses disabled removes SAM/AAA/MANPADS categories and convoy AA escorts. SEAD still has command/support targets; CAP without enemy fighters requires an airborne patrol.
 - Every configured friendly launch airbase, including the selected home base, has BLUE ownership and unlimited fuel/ammunition in the actual saved `.miz` warehouses. Client counts and cold/hot/runway/air starts survive pydcs reload.
-- Fortified lines have alternating depth, varied offsets/headings, and actual `Sandbag_01` static cover. Their cover does not use concrete walls. Facility compounds use three seeded container layouts with entry gates and supplies; bunker spam is absent.
+- Fortified lines have alternating depth, varied offsets/headings, and actual `Sandbag_01` static cover. Their cover does not use concrete walls. Facility strikes now create separated occupied sites with distinct fuel, command, ammunition, factory, or radar roles, entry gates, logistics vehicles and supplies; bunker spam is absent.
 - Joined multiplayer pilots must all recover after taking off, except lost aircraft. The first pilot landing cannot complete a mission while another joined survivor remains airborne or idle. Success sets `IRON_ANVIL_RESULT=1`; losing all participating aircraft sets `IRON_ANVIL_RESULT=2`.
 
 ## Unverified or unavailable
@@ -48,4 +63,4 @@ The final cloud setup script was exercised in its documented working directory. 
 - A Windows DCS multiplayer sortie remains required to verify module ownership, payload behavior, actual rearm/refuel menus, ground-object appearance, road APIs, and all simulator event behavior.
 - This is a single-mission reconstruction, not the earlier campaign tool. Forward FARPs, WWII-specific force substitutions, campaign debrief persistence, and measured prop calibration remain outside its implemented scope. The historical source material is retained for reference.
 
-The cloud configuration draft stores the tested installation script, startup/development instructions, and the optional OSM domain. Publication and validation in a newly restored task have not been performed.
+The cloud configuration draft stores the tested installation script, startup/development instructions, and the optional OSM domain. Its setup recipe was validated in this workspace; applying that saved configuration in a newly restored environment remains a separate check.
