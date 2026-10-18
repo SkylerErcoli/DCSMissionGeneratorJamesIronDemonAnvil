@@ -93,3 +93,9 @@ Expanded exact-app probes to **73 missions** each: 43 classic/weather/catalogue 
 The Windows build now downloads and SHA-256-verifies the actual published first experimental installer, installs it beside stable 1.2, upgrades it without `/DIR`, and checks preferences, mission bytes and stable executable preservation across upgrade/reinstall/uninstall. The stable executable is run again afterward. All release assets use the new immutable `v1.3.1-experimental.2` tag and never become the stable latest release.
 
 Source preflight: full suite **359 passed, no skips**, then **46 operation/intelligence checks passed**, including twelve newly added classic-ground search privacy cases across every map and mission type. The 73-mission source executable probe and actual desktop smoke/preview/restart probe passed. The planner screenshot and player/release guides are updated. Windows and CI results remain pending this deliberate publication checkpoint; continue monitoring rather than ending at the push.
+
+## Final review — event timing correction
+
+An additional boundary review reproduced a scoring race: targets destroyed between the last periodic poll and final landing could be omitted from a withdrawal's final result. Recovery/loss finalization now samples operation damage immediately. A new Lua case covers full completion, bonus completion and partial damage without an intervening poll; **all 40 runtime cases pass**.
+
+The `ce67e8e` build completed publication as `v1.3.1-experimental.2` while this correction was being tested. Its published tag/assets are left intact. The corrected build has a new numeric version **1.3.2** and immutable tag **v1.3.2-experimental.3**; its Windows upgrade baseline is now the actual published 1.3.1 installer. A simple [co-op/F10 guide](FLYING-TOGETHER.md) is committed too. Continue through final CI, independent public download checks and stable preservation verification before the next handoff.

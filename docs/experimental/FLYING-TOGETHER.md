@@ -45,4 +45,4 @@ This preview has automated checks but has not been flown in DCS. Check a new mis
 
 Keep the generated `.miz` and note what happened. Its settings and variation number make the problem easier to reproduce. You can load those settings through **Import settings** or **Repeat last mission**; exact layouts may change between program versions.
 
-[Download and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.1-experimental.2) · [Stable 1.2](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0)
+[Download and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.2-experimental.3) · [Stable 1.2](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0)

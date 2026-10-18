@@ -2,7 +2,7 @@
 
 Richer co-op missions for the aircraft and maps your group already owns. Everyone can fly the same aircraft type and work toward shared objectives.
 
-**[Download the experimental preview and read what's new](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.1-experimental.2)**
+**[Download the experimental preview and read what's new](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.2-experimental.3)**
 
 **Your stable version is separate:** [Iron Anvil 1.2](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0) remains unchanged for normal play. This branch uses its own installer identity, settings, cache and mission folder.
 

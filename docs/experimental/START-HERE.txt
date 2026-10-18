@@ -1,4 +1,4 @@
-IRON ANVIL EXPERIMENTAL 1.3.1 - CONVOYS, RECOVERY AND INTELLIGENCE
+IRON ANVIL EXPERIMENTAL 1.3.2 - CONVOYS, RECOVERY AND INTELLIGENCE
 
 Stable Iron Anvil 1.2 stays installed separately.
 No Python, terminal, extra DCS scripts or extra aircraft/map modules are needed.
@@ -43,4 +43,4 @@ Editor before your first group sortie. Terrain/road AI, object damage behavior a
 in-simulator kneeboard display still need real DCS playtesting.
 
 Stable 1.2: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0
-Experimental: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.1-experimental.2
+Experimental: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.3.2-experimental.3
