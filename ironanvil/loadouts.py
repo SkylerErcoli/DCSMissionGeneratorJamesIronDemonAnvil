@@ -107,3 +107,24 @@ def tanker_type(aircraft):
     if any(identifier.startswith(prefix) for prefix in ("f_16", "f_15", "a_10", "f_4")):
         return getattr(planes, "KC_135", None)
     return None
+
+
+def payload_summary(group, mode):
+    """Report actual serialized stations; do not infer that a local preset is armed."""
+    unit=group.units[0]
+    choices=pylon_choices(unit.unit_type)
+    stores=[]
+    for station,loaded in sorted(unit.pylons.items()):
+        clsid=loaded.get('CLSID')
+        match=next(((name,value[1]) for name,value in choices.get(station,[]) if value[1]['clsid']==clsid),None)
+        name=(match[1].get('name') or match[0].replace('_',' ')) if match else str(clsid)
+        stores.append({'station':station,'name':name,'clsid':clsid})
+    return {'mode':mode,'stores':stores,'station_count':len(stores),
+            'warning':None if stores else 'No external stores were loaded. Check weapons in DCS before flying.'}
+
+
+def payload_text(summary):
+    from collections import Counter
+    if summary.get('warning'):return summary['warning']
+    counts=Counter(store['name'] for store in summary.get('stores',[]))
+    return 'Stores: '+', '.join(f'{count} x {name}' for name,count in counts.items())

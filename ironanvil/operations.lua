@@ -269,7 +269,7 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
         op.bonus=op.bonus+points
     end
 
-    function op.status()
+    function op.status(quiet)
         local lines={config.title or 'Cooperative operation'}
         for _, objective in ipairs(op.objectives) do
             local definition=objective.definition
@@ -283,7 +283,9 @@ IRON_ANVIL_CREATE_OPERATION = function(config, service)
         lines[#lines+1]='Ground response: ' .. op.response .. suffix
         if config.convoy then lines[#lines+1]='Supply delivery: ' .. (op.delivered and 'delivered' or op.deliveryClosed and 'prevented' or 'in transit') end
         lines[#lines+1]='Shared objective points: ' .. (op.objectivePoints()+op.bonus) .. '. Replay seed: ' .. tostring(config.seed)
-        service.announce(table.concat(lines, '\n'), 25)
+        local text=table.concat(lines, '\n')
+        if not quiet then service.announce(text, 25) end
+        return text
     end
 
     function op.markStaging()

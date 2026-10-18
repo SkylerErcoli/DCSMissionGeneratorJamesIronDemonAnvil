@@ -5,7 +5,7 @@ local cases = {}
 local function newWorld(configuration)
     IRON_ANVIL = configuration
     Airbase = nil
-    local data = {groups = {}, statics = {}, flags = {}, messages = {}, activated = {}, menus = {}, now = 0}
+    local data = {groups = {}, statics = {}, flags = {}, messages = {}, activated = {}, menus = {}, now = 0, menuEntries={}, marks={}}
     function data.unit(name, player, point)
         local unit = {name = name, life = 100, player = player, flying = false, point = point or {x=0, y=0, z=0}}
         function unit:isExist() return self.life > 0 end
@@ -43,13 +43,17 @@ local function newWorld(configuration)
         activateGroup = function(group) data.activated[group.name] = (data.activated[group.name] or 0) + 1 end,
         outTextForCoalition = function(_, text) data.messages[#data.messages + 1] = text end,
         setUserFlag = function(name, value) data.flags[name] = value end,
-        markToCoalition = function(_, _, point) data.mark = point end,
+        markToCoalition = function(id, name, point) data.mark = point; data.marks[id]={name=name,point=point} end,
         removeMark = function() data.removedMark = true end,
     }}
     env = {info = function() end}
     missionCommands = {
-        addSubMenuForCoalition = function() return {} end,
-        addCommandForCoalition = function(_, name, _, action) data.menus[name] = action end,
+        addSubMenuForCoalition = function(_, name, parent)
+            local menu={name=name};data.menuEntries[#data.menuEntries+1]={name=name,parent=parent,menu=menu};return menu
+        end,
+        addCommandForCoalition = function(_, name, parent, action)
+            data.menus[name] = action; data.menuEntries[#data.menuEntries+1]={name=name,parent=parent}
+        end,
     }
     land = {
         getHeight = function() return 0 end,
@@ -431,6 +435,7 @@ function cases.operation_functional_threshold_and_shared_recovery()
     assert(not data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE)
     data.statics.tank2.life=0;data.advance()
     assert(data.flags.IRON_ANVIL_OBJECTIVE_COMPLETE==1)
+    assert(data.marks[918700].name:find('COMPLETE'),'remaining scenery must not look like required cleanup')
     assert(data.statics.tank3.life==100 and data.statics.scenery.life==100 and data.statics.relay.life==100)
     data.land(players.all[1],'Home',2)
     assert(not data.flags.IRON_ANVIL_MISSION_COMPLETE,'every surviving teammate must return')
@@ -508,7 +513,7 @@ function cases.operation_failure_keeps_partial_debrief()
     data.statics.relay.life=0;data.advance()
     data.lose(players.all[1]);data.lose(players.all[2])
     assert(data.flags.IRON_ANVIL_RESULT==2 and data.flags.IRON_ANVIL_SCORE==100)
-    data.menus['Operation status']()
+    data.menus['Mission status']()
     assert(data.messages[#data.messages]:find('Replay seed: 42'))
 end
 
@@ -750,6 +755,49 @@ function cases.search_checkin_needs_live_area_presence_at_confirmation()
     players.all[1].point={x=0,y=1000,z=0}
     data.menus['Recon check-in']()
     assert(not data.flags.IRON_ANVIL_INTEL_CONFIRMED,'leaving after the ready message is not confirmation')
+end
+
+function cases.startup_marks_and_help_are_private_and_menu_stays_bounded()
+    local config=base('facility');config.enemy_cap=false
+    config.intelligence={mode='search',center={x=10000,z=10000},radius=2500,required_seconds=45}
+    config.operation={title='Fuel strike',seed=42,objectives={
+        {id='primary',title='Fuel',required=true,statics={'fuel'},threshold=1,position={x=5000,z=5000}}}}
+    config.recovery_bases={{name='Home',x=0,z=0},{name='Alternate',x=9000,z=0}}
+    config.briefing_lines={'Disable one fuel structure.','Recover at Home or Alternate.'}
+    local data=newWorld(config);data.group('players',1,'Pilot');data.group('target',1)
+    data.statics.fuel=data.unit('fuel');data.start()
+    local count=0
+    for _, entry in pairs(data.marks) do
+        count=count+1;assert(entry.point.x==10000 and entry.point.z==10000,'startup search marks must not expose exact targets')
+    end
+    assert(count==1 and not data.menus['Operation status'])
+    data.menus['Briefing / help']()
+    assert(data.messages[#data.messages]:find('Disable one fuel structure') and data.messages[#data.messages]:find('Alternate'))
+    local root
+    for _, entry in ipairs(data.menuEntries) do if entry.name=='Iron Anvil' then root=entry.menu end end
+    local commands=0
+    for _, entry in ipairs(data.menuEntries) do if entry.parent==root then commands=commands+1 end end
+    assert(commands<=9,'leave a radio-menu slot for navigation back')
+end
+
+function cases.precise_startup_marks_required_and_optional_not_scenery()
+    local config=base('facility');config.enemy_cap=false
+    config.facility_sites={{name='Decorative compound',x=20000,z=20000}}
+    config.operation={title='Strike',seed=42,objectives={
+        {id='primary',title='Fuel',required=true,statics={'fuel'},threshold=1,position={x=5000,z=5000}},
+        {id='bonus',title='Command',required=false,statics={'relay'},threshold=1,position={x=9000,z=9000}}}}
+    local data=newWorld(config);data.group('players',1,'Pilot');data.group('target',1)
+    data.statics.fuel=data.unit('fuel');data.statics.relay=data.unit('relay');data.start()
+    assert(data.marks[918700].name:find('REQUIRED') and data.marks[918700].point.x==5000)
+    assert(data.marks[918711].name:find('OPTIONAL') and data.marks[918711].point.x==9000)
+    for _,entry in pairs(data.marks) do assert(entry.point.x~=20000,'scenery must not be marked as the objective') end
+end
+
+function cases.withdrawal_status_explains_recovery_and_keeps_objective_progress()
+    local data,players=operationWorld('delay',false)
+    data.menus['Propose withdrawal']();data.menus['Confirm withdrawal']();data.menus['Mission status']()
+    local message=data.messages[#data.messages]
+    assert(message:find('withdrawal confirmed') and message:find('Recover all survivors') and message:find('Replay seed: 42'))
 end
 
 local selected = arg[2]

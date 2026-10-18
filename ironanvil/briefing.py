@@ -11,6 +11,38 @@ from . import APP_NAME
 from .operations import OPERATION_LABELS, operation_briefing
 
 
+def mission_help_lines(metadata):
+    """Short action-based briefing shared with the in-mission radio menu."""
+    options=metadata['options'];operation=metadata['runtime'].get('operation')
+    lines=[title(metadata)]
+    if operation:
+        for goal in operation['objectives']:
+            kind='supply trucks' if goal.get('units') else 'objective structures'
+            lines.append(('REQUIRED: ' if goal['required'] else 'OPTIONAL: ')+
+                f"Disable {goal['threshold']} {kind} at {goal['title']}.")
+        lines.append('Guards, escorts and scenery are not required cleanup targets.')
+        if operation.get('response'):
+            effect='delays the ground response by six minutes' if operation['id']=='broken_relay' else 'cancels the ground response'
+            lines.append('The optional objective '+effect+' if completed before dispatch.')
+    elif options['mission']=='cap':
+        lines.append('Defeat the enemy fighter flights. They activate after a client takes off.' if options['enemy_cap'] else
+                     'Fly airborne within 25 km of the patrol area for five minutes. No enemy fighters are enabled.')
+    else:
+        lines.append({'facility':'Destroy the installation and its supporting sites.',
+            'line':'Destroy the enemy troops and vehicles in the fortified positions.',
+            'convoy':'Destroy the moving convoy. Request Target position / mark for its current location.',
+            'sead':'Destroy the enemy air defenses.' if options['air_defenses'] else
+                'Air defenses are off. Destroy the command and support vehicles instead.'}[options['mission']])
+    if metadata.get('intelligence'):
+        lines.append('Search: stay airborne inside the briefed area for 45 continuous seconds, then request Recon check-in.')
+    lines.append('RECOVERY: land every surviving participating aircraft at '+metadata['runtime']['recovery_label']+'.')
+    if options['allow_withdrawal']:lines.append('Need to leave early? Agree over comms, then Team withdrawal > Propose and Confirm. Recover everyone for partial credit.')
+    lines.append('Flight radio: 251 MHz AM.'+(' Tanker: 251.5 MHz / TACAN 11Y.' if metadata['tanker'] else '')+
+                 (' AWACS: 252 MHz.' if options['awacs'] else ''))
+    if metadata.get('loadout',{}).get('warning'):lines.append(metadata['loadout']['warning'])
+    return lines
+
+
 def title(metadata):
     options=metadata['options']
     return OPERATION_LABELS.get(options['operation'],options['mission'].title()) if options['operation']!='classic' else options['mission'].title()+' mission'
@@ -145,12 +177,15 @@ def briefing_html(metadata,png):
     heading=escape(title(metadata));items=''.join('<li>'+escape(line)+'</li>' for line in summary_lines(metadata))
     detail='<pre>'+escape(operation_briefing(operation))+'</pre>' if operation else ''
     data=base64.b64encode(png).decode('ascii')
+    task=''.join('<li>'+escape(line)+'</li>' for line in mission_help_lines(metadata))
+    stores=''.join(f"<li>Station {store['station']}: {escape(store['name'])}</li>" for store in metadata.get('loadout',{}).get('stores',[]))
+    loadout='<h2>Weapons and stores aboard</h2><ul>'+stores+'</ul>' if stores else '<p>'+escape(metadata.get('loadout',{}).get('warning') or 'Review weapons in DCS before flying.')+'</p>'
     return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{heading} - Iron Anvil Experimental</title><style>
 body{{margin:0;background:#111923;color:#edf3fa;font:17px/1.6 system-ui,sans-serif}}main{{max-width:980px;margin:auto;padding:28px}}
 h1{{line-height:1.2}}li{{margin:9px 0}}pre{{white-space:pre-wrap;font:inherit;background:#202936;padding:22px;border-radius:10px}}
 img{{max-width:100%;height:auto;border-radius:8px}}.muted{{color:#b0bfd0}}@media print{{body{{background:white;color:black}}pre{{background:#eee}}}}
 </style><main><p class="muted">IRON ANVIL EXPERIMENTAL - COOPERATIVE BRIEFING</p><h1>{heading}</h1>
-<ul>{items}</ul>{detail}<h2>Kneeboard and route schematic</h2><p>Included in the mission's DCS kneeboard. This is a schematic, not a terrain chart.</p>
+<h2>Your job</h2><ul>{task}</ul><details><summary>Flight details and full operation briefing</summary><ul>{items}</ul>{detail}{loadout}</details><h2>Kneeboard and route schematic</h2><p>Included in the mission's DCS kneeboard. This is a schematic, not a terrain chart.</p>
 <img alt="Mission kneeboard with objectives, communications and route schematic" src="data:image/png;base64,{data}">
 <p class="muted">Generated locally. No account or online service is required. Check the mission in DCS before flying.</p></main></html>'''

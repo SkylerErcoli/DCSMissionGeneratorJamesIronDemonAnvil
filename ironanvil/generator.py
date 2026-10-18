@@ -377,6 +377,10 @@ def build_mission(options: MissionOptions):
                 "facility_type": facility_metadata["primary_type"] if facility_metadata else None,
                 "facility_sites": facility_metadata["sites"] if facility_metadata else [],
                 "facility_decoration_count": facility_metadata["decoration_count"] if facility_metadata else 0}
+    from .loadouts import payload_summary
+    from .briefing import mission_help_lines
+    metadata['loadout']=payload_summary(flight,options.loadout)
+    config['briefing_lines']=mission_help_lines(metadata)
     return mission, metadata
 
 

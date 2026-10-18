@@ -25,6 +25,7 @@ from .preferences import load_preferences, save_preferences
 from .theatres import THEATRES, get_theatre
 from .weather import WEATHER_LABELS
 from .operations import OPERATION_LABELS, OPERATION_HELP, PACE_LABELS
+from .quickstart import SCENARIOS, PRESSURES, PRESSURE_HELP, START_HELP, LOADOUT_LABELS, pressure_settings, pressure_name
 from . import APP_NAME, RELEASE_TAG, __version__
 
 
@@ -85,6 +86,7 @@ class Application(tk.Tk):
         self.minsize(min(960, width), min(640, height))
         self._preferences = load_preferences()
         self._settings_canvases = []
+        self._tab_pages = {}
         icon = Path(__file__).parent / "assets" / "ironanvil.ico"
         if sys.platform == "win32" and icon.is_file():
             try:
@@ -123,6 +125,7 @@ class Application(tk.Tk):
         self._theatre_changed()
         for variable in [*self._settings_variables().values(), self.latitude_var, self.longitude_var, *self.line_vars.values()]:
             variable.trace_add("write", self._settings_changed)
+        self._sync_quick_controls()
         self._poll_timer = self.after(100, self._poll_generation)
 
     def _variables(self) -> None:
@@ -142,18 +145,25 @@ class Application(tk.Tk):
         self.mission_var = tk.StringVar(value=MISSION_LABELS["facility"])
         self.operation_var = tk.StringVar(value=OPERATION_LABELS["broken_relay"])
         self.operation_help_var = tk.StringVar()
-        self.pace_var = tk.StringVar(value=PACE_LABELS["standard"])
+        self.pace_var = tk.StringVar(value=PACE_LABELS["compact"])
         self.response_var = tk.BooleanVar(value=True)
-        self.recovery_var = tk.StringVar(value=RECOVERY_LABELS["home"])
+        self.recovery_var = tk.StringVar(value=RECOVERY_LABELS["home_or_alternate"])
         self.withdrawal_var = tk.BooleanVar(value=True)
         self.intelligence_var = tk.StringVar(value=INTELLIGENCE_LABELS["precise"])
+        self.intelligence_help_var = tk.StringVar()
+        self.scenario_var = tk.StringVar()
+        self.pressure_var = tk.StringVar(value="Balanced")
+        self.quick_help_var = tk.StringVar()
+        self.pressure_help_var = tk.StringVar()
+        self.setup_summary_var = tk.StringVar()
+        self.loadout_display_var = tk.StringVar(value=LOADOUT_LABELS['auto'])
         self.preset_var = tk.StringVar()
         self.facility_var = tk.StringVar(value=FACILITY_LABELS["random"])
         self.clients_var = tk.StringVar(value="2")
         self.difficulty_var = tk.StringVar(value="normal")
-        self.enemy_cap_var = tk.BooleanVar(value=True)
+        self.enemy_cap_var = tk.BooleanVar(value=False)
         self.air_defenses_var = tk.BooleanVar(value=True)
-        self.start_var = tk.StringVar(value="cold")
+        self.start_var = tk.StringVar(value="hot")
         self.time_var = tk.StringVar(value="day")
         self.weather_var = tk.StringVar(value=WEATHER_LABELS["clear"])
         self.loadout_var = tk.StringVar(value="auto")
@@ -168,7 +178,7 @@ class Application(tk.Tk):
         self.target_var = tk.StringVar(value="Automatic target selection")
         self.status_var = tk.StringVar(value="Ready to create your mission.")
         self.output_status_var = tk.StringVar(value="Choose your map and aircraft, then click Generate mission.")
-        self.next_step_var = tk.StringVar(value="Target selection is optional. The other tabs let you customize your flight.")
+        self.next_step_var = tk.StringVar(value="Choose a mission and Generate. Customize is optional; target placement can stay automatic.")
         self.mission_help_var = tk.StringVar()
         self.opposition_help_var = tk.StringVar()
         self.line_vars = {
@@ -352,23 +362,29 @@ class Application(tk.Tk):
         sidebar.grid(row=0, column=0, sticky="nsew")
         sidebar.columnconfigure(0, weight=1)
         sidebar.rowconfigure(0, weight=1)
-        notebook = ttk.Notebook(sidebar)
-        notebook.grid(row=0, column=0, sticky="nsew")
+        self.setup_notebook = ttk.Notebook(sidebar)
+        self.setup_notebook.grid(row=0, column=0, sticky="nsew")
+        quick = self._settings_tab(self.setup_notebook, "Quick setup")
+        customize = ttk.Frame(self.setup_notebook)
+        self.setup_notebook.add(customize, text="Customize")
+        notebook = self.detail_notebook = ttk.Notebook(customize)
+        notebook.pack(fill="both", expand=True)
         flight = self._settings_tab(notebook, "Flight")
         mission = self._settings_tab(notebook, "Mission")
         conditions = self._settings_tab(notebook, "Conditions")
         self._flight_tab(flight)
         self._mission_tab(mission)
         self._conditions_tab(conditions)
+        self._quick_tab(quick)
 
         opposition = ttk.LabelFrame(sidebar, text="Enemy forces · all mission types", padding=10)
         opposition.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-        ttk.Checkbutton(opposition, text="Enemy fighter patrols (CAP)", variable=self.enemy_cap_var,
+        ttk.Checkbutton(opposition, text="Enemy fighters", variable=self.enemy_cap_var,
                         command=self._opposition_changed).grid(row=0, column=0, sticky="w")
-        ttk.Checkbutton(opposition, text="Enemy air defenses", variable=self.air_defenses_var,
-                        command=self._opposition_changed).grid(row=1, column=0, sticky="w")
+        ttk.Checkbutton(opposition, text="Air defenses", variable=self.air_defenses_var,
+                        command=self._opposition_changed).grid(row=0, column=1, sticky="w",padx=(10,0))
         ttk.Label(opposition, textvariable=self.opposition_help_var, style="Help.TLabel",
-                  wraplength=320).grid(row=2, column=0, sticky="w", pady=(5, 0))
+                  wraplength=320).grid(row=1, column=0, columnspan=2, sticky="w", pady=(5, 0))
 
         planner = ttk.Frame(body)
         planner.grid(row=0, column=1, sticky="nsew")
@@ -380,19 +396,18 @@ class Application(tk.Tk):
         self.map_view.grid(row=1, column=0, sticky="nsew")
         target = ttk.Frame(planner, padding=(0, 9, 0, 0))
         target.grid(row=2, column=0, sticky="ew")
-        ttk.Label(target, text="Latitude").grid(row=0, column=0, sticky="w")
-        ttk.Entry(target, width=12, textvariable=self.latitude_var).grid(
-            row=0, column=1, sticky="w", padx=(5, 12))
-        ttk.Label(target, text="Longitude").grid(row=0, column=2, sticky="w")
-        ttk.Entry(target, width=12, textvariable=self.longitude_var).grid(
-            row=0, column=3, sticky="w", padx=(5, 12))
-        ttk.Button(target, text="Set target", command=self._apply_coordinates).grid(
-            row=0, column=4, padx=(0, 5))
-        ttk.Button(target, text="Clear", command=self._clear_target).grid(row=0, column=5)
-        ttk.Label(target, textvariable=self.target_var, style="Help.TLabel").grid(
-            row=1, column=0, columnspan=6, sticky="w", pady=(6, 0))
-        ttk.Label(target, text="Click to choose a target · right-click to clear · zoom to place it accurately",
-                  style="Help.TLabel").grid(row=2, column=0, columnspan=6, sticky="w", pady=(3, 0))
+        target.columnconfigure(0,weight=1)
+        ttk.Label(target,textvariable=self.target_var,style="Help.TLabel",wraplength=480).grid(row=0,column=0,sticky="w")
+        buttons=ttk.Frame(target);buttons.grid(row=1,column=0,sticky="w",pady=(5,0))
+        ttk.Button(buttons,text="Coordinates...",command=self._toggle_coordinates).pack(side="left")
+        ttk.Button(buttons,text="Clear target",command=self._clear_target).pack(side="left",padx=5)
+        ttk.Label(buttons,text="Or click the map · right-click to clear",style="Help.TLabel").pack(side="left",padx=5)
+        self.coordinate_frame=ttk.Frame(target)
+        self.coordinate_frame.grid(row=2,column=0,sticky="ew",pady=(6,0));self.coordinate_frame.grid_remove()
+        for column,(name,variable) in enumerate((("Latitude",self.latitude_var),("Longitude",self.longitude_var))):
+            ttk.Label(self.coordinate_frame,text=name).grid(row=0,column=column*2,sticky="w",padx=(0,5))
+            ttk.Entry(self.coordinate_frame,width=12,textvariable=variable).grid(row=0,column=column*2+1,sticky="w",padx=(0,8))
+        ttk.Button(self.coordinate_frame,text="Set target",command=self._apply_coordinates).grid(row=1,column=0,columnspan=4,sticky="w",pady=(5,0))
 
         footer = ttk.Frame(self, padding=(18, 12))
         footer.grid(row=2, column=0, sticky="ew")
@@ -411,7 +426,8 @@ class Application(tk.Tk):
                                          command=self._generate)
         self.generate_button.grid(row=0, column=2, rowspan=2)
         ttk.Button(footer, text="Mission briefing", command=self._open_briefing).grid(row=2, column=1, padx=(10, 8))
-        ttk.Button(footer, text="Repeat last mission", command=self._repeat_last).grid(row=2, column=2)
+        self.new_variation_button = ttk.Button(footer, text="New variation", command=self._new_variation)
+        self.new_variation_button.grid(row=2, column=2)
         self.preview_button = ttk.Button(footer,text="Preview mission on map",command=self._preview)
         self.preview_button.grid(row=3,column=1,columnspan=2,sticky="ew",padx=(10,0),pady=(6,0))
 
@@ -459,7 +475,83 @@ class Application(tk.Tk):
         canvas.bind("<Configure>", viewport_changed)
         self.after_idle(lambda: bind_scrolling(content))
         notebook.add(container, text=label)
+        self._tab_pages[label] = container
         return content
+
+    def _quick_tab(self, parent):
+        parent.columnconfigure(0, weight=1)
+        row=ttk.Frame(parent);row.grid(row=0,column=0,sticky="ew")
+        row.columnconfigure(0,weight=3);row.columnconfigure(1,weight=1)
+        map_frame=ttk.Frame(row,padding=(0,0,6,0));map_frame.grid(row=0,column=0,sticky="ew");map_frame.columnconfigure(0,weight=1)
+        pilots=ttk.Frame(row,padding=(6,0,0,0));pilots.grid(row=0,column=1,sticky="ew");pilots.columnconfigure(0,weight=1)
+        self._combo(map_frame,0,"Map you own",self.theatre_var,list(self._map_by_label),width=20).bind("<<ComboboxSelected>>",self._theatre_changed)
+        self._combo(pilots,0,"Pilots",self.clients_var,["1","2","3","4"],width=5)
+        self._combo(parent,2,"Aircraft your group will fly",self.aircraft_var,list(self._aircraft_by_label),width=28).bind("<<ComboboxSelected>>",self._aircraft_changed)
+        self.scenario_combo=self._combo(parent,4,"What would you like to fly?",self.scenario_var,[],width=28)
+        self.scenario_combo.bind("<<ComboboxSelected>>",self._scenario_changed)
+        ttk.Label(parent,textvariable=self.quick_help_var,style="Help.TLabel",wraplength=305).grid(row=6,column=0,sticky="w",pady=(5,0))
+        row=ttk.Frame(parent);row.grid(row=7,column=0,sticky="ew",pady=(8,0))
+        row.columnconfigure(0,weight=1);row.columnconfigure(1,weight=1)
+        distance=ttk.Frame(row,padding=(0,0,6,0));distance.grid(row=0,column=0,sticky="ew");distance.columnconfigure(0,weight=1)
+        pressure=ttk.Frame(row,padding=(6,0,0,0));pressure.grid(row=0,column=1,sticky="ew");pressure.columnconfigure(0,weight=1)
+        self.quick_distance_combo=self._combo(distance,0,"Target distance",self.pace_var,list(PACE_LABELS.values()),width=16)
+        self.pressure_combo=self._combo(pressure,0,"Opposition",self.pressure_var,list(PRESSURES),width=12)
+        self.pressure_combo.bind("<<ComboboxSelected>>",self._pressure_changed)
+        ttk.Label(parent,textvariable=self.pressure_help_var,style="Help.TLabel",wraplength=305).grid(row=8,column=0,sticky="w",pady=(5,8))
+        ttk.Label(parent,textvariable=self.setup_summary_var,style="Help.TLabel",wraplength=305).grid(row=9,column=0,sticky="w",pady=(0,8))
+        ttk.Button(parent,text="Use recommended setup",command=self._recommended_setup).grid(row=10,column=0,sticky="ew")
+
+    def _scenario_changed(self,_event=None):
+        chosen=next(item for item in SCENARIOS.values() if item[0]==self.scenario_var.get())
+        pressure=self.pressure_var.get()
+        self.mission_var.set(MISSION_LABELS[chosen[1]])
+        self.operation_var.set(OPERATION_LABELS[chosen[2]])
+        self._mission_changed()
+        if pressure in PRESSURES:self._apply_pressure(pressure)
+
+    def _apply_pressure(self,label):
+        mission=self._mission_by_label[self.mission_var.get()]
+        for name,value in pressure_settings(label,mission).items():getattr(self,name+"_var").set(value)
+        self._opposition_changed()
+
+    def _pressure_changed(self,_event=None):
+        label=self.pressure_var.get()
+        if label in PRESSURES:self._apply_pressure(label)
+
+    def _recommended_setup(self):
+        # Keep the player's aircraft, map, pilot count, target and output path.
+        for name,value in {'pace':PACE_LABELS['compact'],'start':'hot','time':'day',
+                'weather':WEATHER_LABELS['clear'],'recovery':RECOVERY_LABELS['home_or_alternate'],
+                'intelligence':INTELLIGENCE_LABELS['precise'],'loadout':'auto','tanker':True,'awacs':True,
+                'withdrawal':True}.items():getattr(self,name+"_var").set(value)
+        self._apply_pressure('Balanced')
+        self._save_settings()
+
+    def _sync_quick_controls(self):
+        if not hasattr(self,"scenario_combo"):return
+        aircraft=self._aircraft_by_label.get(self.aircraft_var.get())
+        if not aircraft:return
+        choices=[item for item in SCENARIOS.values() if item[1] in aircraft['missions']]
+        self.scenario_combo.configure(values=[item[0] for item in choices])
+        mission=self._mission_by_label.get(self.mission_var.get())
+        operation=self._operation_by_label.get(self.operation_var.get())
+        chosen=next((item for item in choices if item[1]==mission and item[2]==operation),None)
+        pinned=bool(self.latitude_var.get().strip() and self.longitude_var.get().strip())
+        if chosen:
+            self.scenario_var.set(chosen[0]);self.quick_help_var.set(chosen[3]+(' Your map pin sets the target distance.' if pinned else ''))
+        self.quick_distance_combo.configure(state='disabled' if pinned else 'readonly')
+        settings={name:getattr(self,name+"_var").get() for name in PRESSURES['Balanced']}
+        pressure=pressure_name(settings,mission)
+        self.pressure_var.set(pressure);self.pressure_help_var.set(PRESSURE_HELP[pressure])
+        self.setup_summary_var.set(f"{START_HELP[self.start_var.get()]} · {self.time_var.get()} · {self.weather_var.get()}.\nDeparture: {self.departure_var.get()}. More choices in Customize.")
+        self.loadout_display_var.set(LOADOUT_LABELS[self.loadout_var.get()])
+        self.intelligence_help_var.set('Exact target locations are included in your briefing.' if self.intelligence_var.get()==INTELLIGENCE_LABELS['precise'] else
+            'Fly inside the search area for 45 seconds, then request F10 Recon check-in. No special sensor is needed.')
+
+    def _new_variation(self):
+        if self._busy or self._updating:return
+        self.seed_var.set(str(secrets.randbelow(2**31)))
+        self._preview()
 
     @staticmethod
     def _combo(parent, row, label, variable, values, width=34):
@@ -494,7 +586,8 @@ class Application(tk.Tk):
         loadout_frame.grid(row=0, column=1, sticky="ew")
         loadout_frame.columnconfigure(0, weight=1)
         self._combo(clients_frame, 0, "Number of pilots", self.clients_var, ["1", "2", "3", "4"], width=15)
-        self._combo(loadout_frame, 0, "Loadout", self.loadout_var, ["auto", "default"], width=15)
+        self._combo(loadout_frame, 0, "Weapons", self.loadout_display_var, list(LOADOUT_LABELS.values()), width=15).bind(
+            "<<ComboboxSelected>>",lambda event:self.loadout_var.set(next(key for key,value in LOADOUT_LABELS.items() if value==self.loadout_display_var.get())))
         ttk.Label(parent, text="Auto builds a role-appropriate starting payload. You can adjust it in DCS.",
                   style="Help.TLabel", wraplength=315).grid(row=8, column=0, sticky="w", pady=(7, 10))
         ttk.Checkbutton(parent, text="Tanker support, where compatible", variable=self.tanker_var).grid(
@@ -516,6 +609,7 @@ class Application(tk.Tk):
         ttk.Button(presets, text="Load preset", command=self._load_preset).grid(row=1, column=1, sticky="ew", pady=5)
         ttk.Button(presets, text="Import mission / settings", command=self._import_recipe).grid(row=2, column=0, sticky="ew")
         ttk.Button(presets, text="Export settings", command=self._export_recipe).grid(row=2, column=1, sticky="ew")
+        ttk.Button(presets, text="Repeat last mission", command=self._repeat_last).grid(row=3,column=0,columnspan=2,sticky="ew",pady=(5,0))
         self.recovery_combo = self._combo(parent, 15, "Approved recovery bases", self.recovery_var, list(RECOVERY_LABELS.values()))
         ttk.Checkbutton(parent, text="Allow team withdrawal with partial debrief", variable=self.withdrawal_var).grid(
             row=17, column=0, sticky="w", pady=8)
@@ -537,17 +631,21 @@ class Application(tk.Tk):
         ttk.Label(operation, text="A target you pin on the map always takes priority.", style="Help.TLabel", wraplength=295).grid(
             row=6, column=0, sticky="w", pady=5)
         self.intelligence_combo = self._combo(operation,7,"Target intelligence",self.intelligence_var,list(INTELLIGENCE_LABELS.values()))
-        ttk.Label(operation,text="Search mode needs a 45-second airborne area check-in for refined coordinates. No special sensor or extra module is required.",
+        ttk.Label(operation,textvariable=self.intelligence_help_var,
             style="Help.TLabel",wraplength=295).grid(row=9,column=0,sticky="w",pady=5)
         settings = ttk.Frame(parent)
         settings.grid(row=1, column=0, sticky="ew")
         parent = settings
         parent.columnconfigure(0, weight=1)
-        self.mission_combo = self._combo(parent, 0, "Mission", self.mission_var, list(MISSION_LABELS.values()))
+        self.classic_type_frame=ttk.Frame(parent);self.classic_type_frame.grid(row=0,column=0,sticky="ew")
+        self.classic_type_frame.columnconfigure(0,weight=1)
+        self.mission_combo = self._combo(self.classic_type_frame, 0, "Classic mission type", self.mission_var, list(MISSION_LABELS.values()))
         self.mission_combo.bind("<<ComboboxSelected>>", self._mission_changed)
-        ttk.Label(parent, textvariable=self.mission_help_var, style="Help.TLabel", wraplength=315).grid(
+        ttk.Label(self.classic_type_frame, textvariable=self.mission_help_var, style="Help.TLabel", wraplength=315).grid(
             row=2, column=0, sticky="w", pady=(8, 2))
-        self.facility_combo = self._combo(parent, 3, "Facility type", self.facility_var, list(FACILITY_LABELS.values()))
+        self.facility_controls=ttk.Frame(self.classic_type_frame);self.facility_controls.grid(row=3,column=0,sticky="ew")
+        self.facility_controls.columnconfigure(0,weight=1)
+        self.facility_combo = self._combo(self.facility_controls, 0, "Facility type", self.facility_var, list(FACILITY_LABELS.values()))
         opposition_row = ttk.Frame(parent)
         opposition_row.grid(row=5, column=0, sticky="ew", pady=(8, 0))
         opposition_row.columnconfigure(0, weight=1)
@@ -555,7 +653,7 @@ class Application(tk.Tk):
         difficulty_frame = ttk.Frame(opposition_row, padding=(0, 0, 6, 0))
         difficulty_frame.grid(row=0, column=0, sticky="ew")
         difficulty_frame.columnconfigure(0, weight=1)
-        opponent_frame = ttk.Frame(opposition_row, padding=(6, 0, 0, 0))
+        opponent_frame = self.opponent_frame = ttk.Frame(opposition_row, padding=(6, 0, 0, 0))
         opponent_frame.grid(row=0, column=1, sticky="ew")
         opponent_frame.columnconfigure(0, weight=1)
         self._combo(difficulty_frame, 0, "Difficulty", self.difficulty_var,
@@ -615,6 +713,7 @@ class Application(tk.Tk):
         self._departure_changed()
         self._clear_target()
         self.opponent_combo.configure(state="readonly" if key == "syria" else "disabled")
+        self.opponent_frame.grid() if key=='syria' else self.opponent_frame.grid_remove()
         if key != "syria":
             self.opponent_var.set("regular")
 
@@ -642,17 +741,22 @@ class Application(tk.Tk):
             self.departure_help_var.set(f"All {len(self._departures)} airfields are listed, including helipads. Choose a runway for fixed-wing aircraft. Automatic picks a suitable friendly base.")
 
     def _aircraft_changed(self, _event=None) -> None:
+        pressure=pressure_name({name:getattr(self,name+'_var').get() for name in PRESSURES['Balanced']},
+                               self._mission_by_label.get(self.mission_var.get()))
         item = self._aircraft_by_label[self.aircraft_var.get()]
         allowed = [key for key in MISSION_LABELS if key in item["missions"]]
         if not allowed:
             raise ValueError("This aircraft has no supported mission roles.")
         labels = [MISSION_LABELS[key] for key in allowed]
         self.mission_combo.configure(values=labels)
-        if self.mission_var.get() not in labels:
+        changed=self.mission_var.get() not in labels
+        if changed:
             self.mission_var.set(labels[0])
         self._mission_changed()
+        if changed and pressure in PRESSURES:self._apply_pressure(pressure)
         if hasattr(self, "_departure_by_name"):
             self._departure_changed()
+        self._sync_quick_controls()
 
     def _mission_changed(self, _event=None) -> None:
         mission = self._mission_by_label[self.mission_var.get()]
@@ -664,6 +768,9 @@ class Application(tk.Tk):
         operation = self._operation_by_label[self.operation_var.get()]
         self.operation_help_var.set(OPERATION_HELP[operation])
         self.response_check.configure(state="normal" if operation != "classic" else "disabled")
+        self.classic_type_frame.grid() if operation=='classic' else self.classic_type_frame.grid_remove()
+        self.facility_controls.grid() if mission=='facility' and operation=='classic' else self.facility_controls.grid_remove()
+        self.line_frame.grid() if mission=='line' else self.line_frame.grid_remove()
         self.mission_help_var.set(MISSION_HELP[mission])
         self.facility_combo.configure(state="readonly" if mission == "facility" and operation == "classic" else "disabled")
         for check in self._line_buttons:
@@ -689,7 +796,7 @@ class Application(tk.Tk):
         elif not self.air_defenses_var.get():
             text = "Air defenses are off, including AAA and MANPADS selected for a fortified line."
         else:
-            text = "Both switches apply to every mission, including CAP and SEAD."
+            text = "Choose an opposition preset, or adjust these switches."
         self.opposition_help_var.set(text)
 
     def _map_selected(self, lat, lon) -> None:
@@ -724,6 +831,10 @@ class Application(tk.Tk):
             raise ValueError(f"Choose a point within {theatre.label}: latitude {south:g} to {north:g}, "
                              f"longitude {west:g} to {east:g}.")
         return lat, lon
+
+    def _toggle_coordinates(self):
+        if self.coordinate_frame.winfo_manager():self.coordinate_frame.grid_remove()
+        else:self.coordinate_frame.grid()
 
     def _apply_coordinates(self) -> None:
         try:
@@ -805,6 +916,7 @@ class Application(tk.Tk):
         self._busy = True
         self.generate_button.configure(state="disabled")
         self.preview_button.configure(state="disabled")
+        self.new_variation_button.configure(state="disabled")
         self.progress.start(14)
         self.status_var.set("Creating your mission...")
         self.output_status_var.set("Preparing your aircraft, targets and support flights. This may take a few seconds.")
@@ -823,6 +935,7 @@ class Application(tk.Tk):
         self._preview_metadata=None
         if hasattr(self,"map_view"):
             self.map_view.set_plan(None)
+        self._sync_quick_controls()
 
     def _preview(self):
         if self._busy or self._updating:
@@ -839,6 +952,7 @@ class Application(tk.Tk):
         self._save_settings()
         self._busy=True
         self.generate_button.configure(state="disabled");self.preview_button.configure(state="disabled")
+        self.new_variation_button.configure(state="disabled")
         self.progress.start(14)
         self.status_var.set("Planning the mission preview...")
         self.output_status_var.set("Checking the departure, objectives and recovery bases. No mission file is saved by Preview.")
@@ -989,16 +1103,19 @@ class Application(tk.Tk):
             self.progress.stop()
             self.generate_button.configure(state="normal")
             self.preview_button.configure(state="normal")
+            self.new_variation_button.configure(state="normal")
             if success and isinstance(result,dict) and result.get("kind")=="preview":
                 metadata=result["metadata"]
                 if self._display_plan(metadata):
                     self.status_var.set("Preview ready. Generate mission will use this variation.")
                     self.output_status_var.set(f"Home: {metadata['home_airport']} · Navigation leg: {metadata['route_summary']['one_way_km']:.1f} km · Variation {metadata['options']['seed']}")
-                    self.next_step_var.set("Map shows the briefed plan, with search areas instead of unconfirmed targets. DCS terrain and obstacles still need review.")
+                    from .loadouts import payload_text
+                    self.next_step_var.set(payload_text(metadata.get('loadout',{})))
                 else:
                     self.status_var.set("Settings changed during planning. Preview again to see the current mission.")
             elif success:
                 self._last_output = result
+                metadata={}
                 try:
                     with zipfile.ZipFile(result) as archive:
                         metadata=json.loads(archive.read("ironanvil.json"))
@@ -1008,6 +1125,8 @@ class Application(tk.Tk):
                 self.status_var.set(f"Mission ready: {result.name}")
                 self.output_status_var.set(str(result))
                 self.next_step_var.set("In DCS: Mission > My Missions to fly solo, or Multiplayer > New server to host for friends. Add the saved mission.")
+                if metadata.get('loadout',{}).get('warning'):
+                    self.next_step_var.set(metadata['loadout']['warning']+' '+self.next_step_var.get())
             else:
                 from .diagnostics import log_path
 

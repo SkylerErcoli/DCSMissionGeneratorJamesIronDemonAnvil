@@ -167,6 +167,9 @@ def self_test() -> dict:
             for aircraft in ("FA_18C_hornet", "AH_64D_BLK_II"):
                 cases.append(MissionOptions(map=key, aircraft=aircraft, operation="broken_relay",
                     recovery="home_or_alternate", start="air", seed=91))
+            cases.append(MissionOptions(map=key, operation="broken_relay", pace="compact", start="hot",
+                recovery="home_or_alternate", enemy_cap=False, tanker=True, awacs=True, seed=2718))
+        cases.append(MissionOptions(loadout="default",seed=4242))
         missions = []
         weather_checks = {}
         facility_checks = []
@@ -174,12 +177,17 @@ def self_test() -> dict:
         operation_checks = 0
         intelligence_checks = 0
         alternate_checks = 0
+        loadout_checks = 0
+        quick_setup_checks = 0
+        local_preset_checks = 0
         for index, options in enumerate(cases):
             path = generate(options, directory / f"mission-{index}.miz")
             with zipfile.ZipFile(path) as archive:
                 if archive.testzip() is not None:
                     raise RuntimeError(f"Corrupt generated mission: {path.name}")
                 metadata = json.loads(archive.read("ironanvil.json"))
+                if not metadata["runtime"].get("briefing_lines") or not any("RECOVERY:" in line for line in metadata["runtime"]["briefing_lines"]):
+                    raise RuntimeError("Mission radio help lacks completion and recovery instructions")
                 with Image.open(BytesIO(archive.read("KNEEBOARD/IMAGES/01-IronAnvil.png"))) as kneeboard:
                     if kneeboard.size != (1000, 1440):
                         raise RuntimeError("Mission kneeboard has the wrong size")
@@ -299,6 +307,18 @@ def self_test() -> dict:
             clients = reloaded.coalition["blue"].find_group(PLAYER_GROUP)
             if clients is None or len(clients.units) != 2 or any(unit.skill.value != "Client" for unit in clients.units):
                 raise RuntimeError(f"Multiplayer slots failed to reload: {path.name}")
+            expected_stores={store["station"]:store["clsid"] for store in metadata["loadout"]["stores"]}
+            for unit in clients.units:
+                if {number:store["CLSID"] for number,store in unit.pylons.items()} != expected_stores:
+                    raise RuntimeError("Briefing stores differ from the actual saved aircraft")
+            if not expected_stores and not metadata["loadout"]["warning"]:
+                raise RuntimeError("An empty payload lacks a player-visible warning")
+            loadout_checks+=1
+            if options.loadout=="default":local_preset_checks+=1
+            if options.seed==2718:
+                if options.start!="hot" or options.enemy_cap or not options.air_defenses or not expected_stores:
+                    raise RuntimeError("Recommended quick setup is not correctly equipped")
+                quick_setup_checks+=1
             if not reloaded.terrain.airport_by_id(metadata["home_airport_id"]).is_blue():
                 raise RuntimeError(f"Selected airfield is not friendly: {path.name}")
             if options.recovery == "home_or_alternate":
@@ -332,6 +352,8 @@ def self_test() -> dict:
         checks.append(f"{intelligence_checks} search missions withhold exact coordinates, F10 symbols and navigation waypoints")
         checks.append(f"{alternate_checks} jet/helicopter alternate-recovery missions verify distinct friendly supplied bases")
         checks.append("Support aircraft have immediate roles/protection and complete three-point racetrack routes")
+        checks.append("Every mission's F10 help describes recovery and its store manifest matches every client aircraft")
+        checks.append("Recommended hot-start cooperative settings serialize and reload on all maps; local-preset reporting is exercised")
 
     # These destinations are deliberately outside PyInstaller's read-only bundle.
     if getattr(sys, "frozen", False):
@@ -342,6 +364,7 @@ def self_test() -> dict:
     return {"channel": "experimental", "checks": checks, "missions": missions, "mission_count": len(missions),
             "operation_checks": operation_checks, "kneeboard_checks": len(missions),
             "intelligence_checks": intelligence_checks, "alternate_checks": alternate_checks,
+            "loadout_checks": loadout_checks, "quick_setup_checks": quick_setup_checks, "local_preset_checks": local_preset_checks,
             "airport_counts": airport_counts, "weather_checks": weather_checks,
             "facility_checks": facility_checks, "support_checks": support_checks,
             "aircraft_count": len(catalogue), "pyproj_version": pyproj.__version__}
@@ -355,6 +378,7 @@ def smoke_gui() -> dict:
     from ironanvil.weather import WEATHER_LABELS
     from ironanvil.operations import OPERATION_LABELS, PACE_LABELS
     from ironanvil.model import INTELLIGENCE_LABELS, RECOVERY_LABELS
+    from ironanvil.quickstart import SCENARIOS
     import time
 
     original_data_dir = os.environ.get("IRONANVIL_DATA_DIR")
@@ -373,6 +397,26 @@ def smoke_gui() -> dict:
             app = Application()
             app.report_callback_exception = callback_error
             app.update()
+            if app.setup_notebook.tab(app.setup_notebook.select(),"text")!="Quick setup":
+                raise RuntimeError("Desktop does not start with the simple mission workflow")
+            options=app.collect_options()
+            if options.start!="hot" or options.pace!="compact" or options.enemy_cap or options.recovery!="home_or_alternate":
+                raise RuntimeError("First-run defaults do not match recommended quick setup")
+            app.geometry("1024x700");app.update()
+            canvas=app._settings_canvases[0]
+            for combo in (app.scenario_combo,app.pressure_combo):
+                if (combo.winfo_rootx()+combo.winfo_width()>canvas.winfo_rootx()+canvas.winfo_width()
+                        or combo.winfo_rooty()+combo.winfo_height()>canvas.winfo_rooty()+canvas.winfo_height()):
+                    raise RuntimeError("An essential quick setting is clipped on a small window")
+            for label,mission,operation,_ in SCENARIOS.values():
+                app.scenario_var.set(label);app._scenario_changed()
+                chosen=app.collect_options()
+                if chosen.mission!=mission or chosen.operation!=operation:raise RuntimeError("Quick mission picker changed the wrong rules")
+            app.scenario_var.set(SCENARIOS['broken_relay'][0]);app._scenario_changed()
+            app.pressure_var.set('Relaxed');app._pressure_changed()
+            options=app.collect_options()
+            if options.enemy_cap or options.air_defenses or options.enemy_response:raise RuntimeError("Relaxed preset retains optional threats")
+            app._recommended_setup()
             for theme in ("dark", "light"):
                 app.theme_var.set(theme)
                 app._theme_changed()
@@ -426,14 +470,17 @@ def smoke_gui() -> dict:
                     or app.collect_options().operation != "rolling_thunder"
                     or app.collect_options().pace != "compact" or app.collect_options().enemy_response
                     or app.collect_options().intelligence != "search"
-                    or app.collect_options().recovery != "home_or_alternate" or app.collect_options().allow_withdrawal):
+                    or app.collect_options().recovery != "home_or_alternate" or app.collect_options().allow_withdrawal
+                    or app.pressure_var.get()!="Custom"):
                 raise RuntimeError("Preferences did not survive a desktop restart")
             if errors:
                 raise RuntimeError("Tk callback failed after restart: " + errors[0])
             return {"checks": ["Actual desktop window opened", "All three offline maps rendered in dark and light modes",
                                "Complete airfield/weather selectors", "Asynchronous search mission preview renders public map markers",
+                               "Quick setup defaults, all mission shortcuts and Relaxed preset; essential controls fit 1024x700",
                                "Theme, airfield, weather and operation/intelligence/recovery controls survive restart", "Tk event loop completed"],
-                    "maps": rendered, "tk_version": tk_version, "preferences_reloaded": True, "mission_preview_passed": True}
+                    "maps": rendered, "tk_version": tk_version, "preferences_reloaded": True, "mission_preview_passed": True,
+                    "quick_setup_passed": True, "small_window_passed": True, "custom_settings_preserved": True}
         finally:
             if app is not None:
                 app.destroy()

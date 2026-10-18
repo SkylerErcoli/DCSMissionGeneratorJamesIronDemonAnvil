@@ -192,10 +192,10 @@ do
             method(reference, "getPlayerName") or "lead client", label,
             math.floor(bearing + 0.5) % 360, horizontalDistance(origin, destination) / 1852), 20)
     end
-    local function reportPosition()
+    local function reportPosition(quiet)
         local point = targetPoint()
         if not intelRevealed then
-            announce("Search area: " .. coordinates(point) .. ". Radius " .. tostring(intelligence.radius) .. " m. Exact target coordinates require the shared recon check-in.",25)
+            if not quiet then announce("Search area: " .. coordinates(point) .. ". Radius " .. tostring(intelligence.radius) .. " m. Exact target coordinates require the shared recon check-in.",25) end
             if trigger and trigger.action and trigger.action.markToCoalition then
                 if trigger.action.removeMark then pcall(trigger.action.removeMark,918700) end
                 pcall(trigger.action.markToCoalition,918700,"Search area - recon check-in required",point,blue,true)
@@ -203,11 +203,23 @@ do
             return
         end
         if point then
-            announce("Target position: " .. coordinates(point), 25)
+            if not quiet then announce("Target position: " .. coordinates(point), 25) end
             if trigger and trigger.action and trigger.action.markToCoalition then
                 if trigger.action.removeMark then pcall(trigger.action.removeMark, 918700) end
-                pcall(trigger.action.markToCoalition, 918700, "Iron Anvil objective", point, blue, true)
-                for index, site in ipairs(config.facility_sites or {}) do
+                local primary=config.operation and config.operation.objectives and config.operation.objectives[1]
+                local label=primary and ('REQUIRED: ' .. primary.title) or 'Iron Anvil objective'
+                if state.objective then label='COMPLETE: ' .. (primary and primary.title or 'Main objective') end
+                pcall(trigger.action.markToCoalition, 918700, label, point, blue, true)
+                local sites=config.facility_sites or {}
+                if config.operation then
+                    sites={}
+                    for _, goal in ipairs(config.operation.objectives or {}) do
+                        if not goal.required and goal.position then
+                            sites[#sites+1]={name='OPTIONAL: ' .. goal.title,x=goal.position.x,z=goal.position.z}
+                        end
+                    end
+                end
+                for index, site in ipairs(sites) do
                     local height = 0
                     if land and land.getHeight then
                         local ok, value = pcall(land.getHeight, {x = site.x, y = site.z})
@@ -215,13 +227,23 @@ do
                     end
                     local mark = 918710 + index
                     if trigger.action.removeMark then pcall(trigger.action.removeMark, mark) end
-                    pcall(trigger.action.markToCoalition, mark, site.name or ("Facility site " .. index),
-                          {x = site.x, y = height, z = site.z}, blue, true)
+                    if horizontalDistance(point,site)>50 then
+                        pcall(trigger.action.markToCoalition, mark, site.name or ("Facility site " .. index),
+                              {x = site.x, y = height, z = site.z}, blue, true)
+                    end
                 end
             end
         else
             announce("No target position is available.")
         end
+    end
+    local function missionBriefing()
+        local lines=config.briefing_lines
+        if not lines or #lines==0 then
+            lines={'Complete the briefed objective, then recover every surviving client at ' .. tostring(config.recovery_label or config.base_name) .. '.',
+                'Mission status reports progress. Target position / mark shares the current target or search area.'}
+        end
+        announce(table.concat(lines,'\n'),40)
     end
     local function clientInSearchArea()
         if intelRevealed then return false end
@@ -248,41 +270,44 @@ do
         reportPosition()
     end
     local function status()
+        local operationText=operation and operation.status(true)
+        local function report(message,seconds)
+            announce(operationText and (operationText .. '\n' .. message) or message,seconds)
+        end
         if not intelRevealed then
             announce("Search-area check-in progress: " .. math.floor(state.reconTime) .. "/" ..
                 tostring(intelligence.required_seconds or 45) .. " seconds. Use Recon check-in while inside the area.",20)
         end
-        if operation then
-            operation.status()
-            if not state.objective and not state.complete then return end
+        if operation and not state.objective and not state.complete and not state.withdrawn then
+            announce(operationText,25);return
         end
         if state.complete then
             if state.result == 2 then
-                announce("Mission failed. All participating client aircraft were lost.")
+                report("Mission failed. All participating client aircraft were lost.")
             elseif state.result==3 then
-                announce("Team withdrew safely with a partial result. Main objective incomplete.")
+                report("Team withdrew safely with a partial result. Main objective incomplete.")
             else
-                announce("Mission complete. Required objectives achieved and every surviving client recovered.")
+                report("Mission complete. Required objectives achieved and every surviving client recovered.")
             end
         elseif state.withdrawn and not state.objective then
-            announce("Team withdrawal confirmed. Recover all survivors at " .. tostring(config.recovery_label or config.base_name) .. " for the partial debrief.")
+            report("Team withdrawal confirmed. Recover all survivors at " .. tostring(config.recovery_label or config.base_name) .. " for the partial debrief.")
         elseif state.objective then
             local remaining = 0
             for _, record in pairs(state.roster) do
                 if not record.dead and not record.recovered then remaining = remaining + 1 end
             end
-            announce("Objective complete. " .. remaining .. " surviving clients must fly and recover at " ..
+            report("Objective complete. " .. remaining .. " surviving clients must fly and recover at " ..
                 tostring(config.recovery_label or config.base_name or "your friendly airbase") .. ".")
         elseif config.mission_type == "cap" then
             if config.enemy_cap then
-                announce("CAP: " .. liveCount(config.cap_groups) .. " enemy aircraft remaining. Enemy flights launch when a client is airborne.")
+                report("CAP: " .. liveCount(config.cap_groups) .. " enemy aircraft remaining. Enemy flights launch when a client is airborne.")
             else
                 local remaining = math.max(0, math.ceil((tonumber(config.station_seconds) or 300) - state.stationTime))
-                announce("CAP: remain within " .. math.floor((tonumber(config.station_radius) or 25000) / 1000) ..
+                report("CAP: remain within " .. math.floor((tonumber(config.station_radius) or 25000) / 1000) ..
                     " km of the objective, airborne, for " .. remaining .. " more seconds.")
             end
         else
-            announce("Ground objective: " .. (liveCount(config.target_groups) + staticCount()) ..
+            report("Ground objective: " .. (liveCount(config.target_groups) + staticCount()) ..
                 " targets remaining. Recover at " .. tostring(config.recovery_label or config.base_name or "your friendly airbase") .. ".")
         end
     end
@@ -386,6 +411,7 @@ do
         state.objective = true
         flag("IRON_ANVIL_OBJECTIVE_COMPLETE")
         announce("Objective complete. RTB to " .. tostring(config.recovery_label or config.base_name or "your friendly airbase") .. " and land to complete the mission.", 25)
+        reportPosition(true)
     end
     local function friendlyHome(unit, place)
         local bases=config.recovery_bases or {{name=config.base_name,x=config.home.x,z=config.home.z}}
@@ -585,7 +611,7 @@ do
     if missionCommands and missionCommands.addSubMenuForCoalition and missionCommands.addCommandForCoalition then
         local menu = missionCommands.addSubMenuForCoalition(blue, "Iron Anvil")
         missionCommands.addCommandForCoalition(blue, "Mission status", menu, status)
-        if operation then missionCommands.addCommandForCoalition(blue, "Operation status", menu, operation.status) end
+        missionCommands.addCommandForCoalition(blue, "Briefing / help", menu, missionBriefing)
         if operation then missionCommands.addCommandForCoalition(blue, "Response staging / mark", menu, function()
             if not intelRevealed then announce("Response staging is unconfirmed. Complete the area recon check-in first.")
             else operation.markStaging() end
@@ -611,5 +637,6 @@ do
         timer.scheduleFunction(tick, nil, timer.getTime() + 5)
     end
     registerJoinedPlayers()
-    announce("Mission controller ready. Use F10 > Iron Anvil for status and target coordinates.", 20)
+    reportPosition(true)
+    announce("Mission ready. Briefed targets or the search area are marked on F10. Use F10 > Iron Anvil > Briefing / help for your job and recovery instructions.", 20)
 end

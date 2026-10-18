@@ -416,7 +416,7 @@ def test_search_preview_hides_exact_sites_and_changed_settings_clear_it(app):
     deadline=time.monotonic()+20
     while app._busy and time.monotonic()<deadline:app.update();time.sleep(.01)
     assert app._preview_metadata
-    assert {point['role'] for point in app._preview_metadata['planner']['points']}=={'home','search'}
+    assert {point['role'] for point in app._preview_metadata['planner']['points']}=={'home','alternate','search'}
     app.clients_var.set('3');app.update()
     assert app._preview_metadata is None and not app.map_view.canvas.find_withtag('mission-plan')
 
@@ -445,3 +445,86 @@ def test_nearby_plan_labels_remain_readable_and_inside_map(app):
         assert 0<=box[1]<box[3]<=canvas.winfo_height()
         assert not any(box[0]<other[2] and box[2]>other[0] and box[1]<other[3] and box[3]>other[1]
                        for other in boxes[:index])
+
+
+def test_quick_first_run_has_workable_defaults_and_keeps_details_optional(app):
+    options=app.collect_options()
+    assert app.setup_notebook.tab(app.setup_notebook.select(),'text')=='Quick setup'
+    assert options.start=='hot' and options.weather=='clear' and options.time_of_day=='day'
+    assert options.pace=='compact' and options.recovery=='home_or_alternate'
+    assert options.loadout=='auto' and options.clients==2
+    assert not options.enemy_cap and options.air_defenses and options.enemy_response
+    assert app.pressure_var.get()=='Balanced'
+    assert app.classic_type_frame.winfo_manager()=='' and app.line_frame.winfo_manager()==''
+
+
+def test_quick_picker_covers_supported_missions_without_changing_aircraft(app):
+    from ironanvil.quickstart import SCENARIOS
+    aircraft=app.aircraft_var.get()
+    for label,mission,operation,_ in SCENARIOS.values():
+        app.scenario_var.set(label);app._scenario_changed()
+        options=app.collect_options()
+        assert (options.mission,options.operation)==(mission,operation)
+        assert app.aircraft_var.get()==aircraft
+        if mission=='cap':assert options.enemy_cap
+
+
+def test_quick_presets_are_shortcuts_and_manual_changes_survive_restart(app):
+    from ironanvil.gui import Application
+    app.pressure_var.set('Challenging');app._pressure_changed()
+    assert app.collect_options().enemy_cap and app.collect_options().difficulty=='hard'
+    app.air_defenses_var.set(False)
+    assert app.pressure_var.get()=='Custom'
+    app.start_var.set('cold');app.seed_var.set('921');app._save_settings();app.destroy()
+    reopened=Application();reopened.withdraw()
+    try:
+        options=reopened.collect_options()
+        assert options.start=='cold' and options.seed==921 and options.difficulty=='hard'
+        assert options.enemy_cap and not options.air_defenses and reopened.pressure_var.get()=='Custom'
+    finally:reopened.destroy()
+
+
+def test_recommended_setup_preserves_player_choices_and_pinned_target(app):
+    app.clients_var.set('4');app._map_selected(42.1,42.35);app.seed_var.set('73')
+    aircraft=app.aircraft_var.get();output=app.output_var.get()
+    app.start_var.set('cold');app.pressure_var.set('Challenging');app._pressure_changed()
+    app._recommended_setup();options=app.collect_options()
+    assert (options.target_lat,options.target_lon)==(42.1,42.35)
+    assert str(app.quick_distance_combo['state'])=='disabled' and 'map pin' in app.quick_help_var.get()
+    assert options.clients==4 and options.seed==73 and app.aircraft_var.get()==aircraft and options.output_dir==output
+    assert options.start=='hot' and options.pace=='compact' and not options.enemy_cap
+    app._clear_target();assert str(app.quick_distance_combo['state'])=='readonly'
+
+
+def test_quick_fighter_only_aircraft_gets_a_supported_patrol(app):
+    from ironanvil.quickstart import SCENARIOS
+    label=next(label for label,item in app._aircraft_by_label.items() if item['missions']==['cap'])
+    app.aircraft_var.set(label);app._aircraft_changed()
+    assert list(app.scenario_combo['values'])==[SCENARIOS['cap'][0]]
+    assert app.collect_options().mission=='cap' and app.collect_options().enemy_cap
+    app.pressure_var.set('Relaxed');app._pressure_changed()
+    assert not app.collect_options().enemy_cap and 'unopposed' in app.opposition_help_var.get()
+
+
+def test_quick_essential_controls_and_generate_fit_a_small_window(app):
+    app.deiconify();app.geometry('1024x700');app.update()
+    canvas=app._settings_canvases[0]
+    for combo in (app.scenario_combo,app.pressure_combo):
+        assert combo.winfo_rootx()+combo.winfo_width()<=canvas.winfo_rootx()+canvas.winfo_width()
+        assert combo.winfo_rooty()+combo.winfo_height()<=canvas.winfo_rooty()+canvas.winfo_height()
+    assert app.generate_button.winfo_rooty()+app.generate_button.winfo_height()<=app.winfo_rooty()+app.winfo_height()
+    assert app.coordinate_frame.winfo_manager()==''
+    app._toggle_coordinates();assert app.coordinate_frame.winfo_manager()=='grid'
+    app._toggle_coordinates();assert app.coordinate_frame.winfo_manager()==''
+
+
+def test_new_variation_changes_only_seed_and_previews_without_saving(app,tmp_path,monkeypatch):
+    from ironanvil import gui
+    from dataclasses import replace
+    app.seed_var.set('42');before=app.collect_options()
+    monkeypatch.setattr(gui.secrets,'randbelow',lambda _:314159)
+    app._new_variation()
+    deadline=time.monotonic()+20
+    while app._busy and time.monotonic()<deadline:app.update();time.sleep(.01)
+    assert app._preview_metadata and app.collect_options()==replace(before,seed=314159)
+    assert not list(tmp_path.glob('*.miz'))
