@@ -25,10 +25,10 @@ from .compounds import build_facility_complex
 from .operations import build_operation, operation_briefing
 from . import APP_DATA_NAME, __version__
 from .planning import search_intelligence, planner_metadata
+from .opposition import FACTION_LABELS, enemy_country, fighter_type, apply_faction, ground_level, helicopter_sortie
 
 
 PLAYER_GROUP = "IRON ANVIL CLIENTS"
-DIFFICULTY = {"easy": 1, "normal": 2, "hard": 3, "extreme": 4}
 LINE_TYPES = {
     "mbt": "T-72B", "ifv": "BMP-2", "apc": "BTR-80",
     "atgm": "BRDM-2_malyutka", "infantry": "Infantry AK",
@@ -131,7 +131,11 @@ def _air_defenses(mission, country, point, options, rng, level, objective=False)
     sites = level if objective else max(1, level - 1)
     for i in range(sites):
         p = _ground_offset(point, i * 360 / sites + 30, 700 + i * 400)
-        if options.opponent == "insurgents":
+        if helicopter_sortie(options) and not objective and options.difficulty != "extreme":
+            types = ["Ural-375 ZU-23"]
+            if options.difficulty == "hard":
+                types.append("SA-18 Igla manpad")
+        elif options.opponent == "insurgents":
             types = ["Ural-375 ZU-23 Insurgent", "Igla manpad INS"]
         elif i % 2:
             types = ["Kub 1S91 str", "Kub 2P25 ln", "Kub 2P25 ln"]
@@ -167,7 +171,14 @@ def _briefing(options, theatre, home, target, label, tanker_name):
              "All player slots are CLIENT slots. Flight radio 251 MHz AM.",
              f"Enemy fighters: {'enabled' if options.enemy_cap else 'disabled'}. Air defences: {'enabled' if options.air_defenses else 'disabled'}.",
              "Use F10 > Iron Anvil for status and target position. Recover at an approved base after objectives complete.",
-             f"Seed: {options.seed}; difficulty: {options.difficulty}."]
+             f"Seed: {options.seed}; difficulty: {options.difficulty}.",
+             f"Enemy faction: {FACTION_LABELS[options.opponent]}."]
+    if helicopter_sortie(options):
+        lines.append("HELICOPTER SCALE: closer automatic targets, smaller ground forces and shorter linked-site routes. Normal air defenses use guns; hard adds MANPADS and extreme can include SAMs. Explicit map pins and selected line-unit categories are retained.")
+    if options.opponent == "insurgents" and options.enemy_cap:
+        lines.append("Militia ground forces receive supporting Syrian fighters because enemy CAP is enabled.")
+    if options.mission == "sead" and (options.opponent == "insurgents" or not options.air_defenses):
+        lines.append("These targets do not require radar emitters. Recommended weapons use ground-attack stores; anti-radiation missiles cannot engage silent guns, MANPADS or support trucks.")
     if options.enemy_cap:
         lines.append("Enemy CAP launches when the first client climbs above 30 m / about 100 ft AGL. F10 Mission status reports confirmed active fighters.")
     if tanker_name:
@@ -192,7 +203,7 @@ def build_mission(options: MissionOptions):
     terrain = theatre.terrain()
     mission = Mission(terrain)
     blue = mission.country("USA")
-    red = mission.country("Russia")
+    red = enemy_country(mission, options.opponent)
     aircraft = resolve_aircraft(options.aircraft)
     scenario=plan_scenario(options,theatre,terrain,aircraft,rng)
     home,target,alternate=scenario.home,scenario.target,scenario.alternate
@@ -207,7 +218,7 @@ def build_mission(options: MissionOptions):
                                           home.position.y+(navigation_target.y-home.position.y)*step/24)
         location=point.latlng();terrain_heights.append(height_at(theatre,location.lat,location.lng) or 0)
     cruise_altitude=500 if aircraft.helicopter else max(4500,round((max(terrain_heights)+1000)/100)*100)
-    level = DIFFICULTY[options.difficulty]
+    level = ground_level(options)
     main_task = {"cap": task.CAP, "sead": task.SEAD}.get(options.mission, task.GroundAttack)
     # Assign only a task the module advertises; some helicopters have CAS only.
     if main_task not in aircraft.tasks:
@@ -225,7 +236,11 @@ def build_mission(options: MissionOptions):
                     maintask=main_task, start_type=start, group_size=options.clients)
     flight.set_client()
     flight.frequency = 251
-    apply_loadout(flight, options.mission, options.loadout)
+    payload_mission = options.mission
+    if options.loadout == "auto" and options.mission == "sead" and (
+            options.opponent == "insurgents" or not options.air_defenses):
+        payload_mission = "facility"
+    apply_loadout(flight, payload_mission, options.loadout)
     navigation_waypoint=flight.add_waypoint(navigation_target, cruise_altitude,
                         180 if aircraft.helicopter else 650, name="SEARCH AREA" if intelligence else "TARGET / CAP STATION")
     if aircraft.helicopter:navigation_waypoint.alt_type='RADIO'
@@ -250,8 +265,11 @@ def build_mission(options: MissionOptions):
                 convoy = mission.coalition["red"].find_group(convoy_info["group"])
                 convoy_destination = mapping.Point(convoy_info["destination"]["x"], convoy_info["destination"]["z"], terrain)
         else:
+            facility_type = options.facility_type
+            if aircraft.helicopter and facility_type == "random":
+                facility_type = rng.choice(("fuel", "command", "ammunition", "radar"))
             target_statics, label, facility_metadata = build_facility_complex(
-                mission, red, target, rng, level, facility_type=options.facility_type)
+                mission, red, target, rng, level, facility_type=facility_type)
         compound_style = facility_metadata["style"]
         for index, site in enumerate(facility_metadata["sites"], 1):
             mission.triggers.add_triggerzone(mapping.Point(site["x"], site["z"], terrain),
@@ -261,7 +279,11 @@ def build_mission(options: MissionOptions):
     elif options.mission == "convoy":
         types = ["Ural-375", "Ural-375", "Ural ATsP-6", "BTR-80"] + ["BMP-2"] * (level - 1)
         if options.opponent == "insurgents":
-            types = ["Ural-375", "BTR-60", "Ural-375"] + ["Infantry AK Ins"] * level
+            types = ["Ural-375", "BTR-60", "Ural-375"] + ["tt_KORD"] * level
+        if aircraft.helicopter and options.opponent != "insurgents":
+            types = ["Ural-375", "Ural ATsP-6", "Ural-375", "BTR-80"]
+            if options.difficulty in ("hard", "extreme"):
+                types.append("BMP-2")
         if options.air_defenses:
             types.append("Ural-375 ZU-23")
         convoy = _ground_group(mission, red, "OBJECTIVE CONVOY", types, target, rng, level)
@@ -290,15 +312,17 @@ def build_mission(options: MissionOptions):
         target_groups.extend(defense_groups)
     if options.enemy_cap:
         cap_flights = []
-        enemy_type = planes.MiG_21Bis if options.map == "germany" else planes.MiG_29A
+        enemy_type = fighter_type(options)
+        cap_country = enemy_country(mission, options.opponent, air=True)
         for wave in range(1 if level < 3 else 2):
-            group = create_enemy_cap(mission, red, f"ENEMY CAP {wave + 1}", enemy_type,
+            group = create_enemy_cap(mission, cap_country, f"ENEMY CAP {wave + 1}", enemy_type,
                         hostile_air_spawn(home,target,theatre,rng,distance=45000+wave*15000), target,
                         group_size=1 if level == 1 else 2,
                         skill=(Skill.Average, Skill.Good, Skill.High, Skill.Excellent)[level - 1])
             cap_groups.append(group.name)
             cap_flights.append(group)
         add_cap_launch_triggers(mission, flight, cap_flights)
+    enemy_ground_types = apply_faction(red, options.opponent, rng)
     support_position,support_heading,awacs_position=(support_plan(home,target,theatre)
         if options.tanker or options.awacs else (home.position,0,home.position))
     tanker_name = None
@@ -376,11 +400,16 @@ def build_mission(options: MissionOptions):
             group.hidden = True
     metadata = {"options": asdict(options), "home_airport": home.name, "home_airport_id": home.id,
                 "intelligence": intelligence, "geography":scenario.metadata,
+                "opposition": {"faction": options.opponent, "label": FACTION_LABELS[options.opponent],
+                    "ground_country": red.name, "ground_types": enemy_ground_types,
+                    "air_country": cap_country.name if options.enemy_cap else None,
+                    "fighter_type": enemy_type.id if options.enemy_cap else None,
+                    "scale": "helicopter" if aircraft.helicopter else "fixed-wing", "ground_level": level},
                 "planner": planner_metadata(terrain,home,target,alternate,operation_config,intelligence,scenario.ownership),
                 "target_lat": latitude, "target_lon": longitude, "runtime": config,
                 "tanker": tanker_name, "compound_style": compound_style,
                 "alternate_airport": alternate.name if alternate else None,
-                "resolved_weather": resolved_weather, "generator_version": 4, "app_version": __version__,
+                "resolved_weather": resolved_weather, "generator_version": 5, "app_version": __version__,
                 "route_summary": {"one_way_km": round(distance_km, 1),
                                   "cruise_round_trip_minutes": round(120 * distance_km / cruise_kph),
                                   "note": "Cruise-only estimate; excludes startup, climb, combat, weather and recovery."},

@@ -133,5 +133,5 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "This immutable prerelease already exists; updated builds remain workflow artifacts. Bump RELEASE_TAG for another preview."
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "Iron Anvil Experimental 1.4.3 — automatic woodland screening" --notes-file "docs/releases/${tag}.md" release-assets/IronAnvil-Experimental.exe release-assets/SHA256SUMS.txt release-assets/validation/portable-self-test.json release-assets/validation/portable-smoke-gui.json release-assets/validation/portable-state.json release-assets/validation/portable-validation.json
+            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "Iron Anvil Experimental 1.4.4 — enemy factions and helicopter sorties" --notes-file "docs/releases/${tag}.md" release-assets/IronAnvil-Experimental.exe release-assets/SHA256SUMS.txt release-assets/validation/portable-self-test.json release-assets/validation/portable-smoke-gui.json release-assets/validation/portable-state.json release-assets/validation/portable-validation.json
           fi

@@ -112,7 +112,7 @@ def suitable_ground(point,theatre,*,footprint=220,airports=(),screen_woodland=Tr
 
 
 def distance_band(aircraft,pace):
-    nominal=(10000,22000,38000) if aircraft.helicopter else (28000,60000,100000)
+    nominal=(8000,16000,28000) if aircraft.helicopter else (28000,60000,100000)
     distance=nominal[('compact','standard','extended').index(pace)]
     return distance*.8,distance*1.2
 
@@ -163,6 +163,8 @@ class Scenario:
 
 
 def plan_scenario(options,theatre,terrain,aircraft,rng):
+    from .opposition import site_scale
+    scale = site_scale(options)
     airports=list(terrain.airports.values())
     compatible=[airport for airport in airports if not _compatibility_error(airport,aircraft,options.clients,options.start)
                 and theatre.contains(airport.position.latlng().lat,airport.position.latlng().lng)]
@@ -191,15 +193,15 @@ def plan_scenario(options,theatre,terrain,aircraft,rng):
             from .operations import _separate_site
             try:
                 if options.operation=='classic':
-                    destination=_separate_site(point,home,theatre,rng,distance=12000,road=True,screen_woodland=not pinned)
+                    destination=_separate_site(point,home,theatre,rng,distance=12000*scale,road=True,screen_woodland=not pinned)
                     sites.clear();sites['destination']=destination;return True
-                separation={'compact':2400,'standard':3800,'extended':6000}[options.pace]
+                separation={'compact':2400,'standard':3800,'extended':6000}[options.pace]*scale
                 secondary=_separate_site(point,home,theatre,rng,distance=separation,screen_woodland=not pinned)
                 planned={'secondary':secondary}
                 if options.operation=='rolling_thunder':
-                    planned['destination']=_separate_site(point,home,theatre,rng,distance=7500,excluded=(secondary,),road=True,screen_woodland=not pinned)
+                    planned['destination']=_separate_site(point,home,theatre,rng,distance=7500*scale,excluded=(secondary,),road=True,screen_woodland=not pinned)
                 if options.enemy_response:
-                    planned['staging']=_separate_site(point,home,theatre,rng,distance=9000,excluded=tuple(planned.values()),road=True,screen_woodland=not pinned)
+                    planned['staging']=_separate_site(point,home,theatre,rng,distance=9000*scale,excluded=tuple(planned.values()),road=True,screen_woodland=not pinned)
                 sites.clear();sites.update(planned)
                 return True
             except ValueError:return False

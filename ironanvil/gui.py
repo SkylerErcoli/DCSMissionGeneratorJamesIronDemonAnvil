@@ -25,6 +25,7 @@ from .preferences import load_preferences, save_preferences
 from .theatres import THEATRES, get_theatre
 from .weather import WEATHER_LABELS
 from .operations import OPERATION_LABELS, OPERATION_HELP, PACE_LABELS
+from .opposition import FACTION_LABELS
 from .quickstart import SCENARIOS, PRESSURES, PRESSURE_HELP, CLASSIC_PRESSURE_HELP, START_HELP, LOADOUT_LABELS, pressure_settings, pressure_name
 from . import APP_NAME, RELEASE_TAG, __version__
 
@@ -172,6 +173,8 @@ class Application(tk.Tk):
         self.awacs_var = tk.BooleanVar(value=True)
         self.base_detail_var = tk.BooleanVar(value=True)
         self.opponent_var = tk.StringVar(value="regular")
+        self.opponent_label_var = tk.StringVar(value=FACTION_LABELS["regular"])
+        self.opponent_var.trace_add("write", lambda *_: self.opponent_label_var.set(FACTION_LABELS.get(self.opponent_var.get(), FACTION_LABELS["regular"])))
         self.seed_var = tk.StringVar(value="")
         self.output_var = tk.StringVar(value=str(default_output_dir()))
         self.latitude_var = tk.StringVar(value="")
@@ -306,7 +309,7 @@ class Application(tk.Tk):
             "difficulty": ("easy", "normal", "hard", "extreme"),
             "start": ("cold", "hot", "runway", "air"), "time": ("day", "dawn", "dusk", "night", "random"),
             "weather": self._weather_by_label, "loadout": ("auto", "default"),
-            "opponent": ("regular", "insurgents"),
+            "opponent": tuple(FACTION_LABELS),
             "operation": self._operation_by_label, "pace": self._pace_by_label,
             "recovery": self._recovery_by_label,
             "intelligence": self._intelligence_by_label,
@@ -498,7 +501,7 @@ class Application(tk.Tk):
         distance=ttk.Frame(row,padding=(0,0,6,0));distance.grid(row=0,column=0,sticky="ew");distance.columnconfigure(0,weight=1)
         pressure=ttk.Frame(row,padding=(6,0,0,0));pressure.grid(row=0,column=1,sticky="ew");pressure.columnconfigure(0,weight=1)
         self.quick_distance_combo=self._combo(distance,0,"Target distance",self.pace_var,list(PACE_LABELS.values()),width=16)
-        self.pressure_combo=self._combo(pressure,0,"Opposition",self.pressure_var,list(PRESSURES),width=12)
+        self.pressure_combo=self._combo(pressure,0,"Challenge",self.pressure_var,list(PRESSURES),width=12)
         self.pressure_combo.bind("<<ComboboxSelected>>",self._pressure_changed)
         ttk.Label(parent,textvariable=self.pressure_help_var,style="Help.TLabel",wraplength=305).grid(row=8,column=0,sticky="w",pady=(5,8))
         ttk.Label(parent,textvariable=self.setup_summary_var,style="Help.TLabel",wraplength=305).grid(row=9,column=0,sticky="w",pady=(0,8))
@@ -542,6 +545,8 @@ class Application(tk.Tk):
         pinned=bool(self.latitude_var.get().strip() and self.longitude_var.get().strip())
         if chosen:
             self.scenario_var.set(chosen[0]);self.quick_help_var.set(chosen[3]+(' Your map pin sets the target distance.' if pinned else ''))
+            if aircraft["helicopter"]:
+                self.quick_help_var.set(self.quick_help_var.get()+" Helicopter scale: closer sites and smaller forces.")
             if self.seed_var.get().strip() and self._automatic_seed is None:
                 self.quick_help_var.set(self.quick_help_var.get()+' Fixed variation: '+self.seed_var.get()+'. Use New variation for another layout.')
         self.quick_distance_combo.configure(state='disabled' if pinned else 'readonly')
@@ -549,7 +554,7 @@ class Application(tk.Tk):
         pressure=pressure_name(settings,mission)
         self.pressure_var.set(pressure)
         self.pressure_help_var.set((CLASSIC_PRESSURE_HELP if operation=='classic' else PRESSURE_HELP)[pressure])
-        self.setup_summary_var.set(f"{START_HELP[self.start_var.get()]} · {self.time_var.get()} · {self.weather_var.get()}.\nDeparture: {self.departure_var.get()}. More choices in Customize.")
+        self.setup_summary_var.set(f"{START_HELP[self.start_var.get()]} · {self.time_var.get()} · {self.weather_var.get()}.\nEnemy: {FACTION_LABELS[self.opponent_var.get()]}. Departure: {self.departure_var.get()}. More choices in Customize.")
         self.loadout_display_var.set(LOADOUT_LABELS[self.loadout_var.get()])
         self.intelligence_help_var.set('Exact target locations are included in your briefing.' if self.intelligence_var.get()==INTELLIGENCE_LABELS['precise'] else
             'Fly inside the search area for 45 seconds, then request F10 Recon check-in. No special sensor is needed.')
@@ -666,8 +671,10 @@ class Application(tk.Tk):
         opponent_frame.columnconfigure(0, weight=1)
         self._combo(difficulty_frame, 0, "Difficulty", self.difficulty_var,
                     ["easy", "normal", "hard", "extreme"], width=15)
-        self.opponent_combo = self._combo(opponent_frame, 0, "Syria opponent", self.opponent_var,
-                                          ["regular", "insurgents"], width=15)
+        self.opponent_combo = self._combo(opponent_frame, 0, "Enemy faction", self.opponent_label_var,
+                                          list(FACTION_LABELS.values()), width=18)
+        self.opponent_combo.bind("<<ComboboxSelected>>", lambda _event: self.opponent_var.set(
+            next(key for key, label in FACTION_LABELS.items() if label == self.opponent_label_var.get())))
         self.line_frame = ttk.LabelFrame(parent, text="Fortified-line units", padding=8)
         self.line_frame.grid(row=6, column=0, sticky="ew", pady=(12, 0))
         self._line_buttons = []
@@ -720,10 +727,7 @@ class Application(tk.Tk):
         self.map_view.set_theatre(get_theatre(key))
         self._departure_changed()
         self._clear_target()
-        self.opponent_combo.configure(state="readonly" if key == "syria" else "disabled")
-        self.opponent_frame.grid() if key=='syria' else self.opponent_frame.grid_remove()
-        if key != "syria":
-            self.opponent_var.set("regular")
+        self.opponent_combo.configure(state="readonly")
 
     def _filter_departures(self, event=None) -> None:
         if event is not None and event.keysym in {"Up", "Down", "Return", "Escape", "Tab"}:

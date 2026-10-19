@@ -57,11 +57,13 @@ def _separate_site(point, home, theatre, rng, *, distance, excluded=(),road=Fals
 
 
 def build_operation(mission, country, target, home, theatre, options, rng, level,placements=None):
+    from .opposition import site_scale
+    scale = site_scale(options)
     placements=placements or {}
     relay = options.operation == 'broken_relay'
     rolling = options.operation == 'rolling_thunder'
     primary_kind, bonus_kind = ('fuel', 'command') if relay else ('command' if rolling else 'ammunition', 'fuel')
-    separation = {'compact': 2400, 'standard': 3800, 'extended': 6000}[options.pace]
+    separation = {'compact': 2400, 'standard': 3800, 'extended': 6000}[options.pace] * scale
     secondary = placements.get('secondary') or _separate_site(target, home, theatre, rng, distance=separation)
     sites = [build_facility_site(mission, country, target, rng, level, kind=primary_kind, index=1),
              build_facility_site(mission, country, secondary, rng, level, kind=bonus_kind, index=2)]
@@ -82,7 +84,7 @@ def build_operation(mission, country, target, home, theatre, options, rng, level
         ],
     }
     if rolling:
-        destination = placements.get('destination') or _separate_site(target, home, theatre, rng, distance=7500,excluded=(secondary,),road=True)
+        destination = placements.get('destination') or _separate_site(target, home, theatre, rng, distance=7500*scale,excluded=(secondary,),road=True)
         types = ['Ural-375', 'Ural ATsP-6', 'Ural-375',
                  'BTR-60' if options.opponent == 'insurgents' else 'BTR-80']
         if options.air_defenses:
@@ -96,7 +98,7 @@ def build_operation(mission, country, target, home, theatre, options, rng, level
         objective['convoy'] = {'group': convoy.name, 'destination': {'x': destination.x, 'z': destination.y},
             'delivery_radius': 350, 'interdiction_points': 150, 'delivery_response_delay': 60}
     if options.enemy_response:
-        staging = placements.get('staging') or _separate_site(target, home, theatre, rng, distance=9000,excluded=(secondary,destination) if rolling else (secondary,),road=True)
+        staging = placements.get('staging') or _separate_site(target, home, theatre, rng, distance=9000*scale,excluded=(secondary,destination) if rolling else (secondary,),road=True)
         types = (['BTR-60', 'Ural-375'] if options.opponent == 'insurgents' else
                  ['BTR-80', 'Ural-375'] if level == 1 else ['BMP-2', 'BTR-80', 'Ural-375'])
         if level >= 3:

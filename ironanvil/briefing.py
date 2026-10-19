@@ -16,6 +16,9 @@ def mission_help_lines(metadata):
     """Short action-based briefing shared with the in-mission radio menu."""
     options=metadata['options'];operation=metadata['runtime'].get('operation')
     lines=[title(metadata)]
+    opposition = metadata.get('opposition')
+    if opposition:
+        lines.append('Enemy: '+opposition['label']+' | '+('Helicopter scale: closer sites and smaller forces.' if opposition['scale']=='helicopter' else 'Fixed-wing scale.'))
     if operation:
         for goal in operation['objectives']:
             kind='supply trucks' if goal.get('units') else 'objective structures'
@@ -64,6 +67,9 @@ def summary_lines(metadata):
            f"Cruise-only round trip: ~{route['cruise_round_trip_minutes']} min; excludes startup, combat and recovery.",
            f"Enemy CAP: {'on' if options['enemy_cap'] else 'off'} | Air defenses: {'on' if options['air_defenses'] else 'off'}",
            f"Replay seed: {options['seed']}"]
+    if metadata.get('opposition'):
+        opposition = metadata['opposition']
+        lines.insert(3, 'Enemy: '+opposition['label']+' | '+opposition['scale'].title()+' scale')
     if options['tanker'] and metadata['tanker']:lines.append('Tanker: 251.5 MHz AM | TACAN 11Y TEX')
     if options['awacs']:lines.append('AWACS: 252 MHz AM')
     if metadata.get('alternate_airport'):

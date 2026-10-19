@@ -64,11 +64,10 @@ def test_explicit_land_target_is_preserved():
     assert (options.target_lat, options.target_lon) == (42.1, 42.35)
 
 
-def test_insurgents_are_limited_to_syria():
-    assert MissionOptions(map="syria", opponent="insurgents").validate()
-    for map_name in ("caucasus", "germany"):
-        with pytest.raises(ValueError, match="Syria"):
-            MissionOptions(map=map_name, opponent="insurgents").validate()
+@pytest.mark.parametrize("map_name", tuple(THEATRES))
+@pytest.mark.parametrize("faction", ("regular", "syrian", "western", "insurgents"))
+def test_all_enemy_factions_are_available_on_every_map(map_name, faction):
+    assert MissionOptions(map=map_name, opponent=faction).validate()
 
 
 @pytest.mark.parametrize("line_units", ((), ("concrete_wall",), ("mbt", "unknown")))

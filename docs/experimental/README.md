@@ -1,6 +1,6 @@
 # Iron Anvil experimental gameplay
 
-**Status: [automatic woodland screening](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.3-experimental.9). Offline public tree-cover masks screen automatic ground sites, full footprints and nearby defenses. No new settings or runtime downloads. Manual pins remain explicit overrides. Native CAP launch and the waypoint timing fixes are retained. Actual DCS trees can differ from the public data.**
+**Status: [enemy factions and helicopter sorties](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.4-experimental.10). One faction selector changes real equipment and fighters across all three maps. Helicopters automatically use closer targets, smaller ground forces and lighter default air defenses. Independent threat switches, offline woodland screening and native CAP/timing fixes are retained.**
 
 The latest update adds [varied geography, offline relief and portable Windows delivery](GEOGRAPHY.md), building on [Quick setup and in-mission guidance](USABILITY-RESEARCH.md). Detailed choices remain optional; saved settings are retained.
 

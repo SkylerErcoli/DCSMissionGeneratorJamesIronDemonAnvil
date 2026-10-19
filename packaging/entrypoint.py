@@ -168,6 +168,7 @@ def self_test() -> dict:
     from ironanvil.theatres import THEATRES, get_theatre
     from ironanvil.weather import WEATHER_LABELS
     from ironanvil.geography import DATA, woodland_data, woodland_clear
+    from ironanvil.opposition import FACTION_LABELS, EQUIPMENT, enemy_country, fighter_type, ground_level
 
     checks = []
     catalogue = aircraft_catalogue()
@@ -234,7 +235,15 @@ def self_test() -> dict:
             cases.append(MissionOptions(map=key, operation="broken_relay", pace="compact", start="cold",
                 recovery="home_or_alternate", enemy_cap=False, tanker=True, awacs=True, seed=2718))
         cases.append(MissionOptions(loadout="default",seed=4242))
+        for index, faction in enumerate(FACTION_LABELS):
+            key = tuple(THEATRES)[index % 3]
+            cases.append(MissionOptions(map=key, opponent=faction, mission="line", difficulty="hard",
+                line_units=("mbt", "ifv", "apc", "atgm", "infantry", "manpads", "aaa", "artillery"), seed=9393))
+            cases.append(MissionOptions(map=key, opponent=faction, aircraft="AH_64D_BLK_II",
+                operation="rolling_thunder", start="air", seed=91))
         missions = []
+        faction_checks = 0
+        helicopter_checks = 0
         weather_checks = {}
         facility_checks = []
         support_checks = 0
@@ -312,6 +321,31 @@ def self_test() -> dict:
                     if metadata["options"][toggle] is not getattr(options, toggle):
                         raise RuntimeError(f"Enemy toggle mismatch: {path.name}")
                 saved = lua.loads(archive.read("mission").decode("utf-8"))["mission"]
+                opposition = metadata["opposition"]
+                red = list(saved["coalition"]["red"]["country"].values())
+                ground = next((c for c in red if c["id"] == enemy_country(Mission(), options.opponent).id), None)
+                actual_types = {u["type"] for c in red for g in c.get("vehicle", {}).get("group", {}).values()
+                                for u in g["units"].values()}
+                if ground is None or set(opposition["ground_types"]) != actual_types:
+                    raise RuntimeError("Saved faction country or ground equipment differs from its briefing")
+                planes = [g for c in red for g in c.get("plane", {}).get("group", {}).values()]
+                if bool(planes) != options.enemy_cap or any(u["type"] != fighter_type(options).id
+                        or not u["payload"]["pylons"] for g in planes for u in g["units"].values()):
+                    raise RuntimeError("Selected faction lacks armed fighters or ignores the CAP switch")
+                if options.seed == 9393:
+                    for role, choices in EQUIPMENT.get(options.opponent, {}).items():
+                        if role not in ("truck", "fuel", "command", "radar") and not actual_types.intersection(choices):
+                            raise RuntimeError("Selected faction did not convert a fortified-line combat role")
+                faction_checks += 1
+                if opposition["scale"] == "helicopter":
+                    if opposition["ground_level"] != ground_level(options):
+                        raise RuntimeError("Helicopter ground scale was not applied")
+                    if options.difficulty == "normal":
+                        defenses = {u["type"] for c in red for g in c.get("vehicle", {}).get("group", {}).values()
+                                    if "AIR DEFENSE" in g["name"] for u in g["units"].values()}
+                        if not defenses <= {"Ural-375 ZU-23", "tt_ZU-23", "Ural-375 ZU-23 Insurgent", "Vulcan"}:
+                            raise RuntimeError("Normal helicopter sortie contains unexpected SAM defenses")
+                    helicopter_checks += 1
                 air_routes_checked += _check_air_route_timing(saved)
                 air_route_timing_checks += 1
                 cap_launch_triggers_checked += _check_native_cap_launch(saved, metadata["runtime"])
@@ -342,8 +376,8 @@ def self_test() -> dict:
                                    for unit in group["units"].values()}
                     red_vehicles = {group["name"]: group for country in saved["coalition"]["red"]["country"].values()
                                     for group in country.get("vehicle", {}).get("group", {}).values()}
-                    if len(sites) < (3 if options.operation == "classic" else 2) or metadata["facility_decoration_count"] < 24:
-                        raise RuntimeError(f"Facility does not contain three detailed sites: {path.name}")
+                    if len(sites) < (3 if options.operation == "classic" and opposition["scale"] != "helicopter" else 2) or metadata["facility_decoration_count"] < 24:
+                        raise RuntimeError(f"Facility does not contain its required detailed sites: {path.name}")
                     if sum(unit["type"] == "Workshop A" for unit in red_statics.values()) > 1:
                         raise RuntimeError(f"Facility repeats its large factory building: {path.name}")
                     for site in sites:
@@ -353,7 +387,7 @@ def self_test() -> dict:
                             raise RuntimeError(f"Facility buildings are missing from the saved mission: {path.name}")
                         occupants = [unit for name in site["vehicle_groups"]
                                      for unit in red_vehicles[name]["units"].values()]
-                        if sum(unit["type"] == "Infantry AK" for unit in occupants) < 2:
+                        if sum(unit["type"] in {"Infantry AK", "Infantry AK Ins", "Soldier M4", "Soldier M249"} for unit in occupants) < 2:
                             raise RuntimeError(f"Facility occupants are missing from the saved mission: {path.name}")
                     facility_checks.append({"map": options.map, "site_count": len(sites),
                                             "decoration_count": metadata["facility_decoration_count"]})
@@ -454,10 +488,10 @@ def self_test() -> dict:
                              "opposition": options.enemy_cap, "weather": options.weather,
                              "departure": metadata["home_airport"], "operation": options.operation,
                              "intelligence": options.intelligence, "recovery": options.recovery,
-                             "aircraft": options.aircraft})
+                             "aircraft": options.aircraft, "faction": options.opponent, "scale": opposition["scale"]})
         checks.append(f"Generated and reloaded {len(missions)} representative missions: all maps/types and nine weather choices")
         checks.append("Actual serialized rain, thunderstorm, fog and winds verified and reloaded")
-        checks.append("Classic facilities retain three occupied sites; cooperative operations contain required and optional sites")
+        checks.append("Classic facilities retain occupied supporting sites; cooperative operations contain required and optional sites")
         checks.append("All missions contain decoded kneeboards, standalone briefings and replayable settings")
         checks.append(f"{operation_checks} cooperative operations cover all three profiles, maps and the response switch")
         checks.append(f"{intelligence_checks} search missions withhold exact coordinates, F10 symbols and navigation waypoints")
@@ -469,6 +503,7 @@ def self_test() -> dict:
         checks.append("Every mission's F10 help describes recovery and its store manifest matches every client aircraft")
         checks.append("Recommended cold-start cooperative settings serialize and reload on all maps; local-preset reporting is exercised")
         checks.append("Every mission includes a second navigation kneeboard and public-only cockpit coordinates")
+        checks.append(f"{faction_checks} saved faction countries/equipment/armed CAP checks; {helicopter_checks} automatically scaled helicopter missions")
 
     # These destinations are deliberately outside PyInstaller's read-only bundle.
     if getattr(sys, "frozen", False):
@@ -478,6 +513,7 @@ def self_test() -> dict:
                 raise RuntimeError(f"Application data would be written into its installation: {output}")
     return {"channel": "experimental", "checks": checks, "missions": missions, "mission_count": len(missions),
             "operation_checks": operation_checks, "kneeboard_checks": len(missions),
+            "faction_checks": faction_checks, "helicopter_checks": helicopter_checks,
             "intelligence_checks": intelligence_checks, "alternate_checks": alternate_checks,
             "loadout_checks": loadout_checks, "navigation_checks": navigation_checks,
             "geography_checks":geography_checks,
@@ -543,10 +579,13 @@ def smoke_gui() -> dict:
                 if app.cget("background") != THEME_PALETTES[theme]["bg"]:
                     raise RuntimeError(f"Desktop did not apply the {theme} theme")
                 for theatre in THEATRES.values():
+                    app.opponent_var.set("western")
                     app.theatre_var.set(theatre.label)
                     app._theatre_changed()
                     app.update()
                     app.map_view._render()
+                    if app.opponent_var.get() != "western" or str(app.opponent_combo["state"]) != "readonly":
+                        raise RuntimeError("Enemy faction changed or became unavailable on another map")
                     if not app.map_view.canvas.find_withtag('offline-relief'):
                         raise RuntimeError(f'Bundled offline terrain map failed for {theatre.key}')
                     if len(app.departure_combo.cget("values")) != len(airport_catalogue(theatre.key)) + 1:
@@ -595,7 +634,8 @@ def smoke_gui() -> dict:
                     or app.collect_options().pace != "compact" or app.collect_options().enemy_response
                     or app.collect_options().intelligence != "search"
                     or app.collect_options().recovery != "home_or_alternate" or app.collect_options().allow_withdrawal
-                    or app.pressure_var.get()!="Custom" or app.collect_options().start!='hot'):
+                    or app.pressure_var.get()!="Custom" or app.collect_options().start!='hot'
+                    or app.collect_options().opponent != "western" or app.opponent_label_var.get() != "Western task force"):
                 raise RuntimeError("Preferences did not survive a desktop restart")
             if errors:
                 raise RuntimeError("Tk callback failed after restart: " + errors[0])
@@ -605,7 +645,7 @@ def smoke_gui() -> dict:
                                "Theme, airfield, weather and operation/intelligence/recovery controls survive restart", "Tk event loop completed"],
                     "maps": rendered, "tk_version": tk_version, "preferences_reloaded": True, "mission_preview_passed": True,
                     "quick_setup_passed": True, "small_window_passed": True, "custom_settings_preserved": True,
-                    "offline_relief_passed":True}
+                    "offline_relief_passed":True, "faction_settings_preserved":True}
         finally:
             if app is not None:
                 app.destroy()

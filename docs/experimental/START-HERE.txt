@@ -1,11 +1,14 @@
-IRON ANVIL EXPERIMENTAL 1.4.3 — PORTABLE WINDOWS EXE
+IRON ANVIL EXPERIMENTAL 1.4.4 — PORTABLE WINDOWS EXE
 
 Download IronAnvil-Experimental.exe, save it locally, and double-click it.
 No installer, ZIP extraction, Python or terminal is needed.
 
-1.4.3 adds automatic woodland screening. No new controls, downloads or setup.
+1.4.4 adds Enemy faction in Customize > Mission: Russian, Syrian, Western
+or insurgent forces on every map. Helicopters automatically get closer sites,
+smaller ground forces and gun defenses at normal difficulty. Hard adds MANPADS;
+extreme can include SAMs. Fighter and air-defense switches still apply.
+Replace the EXE and generate a NEW mission. Woodland/CAP/timing fixes remain.
 Old manual map pins stay fixed: use Clear target for an automatic new site.
-Replace the EXE and generate a NEW mission. The CAP and timing fixes remain.
 
 1. Quick setup: choose your map, shared aircraft, pilot count and mission.
 2. Preview mission on map, then Generate mission. Open Mission briefing.
@@ -39,4 +42,4 @@ still points to the old installed app. Stable 1.2 remains separate and untouched
 No DCS flight has been performed here. Terrain, roads, AI and multiplayer need
 real flights. Public map/height data are approximate, not actual DCS terrain.
 
-Changelog/download: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.3-experimental.9
+Changelog/download: https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.4-experimental.10

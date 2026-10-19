@@ -5,6 +5,7 @@ from pathlib import Path
 import math
 import sys
 from . import APP_DATA_NAME
+from .opposition import FACTION_LABELS
 
 
 def _windows_saved_games_dir() -> Path:
@@ -142,7 +143,7 @@ class MissionOptions:
             "start": ("cold", "hot", "runway", "air"),
             "time_of_day": ("day", "dawn", "dusk", "night", "random"),
             "weather": WEATHERS, "loadout": ("auto", "default"),
-            "opponent": ("regular", "insurgents"),
+            "opponent": tuple(FACTION_LABELS),
         }
         for field, allowed in choices.items():
             if getattr(self, field) not in allowed:
@@ -163,8 +164,6 @@ class MissionOptions:
             resolve_airport(theatre.terrain(), self.departure_airport)
         if self.mission not in missions_for_aircraft(aircraft):
             raise ValueError(f"{aircraft.id} does not support {self.mission} missions")
-        if self.opponent == "insurgents" and self.map != "syria":
-            raise ValueError("The insurgent opponent is available on Syria only")
         if any(unit not in LINE_UNITS for unit in self.line_units):
             raise ValueError("Unknown fortified-line unit category")
         if self.mission == "line" and not self.line_units:

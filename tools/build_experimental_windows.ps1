@@ -57,12 +57,12 @@ try {
     catch [UnauthorizedAccessException] { $WriteDenied = $true }
     if (-not $WriteDenied) { throw 'The application folder was not actually read-only.' }
     $Self = Run-Probe $Executable 'self-test' (Join-Path $Repository 'test-results/portable-self-test.json') $TestRoot
-    if ($Self.mission_count -ne 25 -or $Self.navigation_checks -ne 25 -or $Self.geography_checks -ne 25 -or $Self.quick_setup_checks -ne 3 -or
+    if ($Self.mission_count -ne 33 -or $Self.navigation_checks -ne 33 -or $Self.geography_checks -ne 33 -or $Self.faction_checks -ne 33 -or $Self.helicopter_checks -ne 7 -or $Self.quick_setup_checks -ne 3 -or
         $Self.intelligence_checks -ne 3 -or $Self.channel -ne 'experimental') { throw 'Incomplete portable mission probe.' }
     $Gui = Run-Probe $Executable 'smoke-gui' (Join-Path $Repository 'test-results/portable-smoke-gui.json') $TestRoot
     if ($Gui.maps.Count -ne 6 -or -not $Gui.preferences_reloaded -or -not $Gui.mission_preview_passed -or
         -not $Gui.quick_setup_passed -or -not $Gui.small_window_passed -or -not $Gui.custom_settings_preserved -or
-        -not $Gui.offline_relief_passed) { throw 'Incomplete desktop probe.' }
+        -not $Gui.offline_relief_passed -or -not $Gui.faction_settings_preserved) { throw 'Incomplete desktop probe.' }
     Set-Acl -Path $ProgramDirectory -AclObject $Acl; $Acl = $null
     # Replace only the EXE, without installer, registry or old-release downloads.
     Copy-Item -Force $BuiltExecutable $Executable

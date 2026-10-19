@@ -10,6 +10,7 @@ from .model import LINE_UNITS, MISSION_LABELS, MissionOptions, aircraft_catalogu
 from .theatres import THEATRES
 from .weather import WEATHER_LABELS
 from .operations import OPERATION_LABELS, PACE_LABELS
+from .opposition import FACTION_LABELS
 
 
 def parser():
@@ -48,7 +49,7 @@ def parser():
     gen.add_argument("--tanker", action="store_true")
     gen.add_argument("--awacs", action="store_true")
     gen.add_argument("--base-detail", action=argparse.BooleanOptionalAction, default=True)
-    gen.add_argument("--opponent", choices=("regular", "insurgents"), default="regular")
+    gen.add_argument("--opponent", choices=tuple(FACTION_LABELS), default="regular")
     gen.add_argument("--line-units", default="mbt,ifv,infantry,aaa",
                      help="Comma-separated selection: " + ",".join(LINE_UNITS))
     gen.add_argument("--output-dir", type=Path)

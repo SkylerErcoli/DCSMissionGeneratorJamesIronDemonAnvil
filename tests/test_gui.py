@@ -70,7 +70,7 @@ def test_target_coordinates_and_seed_are_validated(app):
         app.collect_options()
 
 
-def test_aircraft_limits_mission_choices_and_syria_opponent(app):
+def test_aircraft_limits_mission_choices_and_preserves_enemy_faction(app):
     from ironanvil.gui import MISSION_LABELS
 
     label, aircraft = next((label, aircraft) for label, aircraft in app._aircraft_by_label.items()
@@ -86,7 +86,9 @@ def test_aircraft_limits_mission_choices_and_syria_opponent(app):
     assert app.collect_options().opponent == "insurgents"
     app.theatre_var.set("Caucasus")
     app._theatre_changed()
-    assert app.opponent_var.get() == "regular"
+    assert app.opponent_var.get() == "insurgents"
+    assert str(app.opponent_combo["state"]) == "readonly"
+    assert app.opponent_label_var.get() == "Insurgent militia"
 
 
 def test_air_defenses_off_rejects_a_line_with_only_air_defenses(app):
@@ -563,3 +565,25 @@ def test_new_variation_changes_only_seed_and_previews_without_saving(app,tmp_pat
     while app._busy and time.monotonic()<deadline:app.update();time.sleep(.01)
     assert app._preview_metadata and app.collect_options()==replace(before,seed=314159)
     assert not list(tmp_path.glob('*.miz'))
+
+
+@pytest.mark.parametrize('faction,label', [('regular','Russian regulars'), ('syrian','Syrian army'),
+    ('western','Western task force'), ('insurgents','Insurgent militia')])
+def test_faction_import_uses_clear_labels_and_persists_on_all_maps(app, faction, label):
+    from ironanvil.model import MissionOptions
+    from ironanvil.theatres import THEATRES
+    app._apply_options(MissionOptions(opponent=faction, aircraft='AH_64D_BLK_II', seed=91))
+    assert app.collect_options().opponent == faction
+    assert app.opponent_label_var.get() == label
+    assert 'Helicopter scale' in app.quick_help_var.get()
+    for theatre in THEATRES.values():
+        app.theatre_var.set(theatre.label);app._theatre_changed()
+        assert app.collect_options().opponent == faction
+        assert str(app.opponent_combo['state']) == 'readonly'
+    app._save_settings()
+    from ironanvil.preferences import load_preferences
+    assert load_preferences()['mission']['opponent'] == faction
+    app.opponent_combo.current(2)
+    app.opponent_combo.event_generate('<<ComboboxSelected>>')
+    assert app.collect_options().opponent == 'western'
+    assert app.opponent_label_var.get() == 'Western task force'

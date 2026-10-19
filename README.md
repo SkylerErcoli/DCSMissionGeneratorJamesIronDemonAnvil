@@ -2,9 +2,9 @@
 
 Create DCS co-op missions for your friends: choose the map and aircraft you own, pick a job, and generate a mission.
 
-**[Windows EXE download and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.3-experimental.9)** · [Stable 1.2 remains available](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0)
+**[Windows EXE download and changelog](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.4-experimental.10)** · [Stable 1.2 remains available](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.2.0)
 
-**1.4.3 adds automatic woodland screening for ground sites, with no extra settings or downloads.** Replace the EXE and generate a new mission. If an old preset has a manual target pin, use **Clear target** to let automatic screening choose a new site. The CAP and waypoint timing fixes are retained.
+**1.4.4 adds four enemy factions and automatic helicopter mission sizing.** Choose **Enemy faction** in Customize → Mission. Helicopters get closer targets, smaller forces and suitable default defenses without another setting. Replace the EXE and generate a new mission. Woodland screening and the CAP/timing fixes are retained.
 
 ## Run it
 
