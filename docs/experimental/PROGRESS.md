@@ -2,7 +2,7 @@
 
 Stable invariants: leave `main`, tag `v1.2.0`, stable release downloads and its updater untouched. Work and push only `experimental`. No DCS installation is available here; record simulator checks as outstanding.
 
-**Current verified checkpoint:** [Experimental 1.4.2, preview 8](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.2-experimental.8), source/tag `9cc7e998b680206ffe233684c478f6f04e216bad`. Native DCS CAP launch triggers, actual active-unit confirmation, bounded fallback and CAP status in every mission type. The earlier waypoint timing fix is retained. All 459 source tests, 25 native generated missions, 71 aircraft timing checks and 20 client launch trigger links pass; public downloads are independently verified. Stable 1.2 remains the default release. Simulator launch/flight confirmation remains outstanding. The final section records current evidence; earlier sections are chronological checkpoints.
+**Current verified checkpoint:** [Experimental 1.4.3, preview 9](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/releases/tag/v1.4.3-experimental.9), source/tag `38fc3ed84c068623f48925aedde11fc24cfa45e1`. Automatic offline woodland screening, complete footprint/margin checks and screened nearby defenses; manual pins remain overrides. All 492 source tests and native Windows probes pass, including 25 saved missions and 1,431 enemy ground placements. Public downloads and all nine older release baselines are independently verified. Stable 1.2 remains the default release; actual DCS trees/flight remain to be checked. See the final section for current evidence.
 
 ## Batch 1 — separate experimental identity
 
@@ -270,3 +270,14 @@ The initial full preflight passed 487 tests with two failures for automatic Roll
 Preflight evidence: **117 geography/woodland/compound/operation/air-support checks passed** before the Sochi case was exposed; the final **66 navigation/geography/woodland checks passed** after its fix. The suite includes 900 varied planning samples, known wooded/open locations on every map, full-footprint interior/margin and boundary checks, all 24 map/mission-operation ground-placement combinations, pin preservation, the constrained coastal departure and a genuinely long alternate. The source executable probe passes **25 saved/reloaded missions and 1,431 actual enemy ground units/objects outside mapped woodland**, with all mask checksums verified; CAP launch, support, timing, ownership and navigation checks remain passing.
 
 Final exact-source suite and native Windows checks run before publishing immutable **v1.4.3-experimental.9**. Source has 492 tests. Native/public download results will be recorded below; actual DCS placement/flight confirmation remains outstanding. Stable 1.2 and all nine earlier releases remain protected. This update does not add exclusion-zone imports, terrain exporters, forest UI controls or a new mission framework.
+
+
+### 1.4.3 published and independently verified
+
+[CI run 39173530830](https://github.com/SkylerErcoli/DCSMissionGeneratorJamesIronDemonAnvil/actions/runs/39173530830) passed exact-source/Lua, native Windows and publication. Both the local final suite and CI pass **492 tests**. The actual portable EXE passes 25 generated/reloaded missions, 71 aircraft timing checks, 20 native CAP client trigger links, all three woodland mask checksums, and **1,431 saved enemy ground units/objects outside mapped woodland**. Six map/theme renders and all read-only-folder, no-Python, settings/replacement and old-mission preservation checks pass.
+
+Independently downloaded all six public assets. The **51,287,231-byte** AMD64/Python 3.12 EXE matches SHA-256 and version 1.4.3; its **1,389 archive entries** contain all 15 geography PNGs. Each of the three bundled woodland masks matches its source manifest hash. Rasterio/GDAL are absent from the portable package. All four native reports pass. Stable latest/update.json remain 1.2.0; stable main, all earlier tags and all nine older release checksum manifests are unchanged.
+
+The filter stays automatic and offline. Existing manual pins remain fixed and can be cleared with the existing Clear target button. Source changes and the public portable release are saved; no user publication/setup step remains. Public tree cover can differ from DCS and does not certify every tree.
+
+Next authorized batch: user requests an enemy faction selector and helicopter-specific mission scale/enemies. Keep the existing simple workflow, preserve explicit threat switches and all published releases, and work on the next immutable experimental preview.

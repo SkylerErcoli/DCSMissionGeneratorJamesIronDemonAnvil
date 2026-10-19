@@ -1,6 +1,6 @@
 # Original request audit
 
-Reviewed against the supplied [friend/Claude transcript](../claudechatjames.txt), [original single-mission README](../original-README.md), later direct requests, source, and automated tests. Status is for published experimental 1.4.2; native Windows portable checks and independent public downloads passed. Native CAP launch and actual spawn confirmation address the subsequent missing-fighter report, retaining the earlier route-time fix. Simulator launch/flight confirmation is still outstanding. **Implemented does not mean flown successfully in DCS.**
+Reviewed against the supplied [friend/Claude transcript](../claudechatjames.txt), [original single-mission README](../original-README.md), later direct requests, source, and automated tests. Status is for published experimental 1.4.3; native Windows portable checks and independent public downloads passed. Automatic woodland screening now supplements native CAP launch/confirmation and the earlier route-time fix. Public real-world tree cover remains an approximation of DCS vegetation. Simulator launch/flight confirmation is still outstanding. **Implemented does not mean flown successfully in DCS.**
 
 The transcript distinguishes the friend's requests from Claude's descriptions of what it claimed to build. It ends mid-response, and the actual earlier application source/archive was absent. We reconstructed the single-mission scope authorized by the user. This checklist does not adopt historical AI suggestions as new requirements.
 
